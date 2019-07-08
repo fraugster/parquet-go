@@ -25,14 +25,8 @@ func newHybridEncoder(w io.Writer, bitWidth int) *hybridEncoder {
 
 func (he *hybridEncoder) write(items ...[]byte) error {
 	for i := range items {
-		l := len(items[i])
-		n, err := he.w.Write(items[i])
-		if err != nil {
+		if err := writeExactly(he.w, items[i]); err != nil {
 			return err
-		}
-
-		if n != l {
-			return errors.Errorf("need to write %d byte wrote %d", l, n)
 		}
 	}
 
@@ -72,5 +66,9 @@ func (he *hybridEncoder) bpEncode(data []int32) error {
 
 func (he *hybridEncoder) encode(data []int32) error {
 	// TODO: Not sure how to decide on the bitpack or rle, so just bp is supported
+	// TODO: what if the data is not multiply of 8? I am not sure about the padding here
+	if l := len(data) % 8; l != 0 {
+		data = append(data, make([]int32, 8-l)...)
+	}
 	return he.bpEncode(data)
 }

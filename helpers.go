@@ -1,6 +1,10 @@
 package go_parquet
 
-import "io"
+import (
+	"io"
+
+	"github.com/pkg/errors"
+)
 
 type byteReader struct {
 	io.Reader
@@ -8,12 +12,8 @@ type byteReader struct {
 
 func (br *byteReader) ReadByte() (byte, error) {
 	buf := make([]byte, 1)
-	n, err := br.Read(buf)
-	if err != nil {
+	if err := readExactly(br.Reader, buf); err != nil {
 		return 0, err
-	}
-	if n == 0 {
-		return 0, io.ErrUnexpectedEOF
 	}
 
 	return buf[0], nil
@@ -59,4 +59,30 @@ func encodeRLEValue(in int32, size int) []byte {
 	default:
 		panic("invalid argument")
 	}
+}
+
+func readExactly(r io.Reader, buf []byte) error {
+	cnt, err := r.Read(buf)
+	if err != nil {
+		return err
+	}
+
+	if cnt != len(buf) {
+		return io.ErrUnexpectedEOF
+	}
+
+	return nil
+}
+
+func writeExactly(w io.Writer, buf []byte) error {
+	cnt, err := w.Write(buf)
+	if err != nil {
+		return err
+	}
+
+	if cnt != len(buf) {
+		return errors.Errorf("need to write %d byte wrote %d", cnt, len(buf))
+	}
+
+	return nil
 }
