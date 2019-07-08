@@ -64,7 +64,7 @@ func (hd *hybridDecoder) next() (next int32, err error) {
 		next = hd.bpRun[hd.bpRunPos]
 		hd.bpRunPos = (hd.bpRunPos + 1) % 8
 	default:
-		panic("should not happen")
+		return 0, io.EOF
 	}
 
 	return next, err
