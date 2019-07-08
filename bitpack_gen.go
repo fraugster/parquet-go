@@ -1,6 +1,6 @@
 // +build ignore
 
-// This code is based on the code from https://github.com/kostya-sh/parquet-go
+// This file is based on the code from https://github.com/kostya-sh/parquet-go
 // Copyright (c) 2015 Konstantin Shaposhnikov
 package main
 
