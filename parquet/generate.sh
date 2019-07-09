@@ -12,4 +12,4 @@ type thrift &> /dev/null || message_exit "thrift is required and is not availabl
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PKG=${DIR##*/}
 curl https://raw.githubusercontent.com/apache/parquet-format/master/src/main/thrift/parquet.thrift > ${DIR}/parquet.thrift
-thrift --out .. --gen go:package=${PKG},read_write_private parquet.thrift
+thrift --out .. --gen go:package=${PKG} parquet.thrift

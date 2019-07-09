@@ -42,7 +42,7 @@ func (ed *booleanPlainED) decodeBoolean(r io.Reader, dst []bool) error {
 	for i := 0; i < len(dst); i++ {
 		if ed.i == 0 {
 			buf := make([]byte, 1)
-			if err := readExactly(r, buf); err != nil {
+			if _, err := io.ReadFull(r, buf); err != nil {
 				return err
 			}
 			ed.values = unpack8int32_1(buf)
@@ -66,7 +66,7 @@ func (ed *booleanPlainED) encodeBoolean(w io.Writer, src []bool) error {
 			}
 		}
 		buf := pack8int32_1(block)
-		if err := writeExactly(w, buf); err != nil {
+		if err := writeFull(w, buf); err != nil {
 			return err
 		}
 	}

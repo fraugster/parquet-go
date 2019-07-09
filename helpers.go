@@ -3,6 +3,7 @@ package go_parquet
 import (
 	"io"
 
+	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 )
 
@@ -12,7 +13,7 @@ type byteReader struct {
 
 func (br *byteReader) ReadByte() (byte, error) {
 	buf := make([]byte, 1)
-	if err := readExactly(br.Reader, buf); err != nil {
+	if _, err := io.ReadFull(br.Reader, buf); err != nil {
 		return 0, err
 	}
 
@@ -61,20 +62,7 @@ func encodeRLEValue(in int32, size int) []byte {
 	}
 }
 
-func readExactly(r io.Reader, buf []byte) error {
-	cnt, err := r.Read(buf)
-	if err != nil {
-		return err
-	}
-
-	if cnt != len(buf) {
-		return io.ErrUnexpectedEOF
-	}
-
-	return nil
-}
-
-func writeExactly(w io.Writer, buf []byte) error {
+func writeFull(w io.Writer, buf []byte) error {
 	cnt, err := w.Write(buf)
 	if err != nil {
 		return err
@@ -85,4 +73,14 @@ func writeExactly(w io.Writer, buf []byte) error {
 	}
 
 	return nil
+}
+
+type thriftReader interface {
+	Read(thrift.TProtocol) error
+}
+
+func readThrift(tr thriftReader, r io.Reader) error {
+	transport := thrift.NewStreamTransportR(r)
+	proto := thrift.NewTCompactProtocol(transport)
+	return tr.Read(proto)
 }

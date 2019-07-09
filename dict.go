@@ -23,7 +23,7 @@ type dictDecoder struct {
 
 func (dd *dictDecoder) init(r io.Reader) error {
 	buf := make([]byte, 1)
-	if err := readExactly(r, buf); err != nil {
+	if _, err := io.ReadFull(r, buf); err != nil {
 		return err
 	}
 	w := int(buf[0])
@@ -88,7 +88,7 @@ func (de *dictEncoder) init(w io.Writer, bitWidth int) error {
 	}
 	buf := []byte{byte(bitWidth)}
 
-	if err := writeExactly(w, buf); err != nil {
+	if err := writeFull(w, buf); err != nil {
 		return err
 	}
 

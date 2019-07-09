@@ -25,7 +25,7 @@ func newHybridEncoder(w io.Writer, bitWidth int) *hybridEncoder {
 
 func (he *hybridEncoder) write(items ...[]byte) error {
 	for i := range items {
-		if err := writeExactly(he.w, items[i]); err != nil {
+		if err := writeFull(he.w, items[i]); err != nil {
 			return err
 		}
 	}
