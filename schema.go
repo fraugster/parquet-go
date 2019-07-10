@@ -8,21 +8,25 @@ import (
 )
 
 type element interface {
-	create(schema []*parquet.SchemaElement, name string, flatMap map[string]Column, index, dLevel, rLevel int) (int, error)
+	create(schema []*parquet.SchemaElement, name string, flatMap *Columns, index, dLevel, rLevel int) (int, error)
 }
 
 type Column interface {
+	Index() int
 	Name() string
+	FlatName() string
 	MaxDefinitionLevel() uint16
 	MaxRepetitionLevel() uint16
 	Element() *parquet.SchemaElement
 }
 
+type Columns []Column
+
 // Schema is the schema reader/creator for parquet schema
 type Schema struct {
 	root group
 
-	flatMap map[string]Column
+	columns Columns
 }
 
 type group struct {
@@ -35,21 +39,33 @@ type group struct {
 type primitive struct {
 	dLevel, rLevel int
 	flatName       string
-
+	index          int
 	*parquet.SchemaElement
 }
 
-func (s *Schema) Columns() map[string]Column {
-	return s.flatMap
+func (s *Schema) Columns() Columns {
+	return s.columns
 }
 
-func (s *Schema) GetColumnByName(path string) (Column, bool) {
-	c, ok := s.flatMap[path]
-	return c, ok
+func (s *Schema) GetColumnByName(path string) Column {
+	for i := range s.columns {
+		if s.columns[i].FlatName() == path {
+			return s.columns[i]
+		}
+	}
+	return nil
+}
+
+func (p *primitive) Index() int {
+	return p.index
 }
 
 func (p *primitive) Name() string {
 	return p.SchemaElement.Name
+}
+
+func (p *primitive) FlatName() string {
+	return p.flatName
 }
 
 func (p *primitive) MaxDefinitionLevel() uint16 {
@@ -70,7 +86,11 @@ func (p *primitive) Element() *parquet.SchemaElement {
 	return p.SchemaElement
 }
 
-func (g *group) create(schema []*parquet.SchemaElement, name string, flatMap map[string]Column, idx, dLevel, rLevel int) (int, error) {
+func (p *primitive) String() string {
+	return fmt.Sprintf("%d => %s", p.index, p.flatName)
+}
+
+func (g *group) create(schema []*parquet.SchemaElement, name string, flatMap *Columns, idx, dLevel, rLevel int) (int, error) {
 	if len(schema) <= idx {
 		return 0, errors.New("schema index out of bound")
 	}
@@ -129,15 +149,16 @@ func (g *group) create(schema []*parquet.SchemaElement, name string, flatMap map
 			if err != nil {
 				return 0, err
 			}
+			child.index = len(*flatMap)
 			g.children = append(g.children, child)
-			flatMap[child.flatName] = child
+			*flatMap = append(*flatMap, child)
 		}
 	}
 
 	return idx, nil
 }
 
-func (p *primitive) create(schema []*parquet.SchemaElement, name string, flatMap map[string]Column, idx, dLevel, rLevel int) (int, error) {
+func (p *primitive) create(schema []*parquet.SchemaElement, name string, _ *Columns, idx, dLevel, rLevel int) (int, error) {
 	s := schema[idx]
 
 	// TODO: validate Name is not empty
@@ -162,9 +183,10 @@ func (p *primitive) create(schema []*parquet.SchemaElement, name string, flatMap
 }
 
 func MakeSchema(meta *parquet.FileMetaData) (*Schema, error) {
-	s := &Schema{}
-	s.flatMap = make(map[string]Column)
-	end, err := s.root.create(meta.Schema, "", s.flatMap, 0, 0, 0)
+	s := &Schema{
+		columns: make(Columns, 0, len(meta.Schema)-1),
+	}
+	end, err := s.root.create(meta.Schema, "", &s.columns, 0, 0, 0)
 	if err != nil {
 		return nil, err
 	}
