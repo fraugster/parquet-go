@@ -23,6 +23,7 @@ type (
 	ReaderCounter interface {
 		io.Reader
 		Count() int
+		Expected() int
 	}
 
 	BlockCompressor interface {
@@ -34,14 +35,18 @@ type (
 	gzipCompressor   struct{}
 
 	streamReaderCounter struct {
-		r        io.Reader
-		n        int
-		total    int
-		finished bool
+		r     io.Reader
+		n     int
+		total int
 	}
 )
 
+func (s *streamReaderCounter) Expected() int {
+	return s.total
+}
+
 func (gzipCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter, error) {
+	// TODO: maybe its better to load all data into memory
 	r, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, err
@@ -83,23 +88,23 @@ func (plainCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter, 
 }
 
 func (s *streamReaderCounter) Read(p []byte) (int, error) {
-	if s.finished {
-		return 0, io.EOF
-	}
 	n, err := s.r.Read(p)
 	s.n += n
 	// We read more data?
 	if s.total < s.n {
 		return n, errors.Errorf("this should be %d byte but it was %d", s.total, s.n)
 	}
-	// EOF is ok if the data is at the end
-	if s.n == s.total && err == io.EOF {
-		// Based on the Read docs, we can return the Err in the next call
-		s.finished = true
-		return n, err
+	if err != nil {
+		if s.total == s.n {
+			// OK
+			return n, err
+		}
+		if s.total > s.n {
+			return n, errors.Wrapf(err, "required %d byte to read, but read only %d byte", s.total, s.n)
+		}
 	}
 
-	return n, err
+	return n, nil
 }
 
 func (s *streamReaderCounter) Count() int {
@@ -126,6 +131,7 @@ func NewBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize
 	if bc == nil {
 		return nil, errors.Errorf("the codec %q is not implemented", codec)
 	}
+
 	lr := io.LimitReader(in, int64(compressedSize))
 	return bc.Reader(lr, uncompressedSize)
 }

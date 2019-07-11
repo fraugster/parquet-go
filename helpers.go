@@ -20,6 +20,31 @@ func (br *byteReader) ReadByte() (byte, error) {
 	return buf[0], nil
 }
 
+type offsetReader struct {
+	inner  io.ReadSeeker
+	offset int64
+}
+
+func (o *offsetReader) Read(p []byte) (int, error) {
+	_, err := o.inner.Seek(o.offset, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := o.inner.Read(p)
+	o.offset += int64(n)
+	return n, err
+}
+
+func (o *offsetReader) Seek(offset int64, whence int) (int64, error) {
+	i, err := o.inner.Seek(offset, whence)
+	if err == nil {
+		o.offset = i
+	}
+
+	return i, err
+}
+
 func decodeRLEValue(bytes []byte) int32 {
 	switch len(bytes) {
 	case 1:
@@ -80,7 +105,18 @@ type thriftReader interface {
 }
 
 func readThrift(tr thriftReader, r io.Reader) error {
-	transport := thrift.NewStreamTransportR(r)
+	// Make sure we are not using any kind of buffered reader here. bufio.Reader "can" reads more data ahead of time,
+	// which is a problem on this library
+	transport := &thrift.StreamTransport{Reader: r}
 	proto := thrift.NewTCompactProtocol(transport)
 	return tr.Read(proto)
+}
+
+func repeat(i int32, count int) []int32 {
+	ret := make([]int32, count)
+	for j := range ret {
+		ret[j] = i
+	}
+
+	return ret
 }

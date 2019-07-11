@@ -119,3 +119,15 @@ func (hd *hybridDecoder) readRunHeader() error {
 	}
 	return nil
 }
+
+func (hd *hybridDecoder) decode(data []int32) error {
+	var err error
+	for i := range data {
+		data[i], err = hd.next()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

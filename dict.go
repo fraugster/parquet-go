@@ -16,7 +16,6 @@ type dictDecoder struct {
 	numValues int
 
 	values interface{}
-	ind    []int32
 
 	keysDecoder *hybridDecoder
 }
@@ -54,13 +53,12 @@ func (dd *dictDecoder) decodeValues(dictBuf io.Reader, values interface{}, numVa
 	return nil
 }
 
-func (dd *dictDecoder) decodeKeys(n int) (keys []int32, err error) {
+func (dd *dictDecoder) decodeKeys(n int) ([]int32, error) {
 	if dd.numValues == 0 || dd.keysDecoder == nil {
 		return nil, errors.New("dict: no values can be decoded from an empty dictionary")
 	}
-	if n > len(dd.ind) {
-		dd.ind = make([]int32, n) // TODO: uint32
-	}
+
+	ind := make([]int32, n)
 	for i := 0; i < n; i++ {
 		k, err := dd.keysDecoder.next()
 		if err != nil {
@@ -69,9 +67,9 @@ func (dd *dictDecoder) decodeKeys(n int) (keys []int32, err error) {
 		if k < 0 || int(k) >= dd.numValues {
 			return nil, fmt.Errorf("dict: invalid index %dd, len(values) = %dd", k, dd.numValues)
 		}
-		dd.ind[i] = k
+		ind[i] = k
 	}
-	return dd.ind[:n], nil
+	return ind, nil
 }
 
 type dictEncoder struct {

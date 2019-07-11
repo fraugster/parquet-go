@@ -179,6 +179,9 @@ func (p *primitive) create(schema []*parquet.SchemaElement, name string, _ *Colu
 	p.rLevel = rLevel
 	p.dLevel = dLevel
 	p.flatName = name + "." + s.Name
+	if name == "" {
+		p.flatName = s.Name
+	}
 	return idx, nil
 }
 
