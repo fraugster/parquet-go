@@ -23,16 +23,13 @@ func (br *byteReader) ReadByte() (byte, error) {
 type offsetReader struct {
 	inner  io.ReadSeeker
 	offset int64
+	count  int64
 }
 
 func (o *offsetReader) Read(p []byte) (int, error) {
-	_, err := o.inner.Seek(o.offset, io.SeekStart)
-	if err != nil {
-		return 0, err
-	}
-
 	n, err := o.inner.Read(p)
 	o.offset += int64(n)
+	o.count += int64(n)
 	return n, err
 }
 
@@ -43,6 +40,10 @@ func (o *offsetReader) Seek(offset int64, whence int) (int64, error) {
 	}
 
 	return i, err
+}
+
+func (o *offsetReader) Count() int64 {
+	return o.count
 }
 
 func decodeRLEValue(bytes []byte) int32 {
@@ -119,4 +120,16 @@ func repeat(i int32, count int) []int32 {
 	}
 
 	return ret
+}
+
+func decodeLevels(d decoder, ctx *hybridContext, data []uint16) error {
+	for i := range data {
+		u, err := d.next(ctx)
+		if err != nil {
+			return err
+		}
+		data[i] = uint16(u)
+	}
+
+	return nil
 }

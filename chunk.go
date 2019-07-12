@@ -1,9 +1,11 @@
 package go_parquet
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/bits"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -16,7 +18,7 @@ import (
 type ColumnChunkReader struct {
 	col Column
 
-	reader io.ReadSeeker
+	reader *offsetReader
 	meta   *parquet.FileMetaData
 
 	chunkMeta *parquet.ColumnMetaData
@@ -32,8 +34,12 @@ type ColumnChunkReader struct {
 	valuesDecoder     valuesDecoder
 	dictValuesDecoder dictValuesDecoder
 
-	// Sometimes rLevel and dLevel data is constant and not in the page data
-	rConst, dConst bool
+	// Definition and repetition decoder
+	rDecoder, dDecoder decoder
+}
+
+type page interface {
+	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*ColumnChunkReader, error) {
@@ -58,13 +64,19 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 	if chunk.MetaData.DictionaryPageOffset != nil {
 		offset = *chunk.MetaData.DictionaryPageOffset
 	}
+	// Seek to the beginning of the first page
 	_, err := r.Seek(offset, io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
+
 	cr := &ColumnChunkReader{
-		col:       col,
-		reader:    r,
+		col: col,
+		reader: &offsetReader{
+			inner:  r,
+			offset: offset,
+			count:  0,
+		},
 		meta:      meta,
 		chunkMeta: chunk.MetaData,
 	}
@@ -75,34 +87,54 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
 		// TODO: document level ranges
-		cr.dConst = true
+		cr.dDecoder = constDecoder(int32(col.MaxDefinitionLevel()))
+	} else {
+		cr.dDecoder = newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
 	}
 	if !nested && repType != parquet.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
-		cr.rConst = true
+		cr.rDecoder = constDecoder(0)
+	} else {
+		cr.rDecoder = newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
 	}
 
 	return cr, nil
 }
 
-func (cr *ColumnChunkReader) createDataReader(compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
-	fmt.Println("Requested to create a reader with size ", compressedSize, " target size of ", uncompressedSize, "codec", cr.chunkMeta.Codec)
+func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
 	if compressedSize < 0 || uncompressedSize < 0 {
 		return nil, errors.New("invalid page data size")
 	}
 
-	return NewBlockReader(cr.reader, cr.chunkMeta.Codec, compressedSize, uncompressedSize)
+	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func (cr *ColumnChunkReader) readDictionaryPage(compressedSize int32, uncompressedSize int32) error {
-	reader, err := cr.createDataReader(compressedSize, uncompressedSize)
+type DictionaryPage struct {
+	ph *parquet.PageHeader
+
+	numValues int32
+}
+
+func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error {
+	if ph.DictionaryPageHeader == nil {
+		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
+	}
+
+	if dp.numValues = ph.DictionaryPageHeader.NumValues; dp.numValues < 0 {
+		return errors.Errorf("negative NumValues in DICTIONARY_PAGE: %d", dp.numValues)
+	}
+
+	dp.ph = ph
+
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
 	if err != nil {
 		return err
 	}
 
+	// TODO : read the dictionary page here
 	// We need to consume all reader here
 	b, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -112,130 +144,144 @@ func (cr *ColumnChunkReader) readDictionaryPage(compressedSize int32, uncompress
 	return nil
 }
 
-func (cr *ColumnChunkReader) readDataPageV1(ph *parquet.PageHeader, dph *parquet.DataPageHeader) error {
-	reader, err := cr.createDataReader(ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+type DataPageV1 struct {
+	ph *parquet.PageHeader
+
+	numValues int32
+	encoding  parquet.Encoding
+}
+
+func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error {
+	if ph.DataPageHeader == nil {
+		return errors.Errorf("null DataPageHeader in %+v", ph)
+	}
+
+	if dp.numValues = ph.DataPageHeader.NumValues; dp.numValues < 0 {
+		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.numValues)
+	}
+	dp.encoding = ph.DataPageHeader.Encoding
+	dp.ph = ph
+
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
 	if err != nil {
 		return err
 	}
 
+	// TODO : read the data page here
 	// We need to consume all reader here
 	b, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return errors.Wrap(err, "read data v1 page failed")
+		return errors.Wrap(err, "read data page failed")
 	}
-	fmt.Println("Read the data v1 page len :", len(b))
+	fmt.Println("Read the data page len :", len(b))
 	return nil
 }
 
-func (cr *ColumnChunkReader) readDataPageV2(ph *parquet.PageHeader, dph *parquet.DataPageHeaderV2) error {
-	if dph.RepetitionLevelsByteLength < 0 {
+type DataPageV2 struct {
+	ph *parquet.PageHeader
+
+	numValues int32
+	encoding  parquet.Encoding
+
+	dContext, rContext *hybridContext
+}
+
+func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error {
+	if ph.DataPageHeaderV2 == nil {
+		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
+	}
+
+	if dp.numValues = ph.DataPageHeaderV2.NumValues; dp.numValues < 0 {
+		return errors.Errorf("negative NumValues in DATA_PAGE_V2: %d", dp.numValues)
+	}
+
+	if ph.DataPageHeaderV2.RepetitionLevelsByteLength < 0 {
 		return errors.Errorf("invalid RepetitionLevelsByteLength")
 	}
-	if dph.DefinitionLevelsByteLength < 0 {
+	if ph.DataPageHeaderV2.DefinitionLevelsByteLength < 0 {
 		return errors.Errorf("invalid DefinitionLevelsByteLength")
 	}
+	dp.encoding = ph.DataPageHeader.Encoding
+	dp.ph = ph
 
-	levelsSize := dph.RepetitionLevelsByteLength + dph.DefinitionLevelsByteLength
-	levelsData := make([]byte, levelsSize)
-	if _, err := io.ReadFull(cr.reader, levelsData); err != nil {
-		return err
+	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
+	// read both level size
+	if levelsSize > 0 {
+		data := make([]byte, levelsSize)
+		n, err := io.ReadFull(r, data)
+		if err != nil {
+			return errors.Wrapf(err, "need to read %d byte but there was only %d byte", levelsSize, n)
+		}
+		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
+			dp.rContext = newHybridContext(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)]))
+		}
+		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
+			dp.dContext = newHybridContext(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):]))
+		}
 	}
 
-	reader, err := cr.createDataReader(ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
+	// TODO: I am not sure if this is correct to subtract the level size from the compressed size here
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetCompressedPageSize()-levelsSize)
 	if err != nil {
 		return err
 	}
 
+	// TODO : read the data page here
 	// We need to consume all reader here
 	b, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return errors.Wrap(err, "read data v1 page failed")
+		return errors.Wrap(err, "read data page failed")
 	}
-	fmt.Println("Read the data v1 page len :", len(b))
+	fmt.Println("Read the data page v2 len :", len(b))
 	return nil
 }
 
-func (cr *ColumnChunkReader) readPage() error {
+func (cr *ColumnChunkReader) readPage() (page, error) {
+	if cr.chunkMeta.TotalCompressedSize-cr.reader.Count() <= 0 {
+		return nil, errors.New("EndOfTheChunk")
+	}
 	ph := &parquet.PageHeader{}
 	if err := readThrift(ph, cr.reader); err != nil {
-		return err
+		return nil, err
 	}
 
 	if !cr.notFirst && ph.Type == parquet.PageType_DICTIONARY_PAGE {
 		cr.notFirst = true
 		cr.dictPage = ph
-
-		dph := ph.DictionaryPageHeader
-		if dph == nil {
-			return errors.Errorf("null DictionaryPageHeader in %+v", ph)
+		p := &DictionaryPage{}
+		if err := p.read(cr.reader, ph, cr.chunkMeta.Codec, cr.dDecoder, cr.rDecoder); err != nil {
+			return nil, err
 		}
-		if count := dph.NumValues; count < 0 {
-			return errors.Errorf("negative NumValues in DICTIONARY_PAGE: %d", count)
-		}
-
-		if err := cr.readDictionaryPage(ph.CompressedPageSize, ph.UncompressedPageSize); err != nil {
-			return err
-		}
-
-		// Read the next data page
+		// Go to the next data page
 		// if we have a DictionaryPageOffset we should return to DataPageOffset
 		if cr.chunkMeta.DictionaryPageOffset != nil {
-			if _, err := cr.reader.Seek(cr.chunkMeta.DataPageOffset, io.SeekStart); err != nil {
-				return err
+			if *cr.chunkMeta.DictionaryPageOffset != cr.reader.offset {
+				if _, err := cr.reader.Seek(cr.chunkMeta.DataPageOffset, io.SeekStart); err != nil {
+					return nil, err
+				}
 			}
 		}
-		ph = &parquet.PageHeader{}
-		if err := readThrift(ph, cr.reader); err != nil {
-			return err
-		}
+
+		return p, nil
 	}
 
-	var (
-		numValues      int
-		valuesEncoding parquet.Encoding
-		dph            *parquet.DataPageHeader
-		dph2           *parquet.DataPageHeaderV2
-	)
-
+	var p page
 	switch ph.Type {
 	case parquet.PageType_DATA_PAGE:
-		dph = ph.DataPageHeader
-		if dph == nil {
-			return errors.Errorf("missing both DataPageHeader and DataPageHeaderV2 in %+v", ph)
-		}
-		numValues = int(dph.NumValues)
-		valuesEncoding = dph.Encoding
-
+		p = &DataPageV1{}
 	case parquet.PageType_DATA_PAGE_V2:
-		dph2 = ph.DataPageHeaderV2
-		if dph2 == nil {
-			return errors.Errorf("missing both DataPageHeader and DataPageHeaderV2 in %+v", ph)
-		}
-		numValues = int(dph2.NumValues)
-		valuesEncoding = dph2.Encoding
+		p = &DataPageV2{}
 	default:
-		return errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
+		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
 
-	if numValues < 0 {
-		return errors.Errorf("negative page NumValues")
+	if err := p.read(cr.reader, ph, cr.chunkMeta.Codec, cr.dDecoder, cr.rDecoder); err != nil {
+		return nil, err
 	}
 
-	fmt.Printf("Read %d value with %s Encoding, From data page %s\n", numValues, valuesEncoding, ph.Type)
-
-	if dph != nil {
-		if err := cr.readDataPageV1(ph, dph); err != nil {
-			return err
-		}
-	} else {
-		if err := cr.readDataPageV2(ph, dph2); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return p, nil
 }
 
-func (cr *ColumnChunkReader) Read() error {
+func (cr *ColumnChunkReader) Read() (page, error) {
 	return cr.readPage()
 }

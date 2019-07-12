@@ -126,7 +126,7 @@ func getBlockCompressor(method parquet.CompressionCodec) BlockCompressor {
 	return compressors[method]
 }
 
-func NewBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
+func newBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
 	bc := getBlockCompressor(codec)
 	if bc == nil {
 		return nil, errors.Errorf("the codec %q is not implemented", codec)

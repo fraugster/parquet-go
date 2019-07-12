@@ -13,13 +13,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-type hybridDecoder struct {
-	r  io.Reader
-	br *byteReader
+type decoder interface {
+	next(*hybridContext) (int32, error)
+}
 
-	bitWidth     int
-	unpackerFn   unpack8int32Func
-	rleValueSize int
+type hybridContext struct {
+	r io.Reader
 
 	rleCount uint32
 	rleValue int32
@@ -29,40 +28,51 @@ type hybridDecoder struct {
 	bpRun    [8]int32
 }
 
-func newHybridDecoder(r io.Reader, bitWidth int) *hybridDecoder {
-	reader := &hybridDecoder{
-		r:  r,
-		br: &byteReader{Reader: r},
+type hybridDecoder struct {
+	bitWidth     int
+	unpackerFn   unpack8int32Func
+	rleValueSize int
+}
 
+func newHybridContext(r io.Reader) *hybridContext {
+	return &hybridContext{
+		r: r,
+	}
+}
+
+func newHybridDecoder(bitWidth int) *hybridDecoder {
+	return &hybridDecoder{
 		bitWidth:   bitWidth,
 		unpackerFn: unpack8Int32FuncByWidth[bitWidth],
 
 		rleValueSize: (bitWidth + 7) / 8,
 	}
-
-	return reader
 }
 
-func (hd *hybridDecoder) next() (next int32, err error) {
-	if hd.rleCount == 0 && hd.bpCount == 0 && hd.bpRunPos == 0 {
-		if err = hd.readRunHeader(); err != nil {
+func (hd *hybridDecoder) next(ctx *hybridContext) (next int32, err error) {
+	if ctx == nil {
+		return 0, errors.Errorf("invalid context")
+	}
+
+	if ctx.rleCount == 0 && ctx.bpCount == 0 && ctx.bpRunPos == 0 {
+		if err = hd.readRunHeader(ctx); err != nil {
 			return 0, err
 		}
 	}
 
 	switch {
-	case hd.rleCount > 0:
-		next = hd.rleValue
-		hd.rleCount--
-	case hd.bpCount > 0 || hd.bpRunPos > 0:
-		if hd.bpRunPos == 0 {
-			if err = hd.readBitPackedRun(); err != nil {
+	case ctx.rleCount > 0:
+		next = ctx.rleValue
+		ctx.rleCount--
+	case ctx.bpCount > 0 || ctx.bpRunPos > 0:
+		if ctx.bpRunPos == 0 {
+			if err = hd.readBitPackedRun(ctx); err != nil {
 				return 0, err
 			}
-			hd.bpCount--
+			ctx.bpCount--
 		}
-		next = hd.bpRun[hd.bpRunPos]
-		hd.bpRunPos = (hd.bpRunPos + 1) % 8
+		next = ctx.bpRun[ctx.bpRunPos]
+		ctx.bpRunPos = (ctx.bpRunPos + 1) % 8
 	default:
 		return 0, io.EOF
 	}
@@ -70,9 +80,9 @@ func (hd *hybridDecoder) next() (next int32, err error) {
 	return next, err
 }
 
-func (hd *hybridDecoder) readRLERunValue() error {
+func (hd *hybridDecoder) readRLERunValue(ctx *hybridContext) error {
 	v := make([]byte, hd.rleValueSize)
-	n, err := hd.r.Read(v)
+	n, err := ctx.r.Read(v)
 	if err != nil {
 		return err
 	}
@@ -80,54 +90,51 @@ func (hd *hybridDecoder) readRLERunValue() error {
 		return io.ErrUnexpectedEOF
 	}
 
-	hd.rleValue = decodeRLEValue(v)
-	if bits.LeadingZeros32(uint32(hd.rleValue)) < 32-hd.bitWidth {
+	ctx.rleValue = decodeRLEValue(v)
+	if bits.LeadingZeros32(uint32(ctx.rleValue)) < 32-hd.bitWidth {
 		return errors.New("rle: RLE run value is too large")
 	}
 	return nil
 }
 
-func (hd *hybridDecoder) readBitPackedRun() error {
+func (hd *hybridDecoder) readBitPackedRun(ctx *hybridContext) error {
 	data := make([]byte, hd.bitWidth)
-	_, err := hd.r.Read(data)
+	_, err := ctx.r.Read(data)
 	if err != nil {
 		return err
 	}
-	hd.bpRun = hd.unpackerFn(data)
+	ctx.bpRun = hd.unpackerFn(data)
 	return nil
 }
 
-func (hd *hybridDecoder) readRunHeader() error {
-	h, err := binary.ReadUvarint(hd.br)
+func (hd *hybridDecoder) readRunHeader(ctx *hybridContext) error {
+	h, err := binary.ReadUvarint(&byteReader{Reader: ctx.r})
 	if err != nil || h > math.MaxUint32 {
 		return errors.New("rle: invalid run header")
 	}
 
 	// The lower bit indicate if this is bitpack or rle
 	if h&1 == 1 {
-		hd.bpCount = uint32(h >> 1)
-		if hd.bpCount == 0 {
+		ctx.bpCount = uint32(h >> 1)
+		if ctx.bpCount == 0 {
 			return fmt.Errorf("rle: empty bit-packed run")
 		}
-		hd.bpRunPos = 0
+		ctx.bpRunPos = 0
 	} else {
-		hd.rleCount = uint32(h >> 1)
-		if hd.rleCount == 0 {
+		ctx.rleCount = uint32(h >> 1)
+		if ctx.rleCount == 0 {
 			return fmt.Errorf("rle: empty RLE run")
 		}
-		return hd.readRLERunValue()
+		return hd.readRLERunValue(ctx)
 	}
 	return nil
 }
 
-func (hd *hybridDecoder) decode(data []int32) error {
-	var err error
-	for i := range data {
-		data[i], err = hd.next()
-		if err != nil {
-			return err
-		}
-	}
+type constDecoder int32
 
-	return nil
+func (cd constDecoder) next(ctx *hybridContext) (next int32, err error) {
+	if ctx != nil {
+		return 0, errors.Errorf("invalid context, it should be nil")
+	}
+	return int32(cd), nil
 }
