@@ -36,6 +36,7 @@ func (o *offsetReader) Read(p []byte) (int, error) {
 func (o *offsetReader) Seek(offset int64, whence int) (int64, error) {
 	i, err := o.inner.Seek(offset, whence)
 	if err == nil {
+		o.count += i - o.offset
 		o.offset = i
 	}
 

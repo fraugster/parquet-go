@@ -18,21 +18,10 @@ import (
 type ColumnChunkReader struct {
 	col Column
 
-	reader *offsetReader
-	meta   *parquet.FileMetaData
-
+	reader    *offsetReader
+	meta      *parquet.FileMetaData
 	chunkMeta *parquet.ColumnMetaData
-
-	page     *parquet.PageHeader
-	dictPage *parquet.PageHeader
-
-	readPageValues int
-	pageNumValues  int
-
-	notFirst bool
-
-	valuesDecoder     valuesDecoder
-	dictValuesDecoder dictValuesDecoder
+	notFirst  bool
 
 	// Definition and repetition decoder
 	rDecoder, dDecoder decoder
@@ -40,6 +29,10 @@ type ColumnChunkReader struct {
 
 type page interface {
 	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error
+}
+
+type dictValuesEncoder interface {
+	decodeValues(r io.Reader, dst interface{}) error
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*ColumnChunkReader, error) {
@@ -116,6 +109,40 @@ type DictionaryPage struct {
 	ph *parquet.PageHeader
 
 	numValues int32
+	enc       dictValuesEncoder
+
+	values []interface{}
+}
+
+func (dp *DictionaryPage) setDictValuesEncoder(typ parquet.Type, typeLen *int32) error {
+	switch typ {
+	case parquet.Type_BYTE_ARRAY:
+		dp.enc = &byteArrayPlainDecoder{}
+		return nil
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		if typeLen == nil {
+			return errors.Errorf("type %s with nil type len", typ)
+		}
+		dp.enc = &byteArrayPlainDecoder{length: int(*typeLen)}
+		return nil
+	case parquet.Type_FLOAT:
+		dp.enc = &floatPlainDecoder{}
+		return nil
+	case parquet.Type_DOUBLE:
+		dp.enc = &doublePlainDecoder{}
+		return nil
+	case parquet.Type_INT32:
+		dp.enc = &int32PlainDecoder{}
+		return nil
+	case parquet.Type_INT64:
+		dp.enc = &int64PlainDecoder{}
+		return nil
+	case parquet.Type_INT96:
+		dp.enc = &int96PlainDecoder{}
+		return nil
+	}
+
+	return errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
 func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder decoder, rDecoder decoder) error {
@@ -127,6 +154,10 @@ func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 		return errors.Errorf("negative NumValues in DICTIONARY_PAGE: %d", dp.numValues)
 	}
 
+	if ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN && ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN_DICTIONARY {
+		return errors.Errorf("only Encoding_PLAIN and Encoding_PLAIN_DICTIONARY is supported for dict values encoder")
+	}
+
 	dp.ph = ph
 
 	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
@@ -134,13 +165,13 @@ func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 		return err
 	}
 
-	// TODO : read the dictionary page here
-	// We need to consume all reader here
-	b, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return errors.Wrap(err, "read dictionary page failed")
+	dp.values = make([]interface{}, dp.numValues)
+	if err := dp.enc.decodeValues(reader, dp.values); err != nil {
+		return err
 	}
-	fmt.Println("Read the dict page len :", len(b))
+
+	fmt.Println(dp.values)
+	fmt.Println("Read the dict page ")
 	return nil
 }
 
@@ -247,8 +278,11 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 
 	if !cr.notFirst && ph.Type == parquet.PageType_DICTIONARY_PAGE {
 		cr.notFirst = true
-		cr.dictPage = ph
 		p := &DictionaryPage{}
+		if err := p.setDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength); err != nil {
+			return nil, err
+		}
+
 		if err := p.read(cr.reader, ph, cr.chunkMeta.Codec, cr.dDecoder, cr.rDecoder); err != nil {
 			return nil, err
 		}
