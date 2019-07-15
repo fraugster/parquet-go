@@ -7,15 +7,22 @@ import (
 )
 
 type doublePlainDecoder struct {
+	r io.Reader
 }
 
-func (doublePlainDecoder) decodeValues(r io.Reader, dst []interface{}) error {
-	d := make([]uint64, len(dst))
-	if err := binary.Read(r, binary.LittleEndian, d); err != nil {
+func (d *doublePlainDecoder) init(r io.Reader) error {
+	d.r = r
+
+	return nil
+}
+
+func (d *doublePlainDecoder) decodeValues(dst []interface{}) error {
+	data := make([]uint64, len(dst))
+	if err := binary.Read(d.r, binary.LittleEndian, data); err != nil {
 		return err
 	}
-	for i := range d {
-		dst[i] = math.Float64frombits(d[i])
+	for i := range data {
+		dst[i] = math.Float64frombits(data[i])
 	}
 	return nil
 }

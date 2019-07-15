@@ -35,8 +35,8 @@ type page interface {
 
 // TODO: maybe just valuesEncoder?
 type dictValuesEncoder interface {
-	// TODO: this means a continues reader. so the io.Reader should not change in the middle. maybe two function, one init and one decode?
-	decodeValues(r io.Reader, dst []interface{}) error
+	init(io.Reader) error
+	decodeValues(dst []interface{}) error
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*ColumnChunkReader, error) {
@@ -178,7 +178,10 @@ func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 	}
 
 	dp.values = make([]interface{}, dp.numValues)
-	if err := dp.enc.decodeValues(reader, dp.values); err != nil {
+	if err := dp.enc.init(reader); err != nil {
+		return err
+	}
+	if err := dp.enc.decodeValues(dp.values); err != nil {
 		return err
 	}
 

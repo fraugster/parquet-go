@@ -116,13 +116,25 @@ func readThrift(tr thriftReader, r io.Reader) error {
 	return tr.Read(proto)
 }
 
-func decodeLevels(d decoder, data []uint16) error {
+func decodeUint16(d decoder, data []uint16) error {
 	for i := range data {
 		u, err := d.next()
 		if err != nil {
 			return err
 		}
 		data[i] = uint16(u)
+	}
+
+	return nil
+}
+
+func decodeInt32(d decoder, data []int32) error {
+	for i := range data {
+		u, err := d.next()
+		if err != nil {
+			return err
+		}
+		data[i] = u
 	}
 
 	return nil

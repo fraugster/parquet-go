@@ -6,11 +6,18 @@ import (
 )
 
 type int64PlainDecoder struct {
+	r io.Reader
 }
 
-func (int64PlainDecoder) decodeValues(r io.Reader, dst []interface{}) error {
+func (i *int64PlainDecoder) init(r io.Reader) error {
+	i.r = r
+
+	return nil
+}
+
+func (i *int64PlainDecoder) decodeValues(dst []interface{}) error {
 	d := make([]int64, len(dst))
-	if err := binary.Read(r, binary.LittleEndian, d); err != nil {
+	if err := binary.Read(i.r, binary.LittleEndian, d); err != nil {
 		return err
 	}
 	for i := range d {

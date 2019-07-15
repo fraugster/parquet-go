@@ -5,6 +5,7 @@ import (
 )
 
 type booleanPlainDecoder struct {
+	r    io.Reader
 	left []bool
 }
 
@@ -29,7 +30,14 @@ func copyLeftOvers(dst []interface{}, src []bool) ([]bool, int) {
 	return src[size:], size
 }
 
-func (b *booleanPlainDecoder) decodeValues(r io.Reader, dst []interface{}) error {
+func (b *booleanPlainDecoder) init(r io.Reader) error {
+	b.r = r
+	b.left = nil
+
+	return nil
+}
+
+func (b *booleanPlainDecoder) decodeValues(dst []interface{}) error {
 	var start int
 	if len(b.left) > 0 {
 		// there is a leftover from the last run
@@ -41,7 +49,7 @@ func (b *booleanPlainDecoder) decodeValues(r io.Reader, dst []interface{}) error
 
 	buf := make([]byte, 1)
 	for i := start; i < len(dst); i += 8 {
-		if _, err := io.ReadFull(r, buf); err != nil {
+		if _, err := io.ReadFull(b.r, buf); err != nil {
 			return err
 		}
 		d := unpack8int32_1(buf)
@@ -61,15 +69,13 @@ type booleanRLEDecoder struct {
 	decoder *hybridDecoder
 }
 
-// TODO: this is where the reader is redundant. the first time it is used to create a limit reader and that's it.
-func (b *booleanRLEDecoder) decodeValues(r io.Reader, dst []interface{}) error {
-	if b.decoder == nil {
-		b.decoder = newHybridDecoder(1)
-		if err := b.decoder.init(r); err != nil {
-			return err
-		}
-	}
+func (b *booleanRLEDecoder) init(r io.Reader) error {
+	b.decoder = newHybridDecoder(1)
+	return b.decoder.init(r)
+}
 
+// TODO: this is where the reader is redundant. the first time it is used to create a limit reader and that's it.
+func (b *booleanRLEDecoder) decodeValues(dst []interface{}) error {
 	for i := 0; i < len(dst); i += 1 {
 		n, err := b.decoder.next()
 		if err != nil {
