@@ -1,7 +1,9 @@
 package go_parquet
 
 import (
+	"encoding/binary"
 	"io"
+	"math"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
@@ -114,15 +116,6 @@ func readThrift(tr thriftReader, r io.Reader) error {
 	return tr.Read(proto)
 }
 
-func repeat(i int32, count int) []int32 {
-	ret := make([]int32, count)
-	for j := range ret {
-		ret[j] = i
-	}
-
-	return ret
-}
-
 func decodeLevels(d decoder, data []uint16) error {
 	for i := range data {
 		u, err := d.next()
@@ -133,4 +126,40 @@ func decodeLevels(d decoder, data []uint16) error {
 	}
 
 	return nil
+}
+
+func readUVariant32(r io.Reader) (int32, error) {
+	b, ok := r.(io.ByteReader)
+	if !ok {
+		b = &byteReader{Reader: r}
+	}
+
+	i, err := binary.ReadUvarint(b)
+	if err != nil {
+		return 0, err
+	}
+
+	if i > math.MaxInt32 {
+		return 0, errors.New("int32 out of range")
+	}
+
+	return int32(i), nil
+}
+
+func readVariant32(r io.Reader) (int32, error) {
+	b, ok := r.(io.ByteReader)
+	if !ok {
+		b = &byteReader{Reader: r}
+	}
+
+	i, err := binary.ReadVarint(b)
+	if err != nil {
+		return 0, err
+	}
+
+	if i > math.MaxInt32 || i < math.MinInt32 {
+		return 0, errors.New("int32 out of range")
+	}
+
+	return int32(i), nil
 }

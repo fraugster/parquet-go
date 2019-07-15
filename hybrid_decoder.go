@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"math/bits"
 
 	"github.com/pkg/errors"
@@ -106,9 +105,9 @@ func (hd *hybridDecoder) readBitPackedRun() error {
 }
 
 func (hd *hybridDecoder) readRunHeader() error {
-	h, err := binary.ReadUvarint(&byteReader{Reader: hd.r})
-	if err != nil || h > math.MaxUint32 {
-		return errors.New("rle: invalid run header")
+	h, err := readUVariant32(hd.r)
+	if err != nil {
+		return errors.Wrap(err, "rle: invalid run header")
 	}
 
 	// The lower bit indicate if this is bitpack or rle
