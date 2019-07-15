@@ -61,6 +61,7 @@ func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
 	b.lens = make([]int32, lensDecoder.numValues)
 	return decodeInt32(&lensDecoder, b.lens)
 }
+
 func (b *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
 	if b.position >= len(b.lens) {
 		return nil, io.ErrUnexpectedEOF
@@ -117,7 +118,7 @@ func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decode(dst []interface{}) error {
+func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) error {
 	for i := 0; i < len(dst); i++ {
 		suffix, err := d.suffixDecoder.next()
 		if err != nil {

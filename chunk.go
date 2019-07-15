@@ -29,14 +29,135 @@ type ColumnChunkReader struct {
 	dictPage *DictionaryPage
 }
 
+type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
+
 type page interface {
-	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder, rDecoder func() decoder) error
+	init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error
+	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
 }
 
-// TODO: maybe just valuesEncoder?
-type dictValuesEncoder interface {
+type valuesDecoder interface {
 	init(io.Reader) error
 	decodeValues(dst []interface{}) error
+}
+
+func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, error) {
+	switch typ {
+	case parquet.Type_BYTE_ARRAY:
+		return &byteArrayPlainDecoder{}, nil
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		if typeLen == nil {
+			return nil, errors.Errorf("type %s with nil type len", typ)
+		}
+
+		return &byteArrayPlainDecoder{length: int(*typeLen)}, nil
+	case parquet.Type_FLOAT:
+		return &floatPlainDecoder{}, nil
+	case parquet.Type_DOUBLE:
+		return &doublePlainDecoder{}, nil
+	case parquet.Type_INT32:
+		return &int32PlainDecoder{}, nil
+	case parquet.Type_INT64:
+		return &int64PlainDecoder{}, nil
+	case parquet.Type_INT96:
+		return &int96PlainDecoder{}, nil
+	}
+
+	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
+}
+
+func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *int32, dict valuesDecoder) (valuesDecoder, error) {
+	// Change the deprecated value
+	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
+		pageEncoding = parquet.Encoding_RLE_DICTIONARY
+	}
+
+	switch typ {
+	case parquet.Type_BOOLEAN:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &booleanPlainDecoder{}, nil
+		case parquet.Encoding_RLE:
+			return &booleanRLEDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_BYTE_ARRAY:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &byteArrayPlainDecoder{}, nil
+		case parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY:
+			return &byteArrayDeltaLengthDecoder{}, nil
+		case parquet.Encoding_DELTA_BYTE_ARRAY:
+			return &byteArrayDeltaDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			if typeLen == nil {
+				return nil, errors.Errorf("type %s with nil type len", typ)
+			}
+
+			return &byteArrayPlainDecoder{length: int(*typeLen)}, nil
+		case parquet.Encoding_DELTA_BYTE_ARRAY:
+			return &byteArrayDeltaDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_FLOAT:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &floatPlainDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_DOUBLE:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &doublePlainDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_INT32:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &int32PlainDecoder{}, nil
+		case parquet.Encoding_DELTA_BINARY_PACKED:
+			return &int32DeltaBPDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_INT64:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &int64PlainDecoder{}, nil
+		case parquet.Encoding_DELTA_BINARY_PACKED:
+			return &int64DeltaBPDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	case parquet.Type_INT96:
+		switch pageEncoding {
+		case parquet.Encoding_PLAIN:
+			return &int96PlainDecoder{}, nil
+		case parquet.Encoding_RLE_DICTIONARY:
+			return dict, nil
+		}
+
+	default:
+		return nil, errors.Errorf("unsupported type: %s", typ)
+	}
+
+	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ)
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*ColumnChunkReader, error) {
@@ -121,43 +242,21 @@ type DictionaryPage struct {
 	ph *parquet.PageHeader
 
 	numValues int32
-	enc       dictValuesEncoder
+	enc       valuesDecoder
 
 	values []interface{}
 }
 
-func (dp *DictionaryPage) setDictValuesEncoder(typ parquet.Type, typeLen *int32) error {
-	switch typ {
-	case parquet.Type_BYTE_ARRAY:
-		dp.enc = &byteArrayPlainDecoder{}
-		return nil
-	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		if typeLen == nil {
-			return errors.Errorf("type %s with nil type len", typ)
-		}
-		dp.enc = &byteArrayPlainDecoder{length: int(*typeLen)}
-		return nil
-	case parquet.Type_FLOAT:
-		dp.enc = &floatPlainDecoder{}
-		return nil
-	case parquet.Type_DOUBLE:
-		dp.enc = &doublePlainDecoder{}
-		return nil
-	case parquet.Type_INT32:
-		dp.enc = &int32PlainDecoder{}
-		return nil
-	case parquet.Type_INT64:
-		dp.enc = &int64PlainDecoder{}
-		return nil
-	case parquet.Type_INT96:
-		dp.enc = &int96PlainDecoder{}
-		return nil
+func (dp *DictionaryPage) init(dict valuesDecoder) error {
+	if dict == nil {
+		return errors.New("dictionary page without dictionary value encoder")
 	}
 
-	return errors.Errorf("type %s is not supported for dict value encoder", typ)
+	dp.enc = dict
+	return nil
 }
 
-func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder, rDecoder func() decoder) error {
+func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
 		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
 	}
@@ -191,11 +290,22 @@ func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 type DataPageV1 struct {
 	ph *parquet.PageHeader
 
-	numValues int32
-	encoding  parquet.Encoding
+	numValues          int32
+	encoding           parquet.Encoding
+	dDecoder, rDecoder decoder
+	valuesDecoder      valuesDecoder
+	fn                 getValueDecoderFn
 }
 
-func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder, rDecoder func() decoder) error {
+func (dp *DataPageV1) init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error {
+	dp.dDecoder = dDecoder()
+	dp.rDecoder = rDecoder()
+	dp.fn = values
+
+	return nil
+}
+
+func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
 	if ph.DataPageHeader == nil {
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
@@ -205,6 +315,10 @@ func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	}
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
+
+	if dp.valuesDecoder, err = dp.fn(dp.encoding); err != nil {
+		return err
+	}
 
 	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
 	if err != nil {
@@ -224,14 +338,22 @@ func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 type DataPageV2 struct {
 	ph *parquet.PageHeader
 
-	numValues int32
-	encoding  parquet.Encoding
-
+	numValues          int32
+	encoding           parquet.Encoding
+	valuesDecoder      valuesDecoder
 	dDecoder, rDecoder decoder
-	dLevels, rLevels   []uint16
+	fn                 getValueDecoderFn
 }
 
-func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder, rDecoder func() decoder) error {
+func (dp *DataPageV2) init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error {
+	dp.dDecoder = dDecoder()
+	dp.rDecoder = rDecoder()
+	dp.fn = values
+
+	return nil
+}
+
+func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
 	if ph.DataPageHeaderV2 == nil {
 		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
 	}
@@ -249,10 +371,11 @@ func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
 
-	// Its safe to call this {r,d}Decoder later, since the stream they operate on are in memory
-	dp.rDecoder = rDecoder()
-	dp.dDecoder = dDecoder()
+	if dp.valuesDecoder, err = dp.fn(dp.encoding); err != nil {
+		return err
+	}
 
+	// Its safe to call this {r,d}Decoder later, since the stream they operate on are in memory
 	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
 	// read both level size
 	if levelsSize > 0 {
@@ -301,11 +424,15 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 	if !cr.notFirst && ph.Type == parquet.PageType_DICTIONARY_PAGE {
 		cr.notFirst = true
 		p := &DictionaryPage{}
-		if err := p.setDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength); err != nil {
+		de, err := getDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength)
+		if err != nil {
+			return nil, err
+		}
+		if err := p.init(de); err != nil {
 			return nil, err
 		}
 
-		if err := p.read(cr.reader, ph, cr.chunkMeta.Codec, cr.dDecoder, cr.rDecoder); err != nil {
+		if err := p.read(cr.reader, ph, cr.chunkMeta.Codec); err != nil {
 			return nil, err
 		}
 
@@ -320,7 +447,8 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 			}
 		}
 
-		return p, nil
+		// Return the real data page, not the dictionary page
+		return cr.readPage()
 	}
 
 	var p page
@@ -332,8 +460,18 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 	default:
 		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
+	var dict valuesDecoder
+	if cr.dictPage != nil {
+		dict = cr.dictPage.enc
+	}
+	var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
+		return getValuesDecoder(typ, *cr.col.Element().Type, cr.col.Element().TypeLength, dict)
+	}
+	if err := p.init(cr.dDecoder, cr.rDecoder, fn); err != nil {
+		return nil, err
+	}
 
-	if err := p.read(cr.reader, ph, cr.chunkMeta.Codec, cr.dDecoder, cr.rDecoder); err != nil {
+	if err := p.read(cr.reader, ph, cr.chunkMeta.Codec); err != nil {
 		return nil, err
 	}
 
