@@ -228,6 +228,7 @@ type DataPageV2 struct {
 	encoding  parquet.Encoding
 
 	dDecoder, rDecoder decoder
+	dLevels, rLevels   []uint16
 }
 
 func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec, dDecoder, rDecoder func() decoder) error {
@@ -248,6 +249,10 @@ func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
 
+	// Its safe to call this {r,d}Decoder later, since the stream they operate on are in memory
+	dp.rDecoder = rDecoder()
+	dp.dDecoder = dDecoder()
+
 	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
 	// read both level size
 	if levelsSize > 0 {
@@ -257,13 +262,11 @@ func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 			return errors.Wrapf(err, "need to read %d byte but there was only %d byte", levelsSize, n)
 		}
 		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-			dp.rDecoder = rDecoder()
 			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
 				return errors.Wrapf(err, "read repetition level failed")
 			}
 		}
 		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-			dp.dDecoder = dDecoder()
 			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
 				return errors.Wrapf(err, "read definition level failed")
 			}

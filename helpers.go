@@ -175,3 +175,12 @@ func readVariant32(r io.Reader) (int32, error) {
 
 	return int32(i), nil
 }
+
+func readVariant64(r io.Reader) (int64, error) {
+	b, ok := r.(io.ByteReader)
+	if !ok {
+		b = &byteReader{Reader: r}
+	}
+
+	return binary.ReadVarint(b)
+}

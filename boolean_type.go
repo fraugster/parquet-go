@@ -74,7 +74,6 @@ func (b *booleanRLEDecoder) init(r io.Reader) error {
 	return b.decoder.init(r)
 }
 
-// TODO: this is where the reader is redundant. the first time it is used to create a limit reader and that's it.
 func (b *booleanRLEDecoder) decodeValues(dst []interface{}) error {
 	for i := 0; i < len(dst); i += 1 {
 		n, err := b.decoder.next()

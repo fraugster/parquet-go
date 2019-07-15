@@ -25,3 +25,24 @@ func (i *int32PlainDecoder) decodeValues(dst []interface{}) error {
 	}
 	return nil
 }
+
+type int32DeltaBPDecoder struct {
+	deltaBitPackDecoder
+}
+
+func (d *int32DeltaBPDecoder) init(r io.Reader) error {
+	d.deltaBitPackDecoder.bitWidth = 32
+	return d.deltaBitPackDecoder.init(r)
+}
+
+func (d *int32DeltaBPDecoder) decodeValues(dst []interface{}) error {
+	for i := range dst {
+		u, err := d.nextInterface()
+		if err != nil {
+			return err
+		}
+		dst[i] = u
+	}
+
+	return nil
+}

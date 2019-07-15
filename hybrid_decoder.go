@@ -51,6 +51,9 @@ func (hd *hybridDecoder) init(r io.Reader) error {
 }
 
 func (hd *hybridDecoder) next() (next int32, err error) {
+	if hd.r == nil {
+		return 0, errors.New("reader is not initialized")
+	}
 	if hd.rleCount == 0 && hd.bpCount == 0 && hd.bpRunPos == 0 {
 		if err = hd.readRunHeader(); err != nil {
 			return 0, err
