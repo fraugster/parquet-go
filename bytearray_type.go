@@ -3,11 +3,10 @@ package go_parquet
 import (
 	"encoding/binary"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 type byteArrayPlainDecoder struct {
+	// if the length is set, then this is a fix size array decoder, unless it reads the len first
 	length int
 }
 
@@ -28,22 +27,11 @@ func (b *byteArrayPlainDecoder) next(r io.Reader) ([]byte, error) {
 	return buf, nil
 }
 
-func (b *byteArrayPlainDecoder) decodeValues(r io.Reader, dst interface{}) (err error) {
-	switch typed := dst.(type) {
-	case [][]byte:
-		for i := range typed {
-			if typed[i], err = b.next(r); err != nil {
-				return
-			}
+func (b *byteArrayPlainDecoder) decodeValues(r io.Reader, dst []interface{}) (err error) {
+	for i := range dst {
+		if dst[i], err = b.next(r); err != nil {
+			return
 		}
-		return nil
-	case []interface{}:
-		for i := range typed {
-			if typed[i], err = b.next(r); err != nil {
-				return
-			}
-		}
-		return nil
 	}
-	return errors.Errorf("type %T is not supported for float", dst)
+	return nil
 }

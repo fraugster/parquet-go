@@ -123,9 +123,9 @@ func repeat(i int32, count int) []int32 {
 	return ret
 }
 
-func decodeLevels(d decoder, ctx *hybridContext, data []uint16) error {
+func decodeLevels(d decoder, data []uint16) error {
 	for i := range data {
-		u, err := d.next(ctx)
+		u, err := d.next()
 		if err != nil {
 			return err
 		}

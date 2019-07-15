@@ -36,11 +36,11 @@ func TestHybrid(t *testing.T) {
 		assert.NoError(t, err)
 
 		buf2 := bytes.NewReader(data.Bytes())
-		ctx := newHybridContext(buf2)
 		dec := newHybridDecoder(i)
+		dec.r = buf2 // init is not good for this test, it reads the size which is not used here
 		var toR []int32
 		for {
-			d, err := dec.next(ctx)
+			d, err := dec.next()
 			if err != nil {
 				break
 			}
