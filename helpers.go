@@ -184,3 +184,26 @@ func readVariant64(r io.Reader) (int64, error) {
 
 	return binary.ReadVarint(b)
 }
+
+type constDecoder int32
+
+func (cd constDecoder) initSize(io.Reader) error {
+	return nil
+}
+
+func (cd constDecoder) init(io.Reader) error {
+	return nil
+}
+
+func (cd constDecoder) next() (int32, error) {
+	return int32(cd), nil
+}
+
+type levelDecoderWrapper struct {
+	decoder
+	max uint16
+}
+
+func (l *levelDecoderWrapper) maxLevel() uint16 {
+	return l.max
+}

@@ -44,6 +44,11 @@ func (d *deltaBitPackDecoder) init(r io.Reader) error {
 	return nil
 }
 
+// there is no need for implement the init size here
+func (d *deltaBitPackDecoder) initSize(r io.Reader) error {
+	return d.init(r)
+}
+
 // page-header := <block size in values> <number of miniblocks in a block> <total value count> <first value>
 func (d *deltaBitPackDecoder) readPageHeader() error {
 	blockSize, err := readUVariant32(d.r)

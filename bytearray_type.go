@@ -24,6 +24,10 @@ func (b *byteArrayPlainDecoder) next() ([]byte, error) {
 		if err := binary.Read(b.r, binary.LittleEndian, &l); err != nil {
 			return nil, err
 		}
+
+		if l < 0 {
+			return nil, errors.New("bytearray/plain: len is negative")
+		}
 	}
 
 	buf := make([]byte, l)

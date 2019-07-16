@@ -4,17 +4,27 @@ package go_parquet
 // Copyright (c) 2015 Konstantin Shaposhnikov
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/bits"
 
 	"github.com/pkg/errors"
 )
 
 type decoder interface {
-	init(io.Reader) error
 	next() (int32, error)
+
+	init(io.Reader) error
+	initSize(io.Reader) error
+}
+
+type levelDecoder interface {
+	decoder
+
+	maxLevel() uint16
 }
 
 type hybridDecoder struct {
@@ -30,6 +40,8 @@ type hybridDecoder struct {
 	bpCount  uint32
 	bpRunPos uint8
 	bpRun    [8]int32
+
+	buffered bool
 }
 
 func newHybridDecoder(bitWidth int) *hybridDecoder {
@@ -41,12 +53,25 @@ func newHybridDecoder(bitWidth int) *hybridDecoder {
 	}
 }
 
-func (hd *hybridDecoder) init(r io.Reader) error {
+func (hd *hybridDecoder) initSize(r io.Reader) error {
 	var size uint32
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return err
 	}
-	hd.r = io.LimitReader(r, int64(size))
+	reader := io.LimitReader(r, int64(size))
+	return hd.init(reader)
+}
+
+func (hd *hybridDecoder) init(r io.Reader) error {
+	if hd.buffered {
+		buf, err := ioutil.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		hd.r = bytes.NewReader(buf)
+	} else {
+		hd.r = r
+	}
 	return nil
 }
 
@@ -128,14 +153,4 @@ func (hd *hybridDecoder) readRunHeader() error {
 		return hd.readRLERunValue()
 	}
 	return nil
-}
-
-type constDecoder int32
-
-func (cd constDecoder) init(io.Reader) error {
-	return nil
-}
-
-func (cd constDecoder) next() (int32, error) {
-	return int32(cd), nil
 }

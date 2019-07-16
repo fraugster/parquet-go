@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/bits"
 	"strings"
 
@@ -24,16 +23,19 @@ type ColumnChunkReader struct {
 	notFirst  bool
 
 	// Definition and repetition decoder
-	rDecoder, dDecoder func() decoder
+	rDecoder, dDecoder func() levelDecoder
 
-	dictPage *DictionaryPage
+	dictPage *dictionaryPage
 }
 
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
 
-type page interface {
-	init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error
+// Page is the data page
+type Page interface {
+	init(dDecoder, rDecoder func() levelDecoder, values getValueDecoderFn) error
 	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
+
+	ReadValues([]interface{}) (n int, dLevel []uint16, rLevel []uint16, err error)
 }
 
 type valuesDecoder interface {
@@ -66,7 +68,7 @@ func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, erro
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *int32, dict valuesDecoder) (valuesDecoder, error) {
+func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *int32, dictValues []interface{}) (valuesDecoder, error) {
 	// Change the deprecated value
 	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
 		pageEncoding = parquet.Encoding_RLE_DICTIONARY
@@ -80,7 +82,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_RLE:
 			return &booleanRLEDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_BYTE_ARRAY:
@@ -92,7 +94,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_DELTA_BYTE_ARRAY:
 			return &byteArrayDeltaDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
@@ -106,7 +108,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_DELTA_BYTE_ARRAY:
 			return &byteArrayDeltaDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_FLOAT:
@@ -114,7 +116,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_PLAIN:
 			return &floatPlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_DOUBLE:
@@ -122,7 +124,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_PLAIN:
 			return &doublePlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_INT32:
@@ -132,7 +134,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_DELTA_BINARY_PACKED:
 			return &int32DeltaBPDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_INT64:
@@ -142,7 +144,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_DELTA_BINARY_PACKED:
 			return &int64DeltaBPDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_INT96:
@@ -150,7 +152,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		case parquet.Encoding_PLAIN:
 			return &int96PlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return dict, nil
+			return &dictDecoder{values: dictValues}, nil
 		}
 
 	default:
@@ -182,7 +184,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 	if chunk.MetaData.DictionaryPageOffset != nil {
 		offset = *chunk.MetaData.DictionaryPageOffset
 	}
-	// Seek to the beginning of the first page
+	// Seek to the beginning of the first Page
 	_, err := r.Seek(offset, io.SeekStart)
 	if err != nil {
 		return nil, err
@@ -205,12 +207,14 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
 		// TODO: document level ranges
-		cr.dDecoder = func() decoder {
-			return constDecoder(int32(col.MaxDefinitionLevel()))
+		cr.dDecoder = func() levelDecoder {
+			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: cr.col.MaxDefinitionLevel()}
 		}
 	} else {
-		cr.dDecoder = func() decoder {
-			return newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
+		cr.dDecoder = func() levelDecoder {
+			dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
+			dec.buffered = true
+			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxDefinitionLevel()}
 		}
 	}
 	if !nested && repType != parquet.FieldRepetitionType_REPEATED {
@@ -218,12 +222,14 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
-		cr.rDecoder = func() decoder {
-			return constDecoder(0)
+		cr.rDecoder = func() levelDecoder {
+			return &levelDecoderWrapper{decoder: constDecoder(0), max: cr.col.MaxRepetitionLevel()}
 		}
 	} else {
-		cr.rDecoder = func() decoder {
-			return newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
+		cr.rDecoder = func() levelDecoder {
+			dec := newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
+			dec.buffered = true
+			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxRepetitionLevel()}
 		}
 	}
 
@@ -238,7 +244,8 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-type DictionaryPage struct {
+// dictionaryPage is not a real data page, so there is no need to implement the page interface
+type dictionaryPage struct {
 	ph *parquet.PageHeader
 
 	numValues int32
@@ -247,7 +254,7 @@ type DictionaryPage struct {
 	values []interface{}
 }
 
-func (dp *DictionaryPage) init(dict valuesDecoder) error {
+func (dp *dictionaryPage) init(dict valuesDecoder) error {
 	if dict == nil {
 		return errors.New("dictionary page without dictionary value encoder")
 	}
@@ -256,7 +263,7 @@ func (dp *DictionaryPage) init(dict valuesDecoder) error {
 	return nil
 }
 
-func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
 		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
 	}
@@ -287,25 +294,60 @@ func (dp *DictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 	return nil
 }
 
-type DataPageV1 struct {
+type dataPageV1 struct {
 	ph *parquet.PageHeader
 
 	numValues          int32
 	encoding           parquet.Encoding
-	dDecoder, rDecoder decoder
+	dDecoder, rDecoder levelDecoder
 	valuesDecoder      valuesDecoder
 	fn                 getValueDecoderFn
+
+	position int
 }
 
-func (dp *DataPageV1) init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error {
+func (dp *dataPageV1) ReadValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+	size := len(val)
+	if rem := int(dp.numValues) - dp.position; rem < size {
+		size = rem
+	}
+
+	dLevel = make([]uint16, size)
+	if err := decodeUint16(dp.dDecoder, dLevel); err != nil {
+		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
+	}
+
+	rLevel = make([]uint16, size)
+	if err := decodeUint16(dp.rDecoder, rLevel); err != nil {
+		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
+	}
+
+	notNull := 0
+	for _, dl := range dLevel {
+		if dl == dp.dDecoder.maxLevel() {
+			notNull++
+		}
+	}
+
+	if notNull != 0 {
+		if err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
+			return 0, nil, nil, errors.Wrap(err, "read values from page failed")
+		}
+	}
+	dp.position += size
+	return size, dLevel, rLevel, nil
+}
+
+func (dp *dataPageV1) init(dDecoder, rDecoder func() levelDecoder, values getValueDecoderFn) error {
 	dp.dDecoder = dDecoder()
 	dp.rDecoder = rDecoder()
 	dp.fn = values
+	dp.position = 0
 
 	return nil
 }
 
-func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
 	if ph.DataPageHeader == nil {
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
@@ -320,40 +362,78 @@ func (dp *DataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 		return err
 	}
 
+	if err := dp.dDecoder.initSize(r); err != nil {
+		return err
+	}
+
+	if err := dp.rDecoder.initSize(r); err != nil {
+		return err
+	}
+
 	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
 	if err != nil {
 		return err
 	}
 
-	// TODO : read the data page here
-	// We need to consume all reader here
-	b, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return errors.Wrap(err, "read data page failed")
-	}
-	fmt.Println("Read the data page len :", len(b))
-	return nil
+	return dp.valuesDecoder.init(reader)
 }
 
-type DataPageV2 struct {
+type dataPageV2 struct {
 	ph *parquet.PageHeader
 
 	numValues          int32
 	encoding           parquet.Encoding
 	valuesDecoder      valuesDecoder
-	dDecoder, rDecoder decoder
+	dDecoder, rDecoder levelDecoder
 	fn                 getValueDecoderFn
+	position           int
 }
 
-func (dp *DataPageV2) init(dDecoder, rDecoder func() decoder, values getValueDecoderFn) error {
+func (dp *dataPageV2) ReadValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+	size := len(val)
+	if rem := int(dp.numValues) - dp.position; rem < size {
+		size = rem
+	}
+
+	dLevel = make([]uint16, size)
+	if err := decodeUint16(dp.dDecoder, dLevel); err != nil {
+		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
+	}
+
+	rLevel = make([]uint16, size)
+	if err := decodeUint16(dp.rDecoder, rLevel); err != nil {
+		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
+	}
+
+	notNull := 0
+	for _, dl := range dLevel {
+		if dl == dp.dDecoder.maxLevel() {
+			notNull++
+		}
+	}
+
+	if notNull != 0 {
+		if err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
+			return 0, nil, nil, errors.Wrap(err, "read values from page failed")
+		}
+	}
+	dp.position += size
+	return size, dLevel, rLevel, nil
+}
+
+func (dp *dataPageV2) init(dDecoder, rDecoder func() levelDecoder, values getValueDecoderFn) error {
 	dp.dDecoder = dDecoder()
 	dp.rDecoder = rDecoder()
 	dp.fn = values
+	dp.position = 0
 
 	return nil
 }
 
-func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+	// TODO: verify this format, there is some question
+	// 1- Uncompressed size is affected by the level lens?
+	// 2- If the levels are actually rle and the first byte is the size, since there is already size in header (NO)
 	if ph.DataPageHeaderV2 == nil {
 		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
 	}
@@ -396,23 +476,16 @@ func (dp *DataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 		}
 	}
 
-	// TODO: I am not sure if this is correct to subtract the level size from the compressed size here
+	// TODO: (F0rud) I am not sure if this is correct to subtract the level size from the compressed size here
 	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetCompressedPageSize()-levelsSize)
 	if err != nil {
 		return err
 	}
 
-	// TODO : read the data page here
-	// We need to consume all reader here
-	b, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return errors.Wrap(err, "read data page failed")
-	}
-	fmt.Println("Read the data page v2 len :", len(b))
-	return nil
+	return dp.valuesDecoder.init(reader)
 }
 
-func (cr *ColumnChunkReader) readPage() (page, error) {
+func (cr *ColumnChunkReader) readPage() (Page, error) {
 	if cr.chunkMeta.TotalCompressedSize-cr.reader.Count() <= 0 {
 		return nil, errors.New("EndOfTheChunk")
 	}
@@ -423,7 +496,7 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 
 	if !cr.notFirst && ph.Type == parquet.PageType_DICTIONARY_PAGE {
 		cr.notFirst = true
-		p := &DictionaryPage{}
+		p := &dictionaryPage{}
 		de, err := getDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength)
 		if err != nil {
 			return nil, err
@@ -437,7 +510,7 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 		}
 
 		cr.dictPage = p
-		// Go to the next data page
+		// Go to the next data Page
 		// if we have a DictionaryPageOffset we should return to DataPageOffset
 		if cr.chunkMeta.DictionaryPageOffset != nil {
 			if *cr.chunkMeta.DictionaryPageOffset != cr.reader.offset {
@@ -447,25 +520,25 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 			}
 		}
 
-		// Return the real data page, not the dictionary page
+		// Return the real data Page, not the dictionary Page
 		return cr.readPage()
 	}
 
-	var p page
+	var p Page
 	switch ph.Type {
 	case parquet.PageType_DATA_PAGE:
-		p = &DataPageV1{}
+		p = &dataPageV1{}
 	case parquet.PageType_DATA_PAGE_V2:
-		p = &DataPageV2{}
+		p = &dataPageV2{}
 	default:
 		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
-	var dict valuesDecoder
+	var dictValue []interface{}
 	if cr.dictPage != nil {
-		dict = cr.dictPage.enc
+		dictValue = cr.dictPage.values
 	}
 	var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
-		return getValuesDecoder(typ, *cr.col.Element().Type, cr.col.Element().TypeLength, dict)
+		return getValuesDecoder(typ, *cr.col.Element().Type, cr.col.Element().TypeLength, dictValue)
 	}
 	if err := p.init(cr.dDecoder, cr.rDecoder, fn); err != nil {
 		return nil, err
@@ -478,6 +551,6 @@ func (cr *ColumnChunkReader) readPage() (page, error) {
 	return p, nil
 }
 
-func (cr *ColumnChunkReader) Read() (page, error) {
+func (cr *ColumnChunkReader) Read() (Page, error) {
 	return cr.readPage()
 }

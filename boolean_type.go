@@ -71,7 +71,7 @@ type booleanRLEDecoder struct {
 
 func (b *booleanRLEDecoder) init(r io.Reader) error {
 	b.decoder = newHybridDecoder(1)
-	return b.decoder.init(r)
+	return b.decoder.initSize(r)
 }
 
 func (b *booleanRLEDecoder) decodeValues(dst []interface{}) error {
