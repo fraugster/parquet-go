@@ -230,7 +230,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 	return cr, nil
 }
 
-func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
+func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
 	if compressedSize < 0 || uncompressedSize < 0 {
 		return nil, errors.New("invalid page data size")
 	}

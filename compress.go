@@ -20,45 +20,34 @@ var (
 
 // BlockCompressor is an interface for handling the compressors for the parquet file
 type (
-	ReaderCounter interface {
-		io.Reader
-		Count() int
-		Expected() int
-	}
-
 	BlockCompressor interface {
-		Reader(reader io.Reader, expected int32) (ReaderCounter, error)
+		Reader(reader io.Reader, expected int32) (io.Reader, error)
 	}
 
 	plainCompressor  struct{}
 	snappyCompressor struct{}
 	gzipCompressor   struct{}
-
-	streamReaderCounter struct {
-		r     io.Reader
-		n     int
-		total int
-	}
 )
 
-func (s *streamReaderCounter) Expected() int {
-	return s.total
-}
-
-func (gzipCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter, error) {
-	// TODO: maybe its better to load all data into memory
+func (gzipCompressor) Reader(reader io.Reader, expected int32) (io.Reader, error) {
 	r, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	return &streamReaderCounter{
-		r:     r,
-		total: int(expected),
-	}, nil
+	ret, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ret) != int(expected) {
+		return nil, errors.Errorf("gzip: decompress size is not correct it should be %d is %d", expected, len(ret))
+	}
+
+	return bytes.NewReader(ret), nil
 }
 
-func (snappyCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter, error) {
+func (snappyCompressor) Reader(reader io.Reader, expected int32) (io.Reader, error) {
 	// Snappy compressor is not an stream compressor (the block compressor is different than stream compressor and parquet uses
 	// block compressor)
 	buf, err := ioutil.ReadAll(reader)
@@ -74,41 +63,20 @@ func (snappyCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter,
 		return nil, errors.Errorf("snappy: decompress size is not correct it should be %d is %d", expected, len(ret))
 	}
 
-	return &streamReaderCounter{
-		r:     bytes.NewReader(ret),
-		total: int(expected),
-	}, nil
+	return bytes.NewReader(ret), nil
 }
 
-func (plainCompressor) Reader(reader io.Reader, expected int32) (ReaderCounter, error) {
-	return &streamReaderCounter{
-		r:     reader,
-		total: int(expected),
-	}, nil
-}
-
-func (s *streamReaderCounter) Read(p []byte) (int, error) {
-	n, err := s.r.Read(p)
-	s.n += n
-	// We read more data?
-	if s.total < s.n {
-		return n, errors.Errorf("this should be %d byte but it was %d", s.total, s.n)
-	}
+func (plainCompressor) Reader(reader io.Reader, expected int32) (io.Reader, error) {
+	ret, err := ioutil.ReadAll(io.LimitReader(reader, int64(expected)))
 	if err != nil {
-		if s.total == s.n {
-			// OK
-			return n, err
-		}
-		if s.total > s.n {
-			return n, errors.Wrapf(err, "required %d byte to read, but read only %d byte", s.total, s.n)
-		}
+		return nil, err
 	}
 
-	return n, nil
-}
+	if len(ret) != int(expected) {
+		return nil, errors.Errorf("plain: stream size is not correct it should be %d is %d", expected, len(ret))
+	}
 
-func (s *streamReaderCounter) Count() int {
-	return s.n
+	return bytes.NewReader(ret), nil
 }
 
 // RegisterBlockCompressor can plug new kind of block compressor to the library
@@ -126,7 +94,7 @@ func getBlockCompressor(method parquet.CompressionCodec) BlockCompressor {
 	return compressors[method]
 }
 
-func newBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (ReaderCounter, error) {
+func newBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
 	bc := getBlockCompressor(codec)
 	if bc == nil {
 		return nil, errors.Errorf("the codec %q is not implemented", codec)
