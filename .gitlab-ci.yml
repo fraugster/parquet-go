@@ -1,0 +1,12 @@
+image: golang:1.12
+stages:
+  - build
+  - test
+
+before_script:
+  - cd /builds/core-pod/parquet-go
+
+test-parquet-go:
+  stage: test
+  script:
+    - go test ./...

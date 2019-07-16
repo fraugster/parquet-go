@@ -57,5 +57,8 @@ occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim 
 		buf, err := ioutil.ReadAll(r)
 		assert.NoError(t, err)
 		assert.Equal(t, buf, block)
+
+		r, err = newBlockReader(bytes.NewReader(b), m, int32(len(b)), 0)
+		assert.Error(t, err)
 	}
 }
