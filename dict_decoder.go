@@ -12,6 +12,7 @@ type dictDecoder struct {
 	keys *hybridDecoder
 }
 
+// the value should be there before the init
 func (d *dictDecoder) init(r io.Reader) error {
 	buf := make([]byte, 1)
 	if _, err := io.ReadFull(r, buf); err != nil {
@@ -21,11 +22,22 @@ func (d *dictDecoder) init(r io.Reader) error {
 	if w < 0 || w > 32 {
 		return errors.Errorf("invalid bitwidth %d", w)
 	}
-	d.keys = newHybridDecoder(w)
-	return d.keys.init(r)
+	if w != 0 {
+		d.keys = newHybridDecoder(w)
+		return d.keys.init(r)
+	}
+
+	if len(d.values) > 0 {
+		return errors.New("bit width zero with non-empty dictionary")
+	}
+
+	return nil
 }
 
 func (d *dictDecoder) decodeValues(dst []interface{}) error {
+	if d.keys == nil {
+		return errors.New("no value is inside dictionary")
+	}
 	size := int32(len(d.values))
 	for i := range dst {
 		key, err := d.keys.next()
