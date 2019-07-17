@@ -72,6 +72,22 @@ var (
 				return rand.Float32()
 			},
 		},
+		{
+			name: "BooleanRLE",
+			enc:  &booleanRLEEncoder{},
+			dec:  &booleanRLEDecoder{},
+			rand: func() interface{} {
+				return rand.Int()%2 == 0
+			},
+		},
+		{
+			name: "BooleanPlain",
+			enc:  &booleanPlainEncoder{},
+			dec:  &booleanPlainDecoder{},
+			rand: func() interface{} {
+				return rand.Int()%2 == 0
+			},
+		},
 	}
 )
 

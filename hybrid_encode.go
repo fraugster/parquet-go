@@ -26,12 +26,17 @@ func newHybridEncoder(bitWidth int) *hybridEncoder {
 
 func (he *hybridEncoder) init(w io.Writer) error {
 	he.w = w
+	he.left = nil
+	he.original = nil
+
 	return nil
 }
 
 func (he *hybridEncoder) initSize(w io.Writer) error {
+	_ = he.init(&bytes.Buffer{})
 	he.original = w
-	return he.init(&bytes.Buffer{})
+
+	return nil
 }
 
 func (he *hybridEncoder) write(items ...[]byte) error {
@@ -104,7 +109,9 @@ func (he *hybridEncoder) flush() error {
 	}
 
 	l := len(he.left) % 8
-	return he.bpEncode(append(he.left, make([]int32, 8-l)...))
+	data := append(he.left, make([]int32, 8-l)...)
+	he.left = nil
+	return he.bpEncode(data)
 }
 
 func (he *hybridEncoder) Close() error {
