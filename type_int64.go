@@ -26,6 +26,25 @@ func (i *int64PlainDecoder) decodeValues(dst []interface{}) error {
 	return nil
 }
 
+type int64PlainEncoder struct {
+	w io.Writer
+}
+
+func (i *int64PlainEncoder) init(w io.Writer) error {
+	i.w = w
+
+	return nil
+}
+
+func (i *int64PlainEncoder) encodeValues(values []interface{}) error {
+	d := make([]int64, len(values))
+	for i := range values {
+		d[i] = values[i].(int64)
+	}
+
+	return binary.Write(i.w, binary.LittleEndian, d)
+}
+
 type int64DeltaBPDecoder struct {
 	deltaBitPackDecoder
 }

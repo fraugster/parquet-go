@@ -40,7 +40,13 @@ type Page interface {
 
 type valuesDecoder interface {
 	init(io.Reader) error
-	decodeValues(dst []interface{}) error
+	decodeValues([]interface{}) error
+}
+
+type valuesEncoder interface {
+	init(io.Writer) error
+	// TODO: do we need flush? or use io.Closer interface as an optional implementation?
+	encodeValues([]interface{}) error
 }
 
 func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, error) {

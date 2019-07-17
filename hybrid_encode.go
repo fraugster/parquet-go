@@ -1,6 +1,7 @@
 package go_parquet
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 
@@ -10,17 +11,27 @@ import (
 type hybridEncoder struct {
 	w io.Writer
 
+	left       []int32
+	original   io.Writer
 	bitWidth   int
 	unpackerFn pack8int32Func
 }
 
-func newHybridEncoder(w io.Writer, bitWidth int) *hybridEncoder {
+func newHybridEncoder(bitWidth int) *hybridEncoder {
 	return &hybridEncoder{
-		w: w,
-
 		bitWidth:   bitWidth,
 		unpackerFn: pack8Int32FuncByWidth[bitWidth],
 	}
+}
+
+func (he *hybridEncoder) init(w io.Writer) error {
+	he.w = w
+	return nil
+}
+
+func (he *hybridEncoder) initSize(w io.Writer) error {
+	he.original = w
+	return he.init(&bytes.Buffer{})
 }
 
 func (he *hybridEncoder) write(items ...[]byte) error {
@@ -33,7 +44,7 @@ func (he *hybridEncoder) write(items ...[]byte) error {
 	return nil
 }
 
-// TODO: this function is not use, since we are using the bp always.
+// TODO: this function is not used, since we are using the bp always.
 func (he *hybridEncoder) rleEncode(count int, value int32) error {
 	header := count << 1 // indicate this is a rle run
 
@@ -66,9 +77,49 @@ func (he *hybridEncoder) bpEncode(data []int32) error {
 
 func (he *hybridEncoder) encode(data []int32) error {
 	// TODO: Not sure how to decide on the bitpack or rle, so just bp is supported
-	// TODO: what if the data is not multiply of 8? I am not sure about the padding here
-	if l := len(data) % 8; l != 0 {
-		data = append(data, make([]int32, 8-l)...)
+	if len(he.left) != 0 {
+		// TODO: this might result in allocation and unused memory under a slice
+		data = append(he.left, data...)
 	}
-	return he.bpEncode(data)
+	ln := len(data)
+	// TODO: if the ln is small, just leave it for the next call
+	l := ln % 8
+	if l != 0 {
+		he.left = data[ln-l:]
+	} else {
+		he.left = nil
+	}
+
+	if ln-l == 0 {
+		// Nothing to write
+		return nil
+	}
+
+	return he.bpEncode(data[:ln-l])
+}
+
+func (he *hybridEncoder) flush() error {
+	if len(he.left) == 0 {
+		return nil
+	}
+
+	l := len(he.left) % 8
+	return he.bpEncode(append(he.left, make([]int32, 8-l)...))
+}
+
+func (he *hybridEncoder) Close() error {
+	if err := he.flush(); err != nil {
+		return err
+	}
+
+	if he.original != nil {
+		data := he.w.(*bytes.Buffer).Bytes()
+		var size uint32 = uint32(len(data))
+		if err := binary.Write(he.original, binary.LittleEndian, size); err != nil {
+			return err
+		}
+		return writeFull(he.original, data)
+	}
+
+	return nil
 }

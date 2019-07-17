@@ -30,22 +30,28 @@ func buildData(bitWidth int, l int) []int32 {
 func TestHybrid(t *testing.T) {
 	for i := 1; i < 32; i++ {
 		data := &bytes.Buffer{}
-		enc := newHybridEncoder(data, i)
-		toW := buildData(i, 8*10240)
-		err := enc.encode(toW)
-		assert.NoError(t, err)
+		enc := newHybridEncoder(i)
+		assert.NoError(t, enc.initSize(data))
+		to1 := buildData(i, 8*10240+5)
+		assert.NoError(t, enc.encode(to1))
+
+		to2 := buildData(i, 1000)
+		assert.NoError(t, enc.encode(to2))
+
+		assert.NoError(t, enc.Close())
 
 		buf2 := bytes.NewReader(data.Bytes())
 		dec := newHybridDecoder(i)
-		assert.NoError(t, dec.init(buf2))
+		assert.NoError(t, dec.initSize(buf2))
 		var toR []int32
-		for {
+		total := len(to1) + len(to2)
+		for j := 0; j < total; j++ {
 			d, err := dec.next()
 			if err != nil {
 				break
 			}
 			toR = append(toR, d)
 		}
-		assert.Equal(t, toR, toW)
+		assert.Equal(t, toR, append(to1, to2...))
 	}
 }

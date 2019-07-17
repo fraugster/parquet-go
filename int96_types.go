@@ -27,3 +27,23 @@ func (i *int96PlainDecoder) decodeValues(dst []interface{}) error {
 	}
 	return nil
 }
+
+type int96PlainEncoder struct {
+	w io.Writer
+}
+
+func (i *int96PlainEncoder) init(w io.Writer) error {
+	i.w = w
+
+	return nil
+}
+
+func (i *int96PlainEncoder) encodeValues(values []interface{}) error {
+	data := make([]byte, len(values)*12)
+	for j := range values {
+		i96 := values[j].(Int96)
+		copy(data[j*12:], i96[:12])
+	}
+
+	return writeFull(i.w, data)
+}
