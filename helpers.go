@@ -51,6 +51,8 @@ func (o *offsetReader) Count() int64 {
 
 func decodeRLEValue(bytes []byte) int32 {
 	switch len(bytes) {
+	case 0:
+		return 0
 	case 1:
 		return int32(bytes[0])
 	case 2:

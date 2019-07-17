@@ -20,7 +20,6 @@ type ColumnChunkReader struct {
 	reader    *offsetReader
 	meta      *parquet.FileMetaData
 	chunkMeta *parquet.ColumnMetaData
-	notFirst  bool
 
 	// Definition and repetition decoder
 	rDecoder, dDecoder func() levelDecoder
@@ -284,7 +283,7 @@ func (dp *dictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 
 	dp.ph = ph
 
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
 	if err != nil {
 		return err
 	}
@@ -376,7 +375,7 @@ func (dp *dataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 		return err
 	}
 
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetCompressedPageSize())
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
 	if err != nil {
 		return err
 	}
@@ -483,7 +482,7 @@ func (dp *dataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	}
 
 	// TODO: (F0rud) I am not sure if this is correct to subtract the level size from the compressed size here
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetCompressedPageSize()-levelsSize)
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
 	if err != nil {
 		return err
 	}
@@ -500,8 +499,10 @@ func (cr *ColumnChunkReader) readPage() (Page, error) {
 		return nil, err
 	}
 
-	if !cr.notFirst && ph.Type == parquet.PageType_DICTIONARY_PAGE {
-		cr.notFirst = true
+	if ph.Type == parquet.PageType_DICTIONARY_PAGE {
+		if cr.dictPage != nil {
+			return nil, errors.New("there should be only one dictionary")
+		}
 		p := &dictionaryPage{}
 		de, err := getDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength)
 		if err != nil {
