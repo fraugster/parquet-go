@@ -26,3 +26,22 @@ func (d *doublePlainDecoder) decodeValues(dst []interface{}) error {
 	}
 	return nil
 }
+
+type doublePlainEncoder struct {
+	w io.Writer
+}
+
+func (d *doublePlainEncoder) init(w io.Writer) error {
+	d.w = w
+
+	return nil
+}
+
+func (d *doublePlainEncoder) encodeValues(values []interface{}) error {
+	data := make([]uint64, len(values))
+	for i := range values {
+		data[i] = math.Float64bits(values[i].(float64))
+	}
+
+	return binary.Write(d.w, binary.LittleEndian, data)
+}

@@ -11,15 +11,23 @@ type element interface {
 	create(schema []*parquet.SchemaElement, name string, flatMap *Columns, index, dLevel, rLevel int) (int, error)
 }
 
+// Column is one column definition in the parquet file
 type Column interface {
+	// Index of the column in the schema
 	Index() int
+	// Name of the column
 	Name() string
+	// Name of the column with the name of parent structures, separated with dot
 	FlatName() string
+	// MaxDefinitionLevel of the column
 	MaxDefinitionLevel() uint16
+	// MaxRepetitionLevel of the column
 	MaxRepetitionLevel() uint16
+	// Element of the column in the schema
 	Element() *parquet.SchemaElement
 }
 
+// Columns array of the column
 type Columns []Column
 
 // Schema is the schema reader/creator for parquet schema
