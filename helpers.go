@@ -178,6 +178,20 @@ func readVariant32(r io.Reader) (int32, error) {
 	return int32(i), nil
 }
 
+func writeVariant(w io.Writer, in int64) error {
+	buf := make([]byte, 12)
+	n := binary.PutVarint(buf, in)
+
+	return writeFull(w, buf[:n])
+}
+
+func writeUVariant(w io.Writer, in uint64) error {
+	buf := make([]byte, 12)
+	n := binary.PutUvarint(buf, in)
+
+	return writeFull(w, buf[:n])
+}
+
 func readVariant64(r io.Reader) (int64, error) {
 	b, ok := r.(io.ByteReader)
 	if !ok {

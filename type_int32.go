@@ -69,3 +69,17 @@ func (d *int32DeltaBPDecoder) decodeValues(dst []interface{}) error {
 
 	return nil
 }
+
+type int32DeltaBPEncoder struct {
+	deltaBitPackEncoder32
+}
+
+func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
+	for i := range values {
+		if err := d.addInt32(values[i].(int32)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

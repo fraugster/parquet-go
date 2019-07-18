@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func buildRandArray(count int, fn func() interface{}) []interface{} {
@@ -35,9 +35,25 @@ var (
 			},
 		},
 		{
+			name: "Int32Delta",
+			enc:  &int32DeltaBPEncoder{deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
+			dec:  &int32DeltaBPDecoder{},
+			rand: func() interface{} {
+				return int32(rand.Int())
+			},
+		},
+		{
 			name: "Int64Plain",
 			enc:  &int64PlainEncoder{},
 			dec:  &int64PlainDecoder{},
+			rand: func() interface{} {
+				return rand.Int63()
+			},
+		},
+		{
+			name: "Int64Delta",
+			enc:  &int64DeltaBPEncoder{deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
+			dec:  &int64DeltaBPDecoder{},
 			rand: func() interface{} {
 				return rand.Int63()
 			},
@@ -142,10 +158,10 @@ func TestTypes(t *testing.T) {
 			arr1 := buildRandArray(1000, data.rand)
 			arr2 := buildRandArray(1000, data.rand)
 			w := &bytes.Buffer{}
-			assert.NoError(t, data.enc.init(w))
-			assert.NoError(t, data.enc.encodeValues(arr1))
-			assert.NoError(t, data.enc.encodeValues(arr2))
-			assert.NoError(t, data.enc.Close())
+			require.NoError(t, data.enc.init(w))
+			require.NoError(t, data.enc.encodeValues(arr1))
+			require.NoError(t, data.enc.encodeValues(arr2))
+			require.NoError(t, data.enc.Close())
 			var v []interface{}
 			if d, ok := data.enc.(dictValuesEncoder); ok {
 				v = d.getValues()
@@ -155,13 +171,13 @@ func TestTypes(t *testing.T) {
 			if d, ok := data.dec.(dictValuesDecoder); ok {
 				d.setValues(v)
 			}
-			assert.NoError(t, data.dec.init(r))
-			assert.NoError(t, data.dec.decodeValues(ret))
-			assert.Equal(t, ret, arr1)
-			assert.NoError(t, data.dec.decodeValues(ret))
-			assert.Equal(t, ret, arr2)
+			require.NoError(t, data.dec.init(r))
+			require.NoError(t, data.dec.decodeValues(ret))
+			require.Equal(t, ret, arr1)
+			require.NoError(t, data.dec.decodeValues(ret))
+			require.Equal(t, ret, arr2)
 			// No more data
-			assert.Error(t, data.dec.decodeValues(ret))
+			require.Error(t, data.dec.decodeValues(ret))
 		})
 	}
 }

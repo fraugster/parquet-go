@@ -138,7 +138,11 @@ func (d *deltaBitPackDecoder) nextInterface() (interface{}, error) {
 			}
 
 			d.miniBlockWidth = int(d.miniBlockWidths[d.miniBlock])
-			d.unpacker32 = unpack8Int32FuncByWidth[d.miniBlockWidth]
+			if d.bitWidth == 32 {
+				d.unpacker32 = unpack8Int32FuncByWidth[d.miniBlockWidth]
+			} else {
+				d.unpacker64 = unpack8Int64FuncByWidth[d.miniBlockWidth]
+			}
 			d.miniBlockPos = 0
 			d.miniBlock++
 		}

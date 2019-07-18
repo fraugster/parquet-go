@@ -58,6 +58,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) error {
 	return nil
 }
 
+// TODO: Implement fallback
 type dictEncoder struct {
 	w      io.Writer
 	values []interface{}

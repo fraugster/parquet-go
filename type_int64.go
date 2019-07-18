@@ -69,3 +69,17 @@ func (d *int64DeltaBPDecoder) decodeValues(dst []interface{}) error {
 
 	return nil
 }
+
+type int64DeltaBPEncoder struct {
+	deltaBitPackEncoder64
+}
+
+func (d *int64DeltaBPEncoder) encodeValues(values []interface{}) error {
+	for i := range values {
+		if err := d.addInt64(values[i].(int64)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
