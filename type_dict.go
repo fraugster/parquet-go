@@ -14,6 +14,10 @@ type dictDecoder struct {
 	keys decoder
 }
 
+func (d *dictDecoder) setValues(v []interface{}) {
+	d.values = v
+}
+
 // the value should be there before the init
 func (d *dictDecoder) init(r io.Reader) error {
 	buf := make([]byte, 1)
@@ -37,13 +41,14 @@ func (d *dictDecoder) decodeValues(dst []interface{}) error {
 		return errors.New("no value is inside dictionary")
 	}
 	size := int32(len(d.values))
+
 	for i := range dst {
 		key, err := d.keys.next()
 		if err != nil {
 			return err
 		}
 
-		if key > size {
+		if key >= size {
 			return errors.Errorf("dict: invalid index %d, values count are %d", key, size)
 		}
 
@@ -58,6 +63,10 @@ type dictEncoder struct {
 	values []interface{}
 
 	data []int32
+}
+
+func (d *dictEncoder) getValues() []interface{} {
+	return d.values
 }
 
 func (d *dictEncoder) getIndex(in interface{}) int32 {
@@ -84,7 +93,14 @@ func (d *dictEncoder) Close() error {
 	}
 
 	w := bits.Len(uint(v))
+	// first write the bitLenght in a byte
+	if err := writeFull(d.w, []byte{byte(w)}); err != nil {
+		return err
+	}
 	enc := newHybridEncoder(w)
+	if err := enc.init(d.w); err != nil {
+		return err
+	}
 	if err := enc.encode(d.data); err != nil {
 		return err
 	}
@@ -94,6 +110,7 @@ func (d *dictEncoder) Close() error {
 
 func (d *dictEncoder) init(w io.Writer) error {
 	d.w = w
+	d.values = nil
 	return nil
 }
 

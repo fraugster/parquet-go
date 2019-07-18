@@ -32,6 +32,10 @@ type int96PlainEncoder struct {
 	w io.Writer
 }
 
+func (i *int96PlainEncoder) Close() error {
+	return nil
+}
+
 func (i *int96PlainEncoder) init(w io.Writer) error {
 	i.w = w
 

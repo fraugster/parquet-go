@@ -2,7 +2,6 @@ package go_parquet
 
 import (
 	"bytes"
-	"io"
 	"math/rand"
 	"testing"
 
@@ -88,6 +87,14 @@ var (
 				return rand.Int()%2 == 0
 			},
 		},
+		{
+			name: "Dictionary",
+			enc:  &dictEncoder{},
+			dec:  &dictDecoder{},
+			rand: func() interface{} {
+				return rand.Int31n(100)
+			},
+		},
 	}
 )
 
@@ -100,12 +107,16 @@ func TestTypes(t *testing.T) {
 			assert.NoError(t, data.enc.init(w))
 			assert.NoError(t, data.enc.encodeValues(arr1))
 			assert.NoError(t, data.enc.encodeValues(arr2))
-			if c, ok := data.enc.(io.Closer); ok {
-				assert.NoError(t, c.Close())
+			assert.NoError(t, data.enc.Close())
+			var v []interface{}
+			if d, ok := data.enc.(dictValuesEncoder); ok {
+				v = d.getValues()
 			}
-
 			ret := make([]interface{}, 1000)
 			r := bytes.NewReader(w.Bytes())
+			if d, ok := data.dec.(dictValuesDecoder); ok {
+				d.setValues(v)
+			}
 			assert.NoError(t, data.dec.init(r))
 			assert.NoError(t, data.dec.decodeValues(ret))
 			assert.Equal(t, ret, arr1)

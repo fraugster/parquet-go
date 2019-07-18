@@ -30,6 +30,10 @@ type int64PlainEncoder struct {
 	w io.Writer
 }
 
+func (i *int64PlainEncoder) Close() error {
+	return nil
+}
+
 func (i *int64PlainEncoder) init(w io.Writer) error {
 	i.w = w
 

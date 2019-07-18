@@ -31,6 +31,10 @@ type floatPlainEncoder struct {
 	w io.Writer
 }
 
+func (d *floatPlainEncoder) Close() error {
+	return nil
+}
+
 func (d *floatPlainEncoder) init(w io.Writer) error {
 	d.w = w
 
