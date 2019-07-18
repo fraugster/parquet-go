@@ -48,6 +48,47 @@ func (b *byteArrayPlainDecoder) decodeValues(dst []interface{}) (err error) {
 	return nil
 }
 
+type byteArrayPlainEncoder struct {
+	w io.Writer
+
+	length int
+}
+
+func (b *byteArrayPlainEncoder) init(w io.Writer) error {
+	b.w = w
+
+	return nil
+}
+
+func (b *byteArrayPlainEncoder) writeBytes(data []byte) error {
+	l := b.length
+	if l == 0 { // variable length
+		l = len(data)
+		l32 := int32(l)
+		if err := binary.Write(b.w, binary.LittleEndian, l32); err != nil {
+			return err
+		}
+	} else if len(data) != l {
+		return errors.Errorf("the byte array should be with length %d but is %d", l, len(data))
+	}
+
+	return writeFull(b.w, data)
+}
+
+func (b *byteArrayPlainEncoder) encodeValues(values []interface{}) error {
+	for i := range values {
+		if err := b.writeBytes(values[i].([]byte)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (*byteArrayPlainEncoder) Close() error {
+	return nil
+}
+
 type byteArrayDeltaLengthDecoder struct {
 	r        io.Reader
 	position int

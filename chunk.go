@@ -14,6 +14,7 @@ import (
 
 // ColumnChunkReader allows to read data from a single column chunk of a parquet
 // file.
+// TODO: get rid of this type, Reader should return an Page
 type ColumnChunkReader struct {
 	col Column
 
@@ -28,7 +29,6 @@ type ColumnChunkReader struct {
 }
 
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
-
 
 func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, error) {
 	switch typ {

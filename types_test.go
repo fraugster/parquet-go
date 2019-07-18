@@ -88,11 +88,49 @@ var (
 			},
 		},
 		{
-			name: "Dictionary",
+			name: "DictionaryInt32",
 			enc:  &dictEncoder{},
 			dec:  &dictDecoder{},
 			rand: func() interface{} {
 				return rand.Int31n(100)
+			},
+		},
+		{
+			name: "DictionaryInt96",
+			enc:  &dictEncoder{},
+			dec:  &dictDecoder{},
+			rand: func() interface{} {
+				var data Int96
+				for i := 0; i < 12; i++ {
+					data[i] = byte(rand.Intn(10)) // limit the values
+				}
+
+				return data
+			},
+		},
+		{
+			name: "ByteArrayFixedLen",
+			enc:  &byteArrayPlainEncoder{length: 3},
+			dec:  &byteArrayPlainDecoder{length: 3},
+			rand: func() interface{} {
+				return []byte{
+					byte(rand.Intn(256)),
+					byte(rand.Intn(256)),
+					byte(rand.Intn(256)),
+				}
+			},
+		},
+		{
+			name: "ByteArray",
+			enc:  &byteArrayPlainEncoder{},
+			dec:  &byteArrayPlainDecoder{},
+			rand: func() interface{} {
+				l := rand.Intn(10) + 1 // no zero
+				ret := make([]byte, l)
+				for i := range ret {
+					ret[i] = byte(rand.Intn(256))
+				}
+				return ret
 			},
 		},
 	}
