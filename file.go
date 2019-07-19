@@ -45,7 +45,7 @@ func (f *FileReader) RawGroupCount() int {
 	return len(f.meta.RowGroups)
 }
 
-func (f *FileReader) NewReader(col Column, rg int) (*ColumnChunkReader, error) {
+func (f *FileReader) NewReader(col Column, rg int) (*columnChunkReader, error) {
 	if rg >= len(f.meta.RowGroups) {
 		return nil, fmt.Errorf("no such rowgroup: %d", rg)
 	}

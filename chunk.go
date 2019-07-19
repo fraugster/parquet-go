@@ -12,10 +12,14 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// ColumnChunkReader allows to read data from a single column chunk of a parquet
+var (
+	errEndOfChunk = errors.New("End Of Chunk")
+)
+
+// columnChunkReader allows to read data from a single column chunk of a parquet
 // file.
 // TODO: get rid of this type, Reader should return an Page
-type ColumnChunkReader struct {
+type columnChunkReader struct {
 	col Column
 
 	reader    *offsetReader
@@ -26,6 +30,8 @@ type ColumnChunkReader struct {
 	rDecoder, dDecoder func() levelDecoder
 
 	dictPage *dictionaryPage
+
+	activePage pageReader
 }
 
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
@@ -149,7 +155,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ)
 }
 
-func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*ColumnChunkReader, error) {
+func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*columnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -177,7 +183,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		return nil, err
 	}
 
-	cr := &ColumnChunkReader{
+	cr := &columnChunkReader{
 		col: col,
 		reader: &offsetReader{
 			inner:  r,
@@ -293,10 +299,14 @@ type dataPageV1 struct {
 	position int
 }
 
-func (dp *dataPageV1) ReadValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageV1) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
 	size := len(val)
 	if rem := int(dp.numValues) - dp.position; rem < size {
 		size = rem
+	}
+
+	if size == 0 {
+		return 0, nil, nil, nil
 	}
 
 	dLevel = make([]uint16, size)
@@ -376,10 +386,14 @@ type dataPageV2 struct {
 	position           int
 }
 
-func (dp *dataPageV2) ReadValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageV2) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
 	size := len(val)
 	if rem := int(dp.numValues) - dp.position; rem < size {
 		size = rem
+	}
+
+	if size == 0 {
+		return 0, nil, nil, nil
 	}
 
 	dLevel = make([]uint16, size)
@@ -472,9 +486,9 @@ func (dp *dataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	return dp.valuesDecoder.init(reader)
 }
 
-func (cr *ColumnChunkReader) readPage() (Page, error) {
+func (cr *columnChunkReader) readPage() (pageReader, error) {
 	if cr.chunkMeta.TotalCompressedSize-cr.reader.Count() <= 0 {
-		return nil, errors.New("EndOfTheChunk")
+		return nil, errEndOfChunk
 	}
 	ph := &parquet.PageHeader{}
 	if err := readThrift(ph, cr.reader); err != nil {
@@ -513,7 +527,7 @@ func (cr *ColumnChunkReader) readPage() (Page, error) {
 		return cr.readPage()
 	}
 
-	var p Page
+	var p pageReader
 	switch ph.Type {
 	case parquet.PageType_DATA_PAGE:
 		p = &dataPageV1{}
@@ -540,6 +554,19 @@ func (cr *ColumnChunkReader) readPage() (Page, error) {
 	return p, nil
 }
 
-func (cr *ColumnChunkReader) Read() (Page, error) {
-	return cr.readPage()
+func (cr *columnChunkReader) Read(values []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+	// TODO : the docs said each chunk could have one or more page, one is ok, two is ok since dictionary pages are always in pair
+	// but is there any chunk with 3 page or above? if there is, this function needs re-write.
+	if cr.activePage == nil {
+		cr.activePage, err = cr.readPage()
+		if err == errEndOfChunk { // if this is the end of chunk
+			return n, dLevel, rLevel, nil
+		}
+
+		if err != nil {
+			return 0, nil, nil, errors.Wrap(err, "read page failed")
+		}
+	}
+
+	return cr.activePage.readValues(values[n:])
 }
