@@ -1,6 +1,7 @@
 package go_parquet
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 
@@ -98,12 +99,12 @@ type byteArrayDeltaLengthDecoder struct {
 func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
 	b.r = r
 	b.position = 0
-	lensDecoder := deltaBitPackDecoder{bitWidth: 32}
+	lensDecoder := int32DeltaBPDecoder{}
 	if err := lensDecoder.init(r); err != nil {
 		return err
 	}
 
-	b.lens = make([]int32, lensDecoder.numValues)
+	b.lens = make([]int32, lensDecoder.valuesCount)
 	return decodeInt32(&lensDecoder, b.lens)
 }
 
@@ -132,6 +133,57 @@ func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) error {
 	return nil
 }
 
+type byteArrayDeltaLengthEncoder struct {
+	w    io.Writer
+	buf  *bytes.Buffer
+	lens []interface{}
+}
+
+func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
+	b.w = w
+	b.buf = &bytes.Buffer{}
+	return nil
+}
+
+func (b *byteArrayDeltaLengthEncoder) encodeValues(values []interface{}) error {
+	if b.lens == nil {
+		// this is just for the first time, maybe we need to copy and increase the cap in the next calls?
+		b.lens = make([]interface{}, 0, len(values))
+	}
+	for i := range values {
+		data := values[i].([]byte)
+		b.lens = append(b.lens, int32(len(data)))
+		if err := writeFull(b.buf, data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *byteArrayDeltaLengthEncoder) Close() error {
+	// Do we need to change this values? (128 and 4)
+	enc := &int32DeltaBPEncoder{
+		deltaBitPackEncoder32{
+			blockSize:      128,
+			miniBlockCount: 4,
+		},
+	}
+	if err := enc.init(b.w); err != nil {
+		return err
+	}
+
+	if err := enc.encodeValues(b.lens); err != nil {
+		return err
+	}
+
+	if err := enc.Close(); err != nil {
+		return err
+	}
+
+	return writeFull(b.w, b.buf.Bytes())
+}
+
 type byteArrayDeltaDecoder struct {
 	suffixDecoder byteArrayDeltaLengthDecoder
 
@@ -141,12 +193,12 @@ type byteArrayDeltaDecoder struct {
 }
 
 func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
-	lensDecoder := deltaBitPackDecoder{bitWidth: 32}
+	lensDecoder := deltaBitPackDecoder32{}
 	if err := lensDecoder.init(r); err != nil {
 		return err
 	}
 
-	d.prefixLens = make([]int32, lensDecoder.numValues)
+	d.prefixLens = make([]int32, lensDecoder.valuesCount)
 	if err := decodeInt32(&lensDecoder, d.prefixLens); err != nil {
 		return err
 	}

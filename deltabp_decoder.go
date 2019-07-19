@@ -6,200 +6,318 @@ import (
 	"github.com/pkg/errors"
 )
 
-type deltaBitPackDecoder struct {
-	bitWidth uint8
-	r        io.Reader
+// The two following decoder are identical, since there is no generic, I had two option, one use the interfaces
+// which was my first choice but its branchy and full of if and else. so I decided to go for second solution and
+// almost copy/paste this two types
 
-	numMiniBlocks int32
-	miniBlockSize int32
-	numValues     int32
+type deltaBitPackDecoder32 struct {
+	r io.Reader
 
-	minDelta        interface{}
-	miniBlockWidths []uint8
+	blockSize           int32
+	miniBlockCount      int32
+	valuesCount         int32
+	miniBlockValueCount int32
 
-	position          int
-	value             interface{}
-	miniBlock         int
-	miniBlockWidth    int
-	unpacker32        unpack8int32Func
-	unpacker64        unpack8int64Func
-	miniBlockPos      int
-	miniBlockValues32 [8]int32
-	miniBlockValues64 [8]int64
+	previousValue int32
+	minDelta      int32
+
+	miniBlockBitWidth        []uint8
+	currentMiniBlock         int32
+	currentMiniBlockBitWidth uint8
+	miniBlockPosition        int32 // position inside the current mini block
+	position                 int32 // position in the value. since delta may have padding we need to track this
+	currentUnpacker          unpack8int32Func
+	miniBlockInt32           [8]int32
 }
 
-func (d *deltaBitPackDecoder) init(r io.Reader) error {
-	if d.bitWidth != 32 && d.bitWidth != 64 {
-		return errors.New("int/delta: invalid bitwidth")
-	}
+func (d *deltaBitPackDecoder32) initSize(r io.Reader) error {
+	return d.init(r)
+}
+
+func (d *deltaBitPackDecoder32) init(r io.Reader) error {
 	d.r = r
 
-	if err := d.readPageHeader(); err != nil {
-		return err
-	}
 	if err := d.readBlockHeader(); err != nil {
 		return err
 	}
 
+	if err := d.readMiniBlockHeader(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// there is no need for implement the init size here
-func (d *deltaBitPackDecoder) initSize(r io.Reader) error {
-	return d.init(r)
-}
-
-// page-header := <block size in values> <number of miniblocks in a block> <total value count> <first value>
-func (d *deltaBitPackDecoder) readPageHeader() error {
-	blockSize, err := readUVariant32(d.r)
-	if err != nil {
-		return errors.Wrap(err, "int/delta: failed to read block size")
+func (d *deltaBitPackDecoder32) readBlockHeader() error {
+	var err error
+	if d.blockSize, err = readUVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read block size")
 	}
-	if blockSize <= 0 {
-		// TODO: maybe validate blockSize % 8 = 0
-		return errors.New("int/delta: invalid block size")
+	if d.blockSize <= 0 && d.blockSize%128 != 0 {
+		return errors.New("invalid block size")
 	}
 
-	d.numMiniBlocks, err = readUVariant32(d.r)
-	if err != nil {
-		return errors.Wrap(err, "int/delta: failed to read number of mini blocks")
+	if d.miniBlockCount, err = readUVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read number of mini blocks")
 	}
 
-	if d.numMiniBlocks <= 0 || d.numMiniBlocks > blockSize || blockSize%d.numMiniBlocks != 0 {
-		// TODO: maybe blockSize/8 % d.numMiniBlocks = 0
+	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
 		return errors.New("int/delta: invalid number of mini blocks")
 	}
 
-	d.numValues, err = readUVariant32(d.r)
-	if err != nil {
-		return errors.Wrapf(err, "int/delta: failed to read total value count")
-	}
-	if d.numValues < 0 {
-		return errors.New("int/delta: invalid total value count")
+	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
+
+	if d.valuesCount, err = readUVariant32(d.r); err != nil {
+		return errors.Wrapf(err, "failed to read total value count")
 	}
 
-	if d.bitWidth == 32 {
-		d.value, err = readVariant32(d.r)
-	} else {
-		d.value, err = readVariant64(d.r)
-	}
-	if err != nil {
-		return errors.Wrap(err, "int/delta: failed to read first value")
+	if d.valuesCount < 0 {
+		return errors.New("invalid total value count")
 	}
 
-	// TODO: re-use if possible
-	d.miniBlockWidths = make([]byte, d.numMiniBlocks)
-	d.miniBlockSize = blockSize / d.numMiniBlocks
+	if d.previousValue, err = readVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read first value")
+	}
 
 	return nil
 }
 
-// block := <min delta> <list of bitwidths of miniblocks> <miniblocks>
-// min delta : zig-zag var int encoded
-// bitWidthsOfMiniBlock : 1 byte little endian
-func (d *deltaBitPackDecoder) readBlockHeader() error {
+func (d *deltaBitPackDecoder32) readMiniBlockHeader() error {
 	var err error
 
-	if d.bitWidth == 32 {
-		d.minDelta, err = readVariant32(d.r)
-	} else {
-		d.minDelta, err = readVariant64(d.r)
-	}
-	if err != nil {
-		return errors.Wrap(err, "int/delta: failed to read min delta")
+	if d.minDelta, err = readVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read min delta")
 	}
 
-	if _, err = io.ReadFull(d.r, d.miniBlockWidths); err != nil {
-		return errors.Wrap(err, "int/delta: not enough data to read all miniblock bit widths")
+	// the mini block bitwidth is always there, even if the value is zero
+	d.miniBlockBitWidth = make([]uint8, d.miniBlockCount)
+	if _, err = io.ReadFull(d.r, d.miniBlockBitWidth); err != nil {
+		return errors.Wrap(err, "not enough data to read all miniblock bit widths")
 	}
 
-	for i := range d.miniBlockWidths {
-		if d.miniBlockWidths[i] < 0 || d.miniBlockWidths[i] > d.bitWidth {
-			return errors.New("int/delta: invalid miniblock bit width")
+	for i := range d.miniBlockBitWidth {
+		if d.miniBlockBitWidth[i] < 0 || d.miniBlockBitWidth[i] > 32 {
+			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
 		}
 	}
 
-	d.miniBlock = 0
+	// start from the first min block in a big block
+	d.currentMiniBlock = 0
 
 	return nil
 }
 
-func (d *deltaBitPackDecoder) nextInterface() (interface{}, error) {
-	if d.position >= int(d.numValues) {
+func (d *deltaBitPackDecoder32) next() (int32, error) {
+	if d.position >= d.valuesCount {
+		// No value left in the buffer
 		return 0, io.EOF
 	}
 
+	// need new byte?
 	if d.position%8 == 0 {
-		if d.position%int(d.miniBlockSize) == 0 {
-			if d.miniBlock >= int(d.numMiniBlocks) {
-				if err := d.readBlockHeader(); err != nil {
+		// do we need to advance a mini block?
+		if d.position%d.miniBlockValueCount == 0 {
+			// do we need to advance a big block?
+			if d.currentMiniBlock >= d.miniBlockCount {
+				if err := d.readMiniBlockHeader(); err != nil {
 					return 0, err
 				}
 			}
 
-			d.miniBlockWidth = int(d.miniBlockWidths[d.miniBlock])
-			if d.bitWidth == 32 {
-				d.unpacker32 = unpack8Int32FuncByWidth[d.miniBlockWidth]
-			} else {
-				d.unpacker64 = unpack8Int64FuncByWidth[d.miniBlockWidth]
-			}
-			d.miniBlockPos = 0
-			d.miniBlock++
+			d.currentMiniBlockBitWidth = d.miniBlockBitWidth[d.currentMiniBlock]
+			d.currentUnpacker = unpack8Int32FuncByWidth[int(d.currentMiniBlockBitWidth)]
+
+			d.miniBlockPosition = 0
+			d.currentMiniBlock++
 		}
 
 		// read next 8 values
-		w := d.miniBlockWidth
-		buf := make([]byte, d.miniBlockWidth)
-		_, err := io.ReadFull(d.r, buf)
-		if err != nil {
+		w := int32(d.currentMiniBlockBitWidth)
+		buf := make([]byte, w)
+		if _, err := io.ReadFull(d.r, buf); err != nil {
 			return 0, err
 		}
 
-		if d.bitWidth == 32 {
-			d.miniBlockValues32 = d.unpacker32(buf)
-			d.miniBlockPos += w
-			if d.position+8 >= int(d.numValues) {
-				buf := make([]byte, int(d.miniBlockSize)/8*w-d.miniBlockPos)
-				// make sure that all data is consumed
-				// this is needed for byte array decoders
-				// TODO: (f0rud) What is this code here?
-				_, _ = d.r.Read(buf)
-			}
-		} else {
-			d.miniBlockValues64 = d.unpacker64(buf)
-			d.miniBlockPos += w
-			if d.position+8 >= int(d.numValues) {
-				buf := make([]byte, int(d.miniBlockSize)/8*w-d.miniBlockPos)
-				// make sure that all data is consumed
-				// this is needed for byte array decoders
-				// TODO: (f0rud) What is this code here?
-				_, _ = d.r.Read(buf)
+		d.miniBlockInt32 = d.currentUnpacker(buf)
+		d.miniBlockPosition += w
+		// there is padding here, read them all from the reader, first deal with the remaining of the current block,
+		// then the next blocks. if the blocks bit width is zero then simply ignore them, but the docs said reader
+		// should accept any arbitrary bit width here.
+		if d.position+8 >= d.valuesCount {
+			//  current block
+			remaining := make([]byte, (d.miniBlockValueCount/8)*w-d.miniBlockPosition)
+			_, _ = io.ReadFull(d.r, remaining)
+			for i := d.currentMiniBlock; i < d.miniBlockCount; i++ {
+				w := int32(d.miniBlockBitWidth[d.currentMiniBlock])
+				if w != 0 {
+					remaining := make([]byte, (d.miniBlockValueCount/8)*w)
+					_, _ = io.ReadFull(d.r, remaining)
+				}
 			}
 		}
 	}
 
-	var ret interface{}
-	if d.bitWidth == 32 {
-		ret = d.value
-		d.value = ret.(int32) + d.miniBlockValues32[d.position%8] + d.minDelta.(int32)
-	} else {
-		ret = d.value
-		d.value = ret.(int64) + d.miniBlockValues64[d.position%8] + d.minDelta.(int64)
-	}
+	// value is the previous value + delta stored in the reader and the min delta for the block, also we always read one
+	// value ahead
+	ret := d.previousValue
+	d.previousValue += d.miniBlockInt32[d.position%8] + d.minDelta
 	d.position++
 
 	return ret, nil
 }
 
-func (d *deltaBitPackDecoder) next() (int32, error) {
-	if d.bitWidth != 32 {
-		return 0, errors.New("32 bit iteration over 64 bit decoder")
+type deltaBitPackDecoder64 struct {
+	r io.Reader
+
+	blockSize           int32
+	miniBlockCount      int32
+	valuesCount         int32
+	miniBlockValueCount int32
+
+	previousValue int64
+	minDelta      int64
+
+	miniBlockBitWidth        []uint8
+	currentMiniBlock         int32
+	currentMiniBlockBitWidth uint8
+	miniBlockPosition        int32 // position inside the current mini block
+	position                 int32 // position in the value. since delta may have padding we need to track this
+	currentUnpacker          unpack8int64Func
+	miniBlockInt64           [8]int64
+}
+
+func (d *deltaBitPackDecoder64) initSize(r io.Reader) error {
+	return d.init(r)
+}
+
+func (d *deltaBitPackDecoder64) init(r io.Reader) error {
+	d.r = r
+
+	if err := d.readBlockHeader(); err != nil {
+		return err
 	}
 
-	n, err := d.nextInterface()
-	if err != nil {
-		return 0, err
+	if err := d.readMiniBlockHeader(); err != nil {
+		return err
 	}
 
-	return n.(int32), nil
+	return nil
+}
+
+func (d *deltaBitPackDecoder64) readBlockHeader() error {
+	var err error
+	if d.blockSize, err = readUVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read block size")
+	}
+	if d.blockSize <= 0 && d.blockSize%128 != 0 {
+		return errors.New("invalid block size")
+	}
+
+	if d.miniBlockCount, err = readUVariant32(d.r); err != nil {
+		return errors.Wrap(err, "failed to read number of mini blocks")
+	}
+
+	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
+		return errors.New("int/delta: invalid number of mini blocks")
+	}
+
+	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
+
+	if d.valuesCount, err = readUVariant32(d.r); err != nil {
+		return errors.Wrapf(err, "failed to read total value count")
+	}
+
+	if d.valuesCount < 0 {
+		return errors.New("invalid total value count")
+	}
+
+	if d.previousValue, err = readVariant64(d.r); err != nil {
+		return errors.Wrap(err, "failed to read first value")
+	}
+
+	return nil
+}
+
+func (d *deltaBitPackDecoder64) readMiniBlockHeader() error {
+	var err error
+
+	if d.minDelta, err = readVariant64(d.r); err != nil {
+		return errors.Wrap(err, "failed to read min delta")
+	}
+
+	// the mini block bitwidth is always there, even if the value is zero
+	d.miniBlockBitWidth = make([]uint8, d.miniBlockCount)
+	if _, err = io.ReadFull(d.r, d.miniBlockBitWidth); err != nil {
+		return errors.Wrap(err, "not enough data to read all miniblock bit widths")
+	}
+
+	for i := range d.miniBlockBitWidth {
+		if d.miniBlockBitWidth[i] < 0 || d.miniBlockBitWidth[i] > 64 {
+			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
+		}
+	}
+
+	// start from the first min block in a big block
+	d.currentMiniBlock = 0
+
+	return nil
+}
+
+func (d *deltaBitPackDecoder64) next() (int64, error) {
+	if d.position >= d.valuesCount {
+		// No value left in the buffer
+		return 0, io.EOF
+	}
+
+	// need new byte?
+	if d.position%8 == 0 {
+		// do we need to advance a mini block?
+		if d.position%d.miniBlockValueCount == 0 {
+			// do we need to advance a big block?
+			if d.currentMiniBlock >= d.miniBlockCount {
+				if err := d.readMiniBlockHeader(); err != nil {
+					return 0, err
+				}
+			}
+
+			d.currentMiniBlockBitWidth = d.miniBlockBitWidth[d.currentMiniBlock]
+			d.currentUnpacker = unpack8Int64FuncByWidth[int(d.currentMiniBlockBitWidth)]
+
+			d.miniBlockPosition = 0
+			d.currentMiniBlock++
+		}
+
+		// read next 8 values
+		w := int32(d.currentMiniBlockBitWidth)
+		buf := make([]byte, w)
+		if _, err := io.ReadFull(d.r, buf); err != nil {
+			return 0, err
+		}
+
+		d.miniBlockInt64 = d.currentUnpacker(buf)
+		d.miniBlockPosition += w
+		// there is padding here, read them all from the reader, first deal with the remaining of the current block,
+		// then the next blocks. if the blocks bit width is zero then simply ignore them, but the docs said reader
+		// should accept any arbitrary bit width here.
+		if d.position+8 >= d.valuesCount {
+			//  current block
+			remaining := make([]byte, (d.miniBlockValueCount/8)*w-d.miniBlockPosition)
+			_, _ = io.ReadFull(d.r, remaining)
+			for i := d.currentMiniBlock; i < d.miniBlockCount; i++ {
+				w := int32(d.miniBlockBitWidth[d.currentMiniBlock])
+				if w != 0 {
+					remaining := make([]byte, (d.miniBlockValueCount/8)*w)
+					_, _ = io.ReadFull(d.r, remaining)
+				}
+			}
+		}
+	}
+
+	// value is the previous value + delta stored in the reader and the min delta for the block, also we always read one
+	// value ahead
+	ret := d.previousValue
+	d.previousValue += d.miniBlockInt64[d.position%8] + d.minDelta
+	d.position++
+
+	return ret, nil
 }

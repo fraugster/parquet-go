@@ -50,17 +50,12 @@ func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
 }
 
 type int32DeltaBPDecoder struct {
-	deltaBitPackDecoder
-}
-
-func (d *int32DeltaBPDecoder) init(r io.Reader) error {
-	d.deltaBitPackDecoder.bitWidth = 32
-	return d.deltaBitPackDecoder.init(r)
+	deltaBitPackDecoder32
 }
 
 func (d *int32DeltaBPDecoder) decodeValues(dst []interface{}) error {
 	for i := range dst {
-		u, err := d.nextInterface()
+		u, err := d.next()
 		if err != nil {
 			return err
 		}

@@ -137,9 +137,22 @@ var (
 			},
 		},
 		{
-			name: "ByteArray",
+			name: "ByteArrayPlain",
 			enc:  &byteArrayPlainEncoder{},
 			dec:  &byteArrayPlainDecoder{},
+			rand: func() interface{} {
+				l := rand.Intn(10) + 1 // no zero
+				ret := make([]byte, l)
+				for i := range ret {
+					ret[i] = byte(rand.Intn(256))
+				}
+				return ret
+			},
+		},
+		{
+			name: "ByteArrayDelta",
+			enc:  &byteArrayDeltaLengthEncoder{},
+			dec:  &byteArrayDeltaLengthDecoder{},
 			rand: func() interface{} {
 				l := rand.Intn(10) + 1 // no zero
 				ret := make([]byte, l)
@@ -153,10 +166,11 @@ var (
 )
 
 func TestTypes(t *testing.T) {
+	bufLen := 1000
 	for _, data := range tests {
 		t.Run(data.name, func(t *testing.T) {
-			arr1 := buildRandArray(1000, data.rand)
-			arr2 := buildRandArray(1000, data.rand)
+			arr1 := buildRandArray(bufLen, data.rand)
+			arr2 := buildRandArray(bufLen, data.rand)
 			w := &bytes.Buffer{}
 			require.NoError(t, data.enc.init(w))
 			require.NoError(t, data.enc.encodeValues(arr1))
@@ -166,7 +180,7 @@ func TestTypes(t *testing.T) {
 			if d, ok := data.enc.(dictValuesEncoder); ok {
 				v = d.getValues()
 			}
-			ret := make([]interface{}, 1000)
+			ret := make([]interface{}, bufLen)
 			r := bytes.NewReader(w.Bytes())
 			if d, ok := data.dec.(dictValuesDecoder); ok {
 				d.setValues(v)
