@@ -133,6 +133,7 @@ func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) error {
 	return nil
 }
 
+// this type is used inside the byteArrayDeltaEncoder, the Close method should do the actual write, not before.
 type byteArrayDeltaLengthEncoder struct {
 	w    io.Writer
 	buf  *bytes.Buffer
@@ -145,15 +146,18 @@ func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
 	return nil
 }
 
+func (b *byteArrayDeltaLengthEncoder) writeOne(data []byte) error {
+	b.lens = append(b.lens, int32(len(data)))
+	return writeFull(b.buf, data)
+}
+
 func (b *byteArrayDeltaLengthEncoder) encodeValues(values []interface{}) error {
 	if b.lens == nil {
 		// this is just for the first time, maybe we need to copy and increase the cap in the next calls?
 		b.lens = make([]interface{}, 0, len(values))
 	}
 	for i := range values {
-		data := values[i].([]byte)
-		b.lens = append(b.lens, int32(len(data)))
-		if err := writeFull(b.buf, data); err != nil {
+		if err := b.writeOne(values[i].([]byte)); err != nil {
 			return err
 		}
 	}
@@ -169,15 +173,8 @@ func (b *byteArrayDeltaLengthEncoder) Close() error {
 			miniBlockCount: 4,
 		},
 	}
-	if err := enc.init(b.w); err != nil {
-		return err
-	}
 
-	if err := enc.encodeValues(b.lens); err != nil {
-		return err
-	}
-
-	if err := enc.Close(); err != nil {
+	if err := encodeValue(b.w, enc, b.lens); err != nil {
 		return err
 	}
 
@@ -186,10 +183,8 @@ func (b *byteArrayDeltaLengthEncoder) Close() error {
 
 type byteArrayDeltaDecoder struct {
 	suffixDecoder byteArrayDeltaLengthDecoder
-
-	prefixLens []int32
-
-	value []byte
+	prefixLens    []int32
+	previousValue []byte
 }
 
 func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
@@ -210,7 +205,7 @@ func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
 		return errors.New("bytearray/delta: different number of suffixes and prefixes")
 	}
 
-	d.value = make([]byte, 0)
+	d.previousValue = make([]byte, 0)
 
 	return nil
 }
@@ -223,10 +218,69 @@ func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) error {
 		}
 		prefixLen := int(d.prefixLens[d.suffixDecoder.position-1])
 		value := make([]byte, 0, prefixLen+len(suffix))
-		value = append(value, d.value[:prefixLen]...)
+		if len(d.previousValue) < prefixLen {
+			// prevent panic from invalid input
+			return errors.Errorf("invalid prefix len in the stream, the value is %d byte but the it needs %d byte", len(d.previousValue), prefixLen)
+		}
+		if prefixLen > 0 {
+			value = append(value, d.previousValue[:prefixLen]...)
+		}
 		value = append(value, suffix...)
-		d.value = value
+		d.previousValue = value
 		dst[i] = value
 	}
 	return nil
+}
+
+type byteArrayDeltaEncoder struct {
+	w io.Writer
+
+	prefixLens    []interface{}
+	previousValue []byte
+
+	values *byteArrayDeltaLengthEncoder
+}
+
+func (b *byteArrayDeltaEncoder) init(w io.Writer) error {
+	b.w = w
+	b.prefixLens = nil
+	b.previousValue = []byte{}
+	b.values = &byteArrayDeltaLengthEncoder{}
+	return b.values.init(w)
+}
+
+func (b *byteArrayDeltaEncoder) encodeValues(values []interface{}) error {
+	if b.prefixLens == nil {
+		// TODO: increase the cap by copy?
+		b.prefixLens = make([]interface{}, 0, len(values))
+		b.values.lens = make([]interface{}, 0, len(values))
+	}
+
+	for i := range values {
+		data := values[i].([]byte)
+		pLen := prefix(b.previousValue, data)
+		b.prefixLens = append(b.prefixLens, int32(pLen))
+		if err := b.values.writeOne(data[pLen:]); err != nil {
+			return err
+		}
+		b.previousValue = data
+	}
+
+	return nil
+}
+
+func (b *byteArrayDeltaEncoder) Close() error {
+	// write the lens first
+	enc := &int32DeltaBPEncoder{
+		deltaBitPackEncoder32{
+			blockSize:      128,
+			miniBlockCount: 4,
+		},
+	}
+
+	if err := encodeValue(b.w, enc, b.prefixLens); err != nil {
+		return err
+	}
+
+	return b.values.Close()
 }

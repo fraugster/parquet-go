@@ -94,6 +94,9 @@ func encodeRLEValue(in int32, size int) []byte {
 }
 
 func writeFull(w io.Writer, buf []byte) error {
+	if len(buf) == 0 {
+		return nil
+	}
 	cnt, err := w.Write(buf)
 	if err != nil {
 		return err
@@ -222,4 +225,31 @@ type levelDecoderWrapper struct {
 
 func (l *levelDecoderWrapper) maxLevel() uint16 {
 	return l.max
+}
+
+// check the b2 into b1 to find the max prefix len
+func prefix(b1, b2 []byte) int {
+	l := len(b1)
+	if l2 := len(b2); l > l2 {
+		l = l2
+	}
+	for i := 0; i < l; i++ {
+		if b1[i] != b2[i] {
+			return i
+		}
+	}
+
+	return l
+}
+
+func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
+	if err := enc.init(w); err != nil {
+		return err
+	}
+
+	if err := enc.encodeValues(all); err != nil {
+		return err
+	}
+
+	return enc.Close()
 }

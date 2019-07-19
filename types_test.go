@@ -150,6 +150,19 @@ var (
 			},
 		},
 		{
+			name: "ByteArrayDeltaLen",
+			enc:  &byteArrayDeltaLengthEncoder{},
+			dec:  &byteArrayDeltaLengthDecoder{},
+			rand: func() interface{} {
+				l := rand.Intn(10) + 1 // no zero
+				ret := make([]byte, l)
+				for i := range ret {
+					ret[i] = byte(rand.Intn(256))
+				}
+				return ret
+			},
+		},
+		{
 			name: "ByteArrayDelta",
 			enc:  &byteArrayDeltaLengthEncoder{},
 			dec:  &byteArrayDeltaLengthDecoder{},

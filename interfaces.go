@@ -16,6 +16,7 @@ type Page interface {
 
 type valuesDecoder interface {
 	init(io.Reader) error
+	// TODO: change this to (int, error) to return the actual value read count
 	decodeValues([]interface{}) error
 }
 
