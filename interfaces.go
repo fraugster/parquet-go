@@ -21,8 +21,8 @@ type pageReader interface {
 
 type valuesDecoder interface {
 	init(io.Reader) error
-	// TODO: change this to (int, error) to return the actual value read count
-	decodeValues([]interface{}) error
+	// the error io.EOF with the less value is acceptable, any other error is not
+	decodeValues([]interface{}) (int, error)
 }
 
 type dictValuesDecoder interface {

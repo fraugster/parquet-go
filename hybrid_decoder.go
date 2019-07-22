@@ -135,7 +135,9 @@ func (hd *hybridDecoder) readBitPackedRun() error {
 func (hd *hybridDecoder) readRunHeader() error {
 	h, err := readUVariant32(hd.r)
 	if err != nil {
-		return errors.Wrap(err, "rle: invalid run header")
+		// this error could be EOF which is ok by this implementation the only issue is the binary.ReadUVariant can not
+		// return UnexpectedEOF is there is some bit read from the stream with no luck, it always return EOF
+		return err
 	}
 
 	// The lower bit indicate if this is bitpack or rle

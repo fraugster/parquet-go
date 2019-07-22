@@ -280,8 +280,10 @@ func (dp *dictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 	if err := dp.enc.init(reader); err != nil {
 		return err
 	}
-	if err := dp.enc.decodeValues(dp.values); err != nil {
-		return err
+
+	// no error is accepted here, even EOF
+	if n, err := dp.enc.decodeValues(dp.values); err != nil {
+		return errors.Wrapf(err, "expected %d value read %d value", dp.numValues, n)
 	}
 
 	return nil
@@ -327,8 +329,8 @@ func (dp *dataPageV1) readValues(val []interface{}) (n int, dLevel []uint16, rLe
 	}
 
 	if notNull != 0 {
-		if err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
-			return 0, nil, nil, errors.Wrap(err, "read values from page failed")
+		if n, err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
+			return 0, nil, nil, errors.Wrapf(err, "read values from page failed, need %d value read %d", notNull, n)
 		}
 	}
 	dp.position += size
@@ -414,8 +416,8 @@ func (dp *dataPageV2) readValues(val []interface{}) (n int, dLevel []uint16, rLe
 	}
 
 	if notNull != 0 {
-		if err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
-			return 0, nil, nil, errors.Wrap(err, "read values from page failed")
+		if n, err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
+			return 0, nil, nil, errors.Wrapf(err, "read values from page failed, need %d values but read %d", notNull, n)
 		}
 	}
 	dp.position += size

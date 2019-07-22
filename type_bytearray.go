@@ -8,10 +8,27 @@ import (
 	"github.com/pkg/errors"
 )
 
+type bytesArrayDecoder interface {
+	valuesDecoder
+	// just a dummy func to make sure the type is really byte decoder on compile time
+	// should panic on call
+	bytesArray()
+}
+
+type byteArrayEncoder interface {
+	valuesEncoder
+
+	bytesArray()
+}
+
 type byteArrayPlainDecoder struct {
 	r io.Reader
 	// if the length is set, then this is a fix size array decoder, unless it reads the len first
 	length int
+}
+
+func (b *byteArrayPlainDecoder) bytesArray() {
+	panic("should not call me")
 }
 
 func (b *byteArrayPlainDecoder) init(r io.Reader) error {
@@ -40,19 +57,24 @@ func (b *byteArrayPlainDecoder) next() ([]byte, error) {
 	return buf, nil
 }
 
-func (b *byteArrayPlainDecoder) decodeValues(dst []interface{}) (err error) {
+func (b *byteArrayPlainDecoder) decodeValues(dst []interface{}) (int, error) {
+	var err error
 	for i := range dst {
 		if dst[i], err = b.next(); err != nil {
-			return
+			return i, err
 		}
 	}
-	return nil
+	return len(dst), nil
 }
 
 type byteArrayPlainEncoder struct {
 	w io.Writer
 
 	length int
+}
+
+func (b *byteArrayPlainEncoder) bytesArray() {
+	panic("should not call me")
 }
 
 func (b *byteArrayPlainEncoder) init(w io.Writer) error {
@@ -96,6 +118,10 @@ type byteArrayDeltaLengthDecoder struct {
 	lens     []int32
 }
 
+func (b *byteArrayDeltaLengthDecoder) bytesArray() {
+	panic("should not call me")
+}
+
 func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
 	b.r = r
 	b.position = 0
@@ -108,29 +134,30 @@ func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
 	return decodeInt32(&lensDecoder, b.lens)
 }
 
-func (b *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
+func (b *byteArrayDeltaLengthDecoder) next() ([]byte, error) {
 	if b.position >= len(b.lens) {
-		return nil, io.ErrUnexpectedEOF
+		return nil, io.EOF
 	}
 	size := int(b.lens[b.position])
-	value = make([]byte, size)
+	value := make([]byte, size)
 	if _, err := io.ReadFull(b.r, value); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "there is no byte left")
 	}
 	b.position++
 
-	return value, err
+	return value, nil
 }
 
-func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) error {
-	for i := 0; i < len(dst); i++ {
+func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) (int, error) {
+	total := len(dst)
+	for i := 0; i < total; i++ {
 		v, err := b.next()
 		if err != nil {
-			return err
+			return i, err
 		}
 		dst[i] = v
 	}
-	return nil
+	return total, nil
 }
 
 // this type is used inside the byteArrayDeltaEncoder, the Close method should do the actual write, not before.
@@ -138,6 +165,10 @@ type byteArrayDeltaLengthEncoder struct {
 	w    io.Writer
 	buf  *bytes.Buffer
 	lens []interface{}
+}
+
+func (b *byteArrayDeltaLengthEncoder) bytesArray() {
+	panic("should not call me")
 }
 
 func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
@@ -187,6 +218,10 @@ type byteArrayDeltaDecoder struct {
 	previousValue []byte
 }
 
+func (d *byteArrayDeltaDecoder) bytesArray() {
+	panic("should not call me")
+}
+
 func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
 	lensDecoder := deltaBitPackDecoder32{}
 	if err := lensDecoder.init(r); err != nil {
@@ -204,23 +239,24 @@ func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
 	if len(d.prefixLens) != len(d.suffixDecoder.lens) {
 		return errors.New("bytearray/delta: different number of suffixes and prefixes")
 	}
-
 	d.previousValue = make([]byte, 0)
 
 	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) error {
-	for i := 0; i < len(dst); i++ {
+func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) (int, error) {
+	total := len(dst)
+	for i := 0; i < total; i++ {
 		suffix, err := d.suffixDecoder.next()
 		if err != nil {
-			return err
+			return i, err
 		}
+		// after this line no error is acceptable
 		prefixLen := int(d.prefixLens[d.suffixDecoder.position-1])
 		value := make([]byte, 0, prefixLen+len(suffix))
 		if len(d.previousValue) < prefixLen {
 			// prevent panic from invalid input
-			return errors.Errorf("invalid prefix len in the stream, the value is %d byte but the it needs %d byte", len(d.previousValue), prefixLen)
+			return 0, errors.Errorf("invalid prefix len in the stream, the value is %d byte but the it needs %d byte", len(d.previousValue), prefixLen)
 		}
 		if prefixLen > 0 {
 			value = append(value, d.previousValue[:prefixLen]...)
@@ -229,7 +265,8 @@ func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) error {
 		d.previousValue = value
 		dst[i] = value
 	}
-	return nil
+
+	return total, nil
 }
 
 type byteArrayDeltaEncoder struct {
@@ -239,6 +276,10 @@ type byteArrayDeltaEncoder struct {
 	previousValue []byte
 
 	values *byteArrayDeltaLengthEncoder
+}
+
+func (b *byteArrayDeltaEncoder) bytesArray() {
+	panic("should not call me")
 }
 
 func (b *byteArrayDeltaEncoder) init(w io.Writer) error {

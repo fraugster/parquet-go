@@ -15,15 +15,16 @@ func (i *int64PlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (i *int64PlainDecoder) decodeValues(dst []interface{}) error {
-	d := make([]int64, len(dst))
-	if err := binary.Read(i.r, binary.LittleEndian, d); err != nil {
-		return err
+func (i *int64PlainDecoder) decodeValues(dst []interface{}) (int, error) {
+	var d int64
+
+	for idx := range dst {
+		if err := binary.Read(i.r, binary.LittleEndian, &d); err != nil {
+			return idx, err
+		}
+		dst[idx] = d
 	}
-	for i := range d {
-		dst[i] = d[i]
-	}
-	return nil
+	return len(dst), nil
 }
 
 type int64PlainEncoder struct {
@@ -53,16 +54,16 @@ type int64DeltaBPDecoder struct {
 	deltaBitPackDecoder64
 }
 
-func (d *int64DeltaBPDecoder) decodeValues(dst []interface{}) error {
+func (d *int64DeltaBPDecoder) decodeValues(dst []interface{}) (int, error) {
 	for i := range dst {
 		u, err := d.next()
 		if err != nil {
-			return err
+			return i, err
 		}
 		dst[i] = u
 	}
 
-	return nil
+	return len(dst), nil
 }
 
 type int64DeltaBPEncoder struct {

@@ -16,15 +16,16 @@ func (f *floatPlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (f *floatPlainDecoder) decodeValues(dst []interface{}) error {
-	d := make([]uint32, len(dst))
-	if err := binary.Read(f.r, binary.LittleEndian, d); err != nil {
-		return err
+func (f *floatPlainDecoder) decodeValues(dst []interface{}) (int, error) {
+	var data uint32
+	for i := range dst {
+		if err := binary.Read(f.r, binary.LittleEndian, &data); err != nil {
+			return i, err
+		}
+		dst[i] = math.Float32frombits(data)
 	}
-	for i := range d {
-		dst[i] = math.Float32frombits(d[i])
-	}
-	return nil
+
+	return len(dst), nil
 }
 
 type floatPlainEncoder struct {

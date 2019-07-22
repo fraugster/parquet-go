@@ -2,6 +2,8 @@ package go_parquet
 
 import (
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 type Int96 [12]byte
@@ -16,16 +18,27 @@ func (i *int96PlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (i *int96PlainDecoder) decodeValues(dst []interface{}) error {
-	for j := range dst {
+func (i *int96PlainDecoder) decodeValues(dst []interface{}) (int, error) {
+	idx := 0
+	for range dst {
 		var data Int96
-		_, err := io.ReadFull(i.r, data[:12])
-		if err != nil {
-			return err
+		// this one is a little tricky do not use ReadFull here
+		n, err := i.r.Read(data[:12])
+		// make sure we handle the read data first then handle the error
+		if n == 12 {
+			dst[idx] = data
+			idx++
 		}
-		dst[j] = data
+
+		if err != nil && (n == 0 || n == 12) {
+			return idx, err
+		}
+
+		if err != nil {
+			return idx, errors.Wrap(err, "not enough byte to read the Int96")
+		}
 	}
-	return nil
+	return len(dst), nil
 }
 
 type int96PlainEncoder struct {

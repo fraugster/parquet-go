@@ -2,6 +2,7 @@ package go_parquet
 
 import (
 	"bytes"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -137,6 +138,18 @@ var (
 			},
 		},
 		{
+			name: "StringByteArrayFixedLen",
+			enc:  &stringEncoder{&byteArrayPlainEncoder{length: 3}},
+			dec:  &stringDecoder{&byteArrayPlainDecoder{length: 3}},
+			rand: func() interface{} {
+				return string([]byte{
+					byte(rand.Intn(94) + 32),
+					byte(rand.Intn(94) + 32),
+					byte(rand.Intn(94) + 32),
+				})
+			},
+		},
+		{
 			name: "ByteArrayPlain",
 			enc:  &byteArrayPlainEncoder{},
 			dec:  &byteArrayPlainDecoder{},
@@ -147,6 +160,19 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
+			},
+		},
+		{
+			name: "StringByteArrayPlain",
+			enc:  &stringEncoder{&byteArrayPlainEncoder{}},
+			dec:  &stringDecoder{&byteArrayPlainDecoder{}},
+			rand: func() interface{} {
+				l := rand.Intn(10) + 1 // no zero
+				ret := make([]byte, l)
+				for i := range ret {
+					ret[i] = byte(rand.Intn(94) + 32)
+				}
+				return string(ret)
 			},
 		},
 		{
@@ -164,8 +190,8 @@ var (
 		},
 		{
 			name: "ByteArrayDelta",
-			enc:  &byteArrayDeltaLengthEncoder{},
-			dec:  &byteArrayDeltaLengthDecoder{},
+			enc:  &byteArrayDeltaEncoder{},
+			dec:  &byteArrayDeltaDecoder{},
 			rand: func() interface{} {
 				l := rand.Intn(10) + 1 // no zero
 				ret := make([]byte, l)
@@ -180,6 +206,8 @@ var (
 
 func TestTypes(t *testing.T) {
 	bufLen := 1000
+
+	bufRead := bufLen + bufLen/2
 	for _, data := range tests {
 		t.Run(data.name, func(t *testing.T) {
 			arr1 := buildRandArray(bufLen, data.rand)
@@ -193,18 +221,21 @@ func TestTypes(t *testing.T) {
 			if d, ok := data.enc.(dictValuesEncoder); ok {
 				v = d.getValues()
 			}
-			ret := make([]interface{}, bufLen)
+			ret := make([]interface{}, bufRead)
 			r := bytes.NewReader(w.Bytes())
 			if d, ok := data.dec.(dictValuesDecoder); ok {
 				d.setValues(v)
 			}
 			require.NoError(t, data.dec.init(r))
-			require.NoError(t, data.dec.decodeValues(ret))
-			require.Equal(t, ret, arr1)
-			require.NoError(t, data.dec.decodeValues(ret))
-			require.Equal(t, ret, arr2)
-			// No more data
-			require.Error(t, data.dec.decodeValues(ret))
+			n, err := data.dec.decodeValues(ret)
+			require.NoError(t, err)
+			require.Equal(t, bufRead, n)
+			require.Equal(t, ret[:bufLen], arr1)
+			//require.Equal(t, len(ret[bufRead:]), len(arr2[:bufRead-bufLen]))
+			require.Equal(t, ret[bufLen:], arr2[:bufRead-bufLen])
+			n, err = data.dec.decodeValues(ret)
+			require.Equal(t, io.EOF, err)
+			require.Equal(t, ret[:n], arr2[bufRead-bufLen:])
 		})
 	}
 }

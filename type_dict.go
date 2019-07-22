@@ -36,26 +36,26 @@ func (d *dictDecoder) init(r io.Reader) error {
 	return errors.New("bit width zero with non-empty dictionary")
 }
 
-func (d *dictDecoder) decodeValues(dst []interface{}) error {
+func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	if d.keys == nil {
-		return errors.New("no value is inside dictionary")
+		return 0, errors.New("no value is inside dictionary")
 	}
 	size := int32(len(d.values))
 
 	for i := range dst {
 		key, err := d.keys.next()
 		if err != nil {
-			return err
+			return i, err
 		}
 
 		if key >= size {
-			return errors.Errorf("dict: invalid index %d, values count are %d", key, size)
+			return 0, errors.Errorf("dict: invalid index %d, values count are %d", key, size)
 		}
 
 		dst[i] = d.values[key]
 	}
 
-	return nil
+	return len(dst), nil
 }
 
 // TODO: Implement fallback

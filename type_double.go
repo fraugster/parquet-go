@@ -16,15 +16,16 @@ func (d *doublePlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (d *doublePlainDecoder) decodeValues(dst []interface{}) error {
-	data := make([]uint64, len(dst))
-	if err := binary.Read(d.r, binary.LittleEndian, data); err != nil {
-		return err
+func (d *doublePlainDecoder) decodeValues(dst []interface{}) (int, error) {
+	var data uint64
+	for i := range dst {
+		if err := binary.Read(d.r, binary.LittleEndian, &data); err != nil {
+			return i, err
+		}
+		dst[i] = math.Float64frombits(data)
 	}
-	for i := range data {
-		dst[i] = math.Float64frombits(data[i])
-	}
-	return nil
+
+	return len(dst), nil
 }
 
 type doublePlainEncoder struct {

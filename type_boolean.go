@@ -37,20 +37,20 @@ func (b *booleanPlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (b *booleanPlainDecoder) decodeValues(dst []interface{}) error {
+func (b *booleanPlainDecoder) decodeValues(dst []interface{}) (int, error) {
 	var start int
 	if len(b.left) > 0 {
 		// there is a leftover from the last run
 		b.left, start = copyLeftOvers(dst, b.left)
 		if b.left != nil {
-			return nil
+			return len(dst), nil
 		}
 	}
 
 	buf := make([]byte, 1)
 	for i := start; i < len(dst); i += 8 {
 		if _, err := io.ReadFull(b.r, buf); err != nil {
-			return err
+			return i, err
 		}
 		d := unpack8int32_1(buf)
 		for j := 0; j < 8; j++ {
@@ -62,7 +62,7 @@ func (b *booleanPlainDecoder) decodeValues(dst []interface{}) error {
 		}
 	}
 
-	return nil
+	return len(dst), nil
 }
 
 type booleanPlainEncoder struct {
@@ -130,16 +130,17 @@ func (b *booleanRLEDecoder) init(r io.Reader) error {
 	return b.decoder.initSize(r)
 }
 
-func (b *booleanRLEDecoder) decodeValues(dst []interface{}) error {
-	for i := 0; i < len(dst); i += 1 {
+func (b *booleanRLEDecoder) decodeValues(dst []interface{}) (int, error) {
+	total := len(dst)
+	for i := 0; i < total; i += 1 {
 		n, err := b.decoder.next()
 		if err != nil {
-			return err
+			return i, err
 		}
 		dst[i] = n == 1
 	}
 
-	return nil
+	return total, nil
 }
 
 type booleanRLEEncoder struct {
