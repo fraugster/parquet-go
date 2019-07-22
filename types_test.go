@@ -37,10 +37,26 @@ var (
 		},
 		{
 			name: "Int32Delta",
-			enc:  &int32DeltaBPEncoder{deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
+			enc:  &int32DeltaBPEncoder{deltaBitPackEncoder32: deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
 			dec:  &int32DeltaBPDecoder{},
 			rand: func() interface{} {
 				return int32(rand.Int())
+			},
+		},
+		{
+			name: "Uint32Plain",
+			enc:  &int32PlainEncoder{unSigned: true},
+			dec:  &int32PlainDecoder{unSigned: true},
+			rand: func() interface{} {
+				return uint32(rand.Int())
+			},
+		},
+		{
+			name: "Uint32Delta",
+			enc:  &int32DeltaBPEncoder{unSigned: true, deltaBitPackEncoder32: deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
+			dec:  &int32DeltaBPDecoder{unSigned: true},
+			rand: func() interface{} {
+				return uint32(rand.Int())
 			},
 		},
 		{
@@ -53,10 +69,26 @@ var (
 		},
 		{
 			name: "Int64Delta",
-			enc:  &int64DeltaBPEncoder{deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
+			enc:  &int64DeltaBPEncoder{deltaBitPackEncoder64: deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
 			dec:  &int64DeltaBPDecoder{},
 			rand: func() interface{} {
 				return rand.Int63()
+			},
+		},
+		{
+			name: "Uint64Plain",
+			enc:  &int64PlainEncoder{unSigned: true},
+			dec:  &int64PlainDecoder{unSigned: true},
+			rand: func() interface{} {
+				return uint64(rand.Int63())
+			},
+		},
+		{
+			name: "Uint64Delta",
+			enc:  &int64DeltaBPEncoder{unSigned: true, deltaBitPackEncoder64: deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
+			dec:  &int64DeltaBPDecoder{unSigned: true},
+			rand: func() interface{} {
+				return uint64(rand.Int63())
 			},
 		},
 		{
@@ -199,6 +231,20 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
+			},
+		},
+		{
+			name: "UUID",
+			enc:  &uuidEncoder{},
+			dec:  &uuidDecoder{},
+			rand: func() interface{} {
+				uuid := make([]byte, 16)
+				for i := range uuid {
+					uuid[i] = byte(rand.Intn(256))
+				}
+				uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
+				uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
+				return uuid
 			},
 		},
 	}

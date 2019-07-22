@@ -36,24 +36,53 @@ type columnChunkReader struct {
 
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
 
-func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, error) {
-	switch typ {
+func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
+	switch typ.Type {
 	case parquet.Type_BYTE_ARRAY:
-		return &byteArrayPlainDecoder{}, nil
-	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		if typeLen == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ)
+		ret := &byteArrayPlainDecoder{}
+		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
 		}
 
-		return &byteArrayPlainDecoder{length: int(*typeLen)}, nil
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+		return ret, nil
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		if typ.TypeLength == nil {
+			return nil, errors.Errorf("type %s with nil type len", typ)
+		}
+		ret := &byteArrayPlainDecoder{length: int(*typ.TypeLength)}
+		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+		return ret, nil
 	case parquet.Type_FLOAT:
 		return &floatPlainDecoder{}, nil
 	case parquet.Type_DOUBLE:
 		return &doublePlainDecoder{}, nil
 	case parquet.Type_INT32:
-		return &int32PlainDecoder{}, nil
+		var unSigned bool
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+			unSigned = true
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
+		return &int32PlainDecoder{unSigned: unSigned}, nil
 	case parquet.Type_INT64:
-		return &int64PlainDecoder{}, nil
+		var unSigned bool
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+			unSigned = true
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
+		return &int64PlainDecoder{unSigned: unSigned}, nil
 	case parquet.Type_INT96:
 		return &int96PlainDecoder{}, nil
 	}
@@ -95,31 +124,50 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 			break
 		}
 
-		// Should convert to string?
-		if *typ.ConvertedType == parquet.ConvertedType_UTF8 {
+		// Should convert to string? enums are not supported in go, so they are simply string
+		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
 			return &stringDecoder{bytesArrayDecoder: ret}, nil
 		}
 
-		if typ.LogicalType != nil && typ.LogicalType.STRING != nil {
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
 			return &stringDecoder{bytesArrayDecoder: ret}, nil
 		}
 
 		return ret, nil
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		var ret bytesArrayDecoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
+			// Not sure if this is the only case
+			if typ.LogicalType != nil && typ.LogicalType.UUID != nil {
+				return &uuidDecoder{}, nil
+			}
+
 			if typ.TypeLength == nil {
 				return nil, errors.Errorf("type %s with nil type len", typ.Type)
 			}
 
-			return &byteArrayPlainDecoder{length: int(*typ.TypeLength)}, nil
+			ret = &byteArrayPlainDecoder{length: int(*typ.TypeLength)}
 		case parquet.Encoding_DELTA_BYTE_ARRAY:
-			return &byteArrayDeltaDecoder{}, nil
+			ret = &byteArrayDeltaDecoder{}
 		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
+			ret = &dictDecoder{values: dictValues}
+		}
+		if ret == nil {
+			break
 		}
 
+		// Should convert to string? enums are not supported in go, so they are simply string
+		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+
+		return ret, nil
 	case parquet.Type_FLOAT:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
@@ -137,21 +185,35 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_INT32:
+		var unSigned bool
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+			unSigned = true
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			return &int32PlainDecoder{}, nil
+			return &int32PlainDecoder{unSigned: unSigned}, nil
 		case parquet.Encoding_DELTA_BINARY_PACKED:
-			return &int32DeltaBPDecoder{}, nil
+			return &int32DeltaBPDecoder{unSigned: unSigned}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
 			return &dictDecoder{values: dictValues}, nil
 		}
 
 	case parquet.Type_INT64:
+		var unSigned bool
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+			unSigned = true
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			return &int64PlainDecoder{}, nil
+			return &int64PlainDecoder{unSigned: unSigned}, nil
 		case parquet.Encoding_DELTA_BINARY_PACKED:
-			return &int64DeltaBPDecoder{}, nil
+			return &int64DeltaBPDecoder{unSigned: unSigned}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
 			return &dictDecoder{values: dictValues}, nil
 		}
@@ -518,7 +580,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 			return nil, errors.New("there should be only one dictionary")
 		}
 		p := &dictionaryPage{}
-		de, err := getDictValuesEncoder(*cr.col.Element().Type, cr.col.Element().TypeLength)
+		de, err := getDictValuesDecoder(cr.col.Element())
 		if err != nil {
 			return nil, err
 		}

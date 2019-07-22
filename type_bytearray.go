@@ -197,9 +197,9 @@ func (b *byteArrayDeltaLengthEncoder) encodeValues(values []interface{}) error {
 }
 
 func (b *byteArrayDeltaLengthEncoder) Close() error {
-	// Do we need to change this values? (128 and 4)
+	// TODO: Do we need to change this values? (128 and 4)
 	enc := &int32DeltaBPEncoder{
-		deltaBitPackEncoder32{
+		deltaBitPackEncoder32: deltaBitPackEncoder32{
 			blockSize:      128,
 			miniBlockCount: 4,
 		},
@@ -313,7 +313,7 @@ func (b *byteArrayDeltaEncoder) encodeValues(values []interface{}) error {
 func (b *byteArrayDeltaEncoder) Close() error {
 	// write the lens first
 	enc := &int32DeltaBPEncoder{
-		deltaBitPackEncoder32{
+		deltaBitPackEncoder32: deltaBitPackEncoder32{
 			blockSize:      128,
 			miniBlockCount: 4,
 		},
