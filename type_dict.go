@@ -14,6 +14,10 @@ type dictDecoder struct {
 	keys decoder
 }
 
+func (d *dictDecoder) bytesArray() {
+	panic("should not call me")
+}
+
 func (d *dictDecoder) setValues(v []interface{}) {
 	d.values = v
 }

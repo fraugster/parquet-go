@@ -61,13 +61,13 @@ func getDictValuesEncoder(typ parquet.Type, typeLen *int32) (valuesDecoder, erro
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *int32, dictValues []interface{}) (valuesDecoder, error) {
+func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
 	// Change the deprecated value
 	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
 		pageEncoding = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	switch typ {
+	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
@@ -79,25 +79,41 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		}
 
 	case parquet.Type_BYTE_ARRAY:
+		var ret bytesArrayDecoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			return &byteArrayPlainDecoder{}, nil
+			ret = &byteArrayPlainDecoder{}
 		case parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY:
-			return &byteArrayDeltaLengthDecoder{}, nil
+			ret = &byteArrayDeltaLengthDecoder{}
 		case parquet.Encoding_DELTA_BYTE_ARRAY:
-			return &byteArrayDeltaDecoder{}, nil
+			ret = &byteArrayDeltaDecoder{}
 		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
+			ret = &dictDecoder{values: dictValues}
 		}
+
+		if ret == nil {
+			break
+		}
+
+		// Should convert to string?
+		if *typ.ConvertedType == parquet.ConvertedType_UTF8 {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+
+		if typ.LogicalType != nil && typ.LogicalType.STRING != nil {
+			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		}
+
+		return ret, nil
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			if typeLen == nil {
-				return nil, errors.Errorf("type %s with nil type len", typ)
+			if typ.TypeLength == nil {
+				return nil, errors.Errorf("type %s with nil type len", typ.Type)
 			}
 
-			return &byteArrayPlainDecoder{length: int(*typeLen)}, nil
+			return &byteArrayPlainDecoder{length: int(*typ.TypeLength)}, nil
 		case parquet.Encoding_DELTA_BYTE_ARRAY:
 			return &byteArrayDeltaDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
@@ -149,10 +165,10 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ parquet.Type, typeLen *
 		}
 
 	default:
-		return nil, errors.Errorf("unsupported type: %s", typ)
+		return nil, errors.Errorf("unsupported type: %s", typ.Type)
 	}
 
-	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ)
+	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*columnChunkReader, error) {
@@ -543,7 +559,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 		dictValue = cr.dictPage.values
 	}
 	var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
-		return getValuesDecoder(typ, *cr.col.Element().Type, cr.col.Element().TypeLength, dictValue)
+		return getValuesDecoder(typ, cr.col.Element(), dictValue)
 	}
 	if err := p.init(cr.dDecoder, cr.rDecoder, fn); err != nil {
 		return nil, err
