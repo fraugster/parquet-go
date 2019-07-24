@@ -3,6 +3,11 @@ package go_parquet
 import (
 	"encoding/binary"
 	"io"
+	"math"
+
+	"github.com/fraugster/parquet-go/parquet"
+
+	"github.com/pkg/errors"
 )
 
 type int32PlainDecoder struct {
@@ -103,4 +108,122 @@ func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return nil
+}
+
+type int32Store struct {
+	repTyp  parquet.FieldRepetitionType
+	values  []interface{}
+	dLevels []int32
+	rLevels []int32
+	rep     []int
+	len     int
+	min     int32
+	max     int32
+}
+
+func (is *int32Store) Reset(rep parquet.FieldRepetitionType) {
+	is.repTyp = rep
+	is.values = is.values[:0]
+	is.dLevels = is.dLevels[:0]
+	is.rLevels = is.rLevels[:0]
+	is.rep = is.rep[:0]
+	is.min = math.MaxInt32
+	is.max = math.MinInt32
+	is.len = 0
+}
+
+func (is *int32Store) Max() []byte {
+	ret := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ret, uint32(is.max))
+	return ret
+}
+
+func (is *int32Store) Min() []byte {
+	ret := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ret, uint32(is.min))
+	return ret
+}
+
+func (is *int32Store) Add(v interface{}, dL int16, maxRL, rL int16) (bool, error) {
+	// if the current column is repeated, we should increase the maxRL here
+	if is.repTyp == parquet.FieldRepetitionType_REPEATED {
+		maxRL++
+	}
+	if rL > maxRL {
+		rL = maxRL
+	}
+	// the dL is a little tricky. there is some case if the REQUIRED field here are nil (since there is something above
+	// them is nil) they can not be the first level, but if they are in the next levels, is actually ok, but the
+	// level is one less
+	if v == nil {
+		is.dLevels = append(is.dLevels, int32(dL))
+		is.rLevels = append(is.rLevels, int32(rL))
+		is.values = append(is.values, int32(0)) // How we can skip this?
+		return false, nil
+	}
+	var vals []int32
+	switch i := v.(type) {
+	case int32:
+		vals = []int32{i}
+	case int: // TODO : remove me
+		vals = []int32{int32(i)}
+	case []int32:
+		vals = i
+		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return false, errors.Errorf("the value is not repeated but it is an array")
+		}
+		if len(vals) == 0 {
+			return is.Add(nil, dL, rL, maxRL)
+		}
+	default:
+		return false, errors.Errorf("unsupported type for storing in int32 column %T => %+v", v, v)
+	}
+
+	is.rep = append(is.rep, len(vals))
+	for i, j := range vals {
+		if j < is.min {
+			is.min = j
+		}
+		if j > is.max {
+			is.max = j
+		}
+		is.len++
+		is.values = append(is.values, j)
+		tmp := dL
+		if is.repTyp != parquet.FieldRepetitionType_REQUIRED {
+			tmp++
+		}
+		is.dLevels = append(is.dLevels, int32(tmp))
+		if i == 0 {
+			is.rLevels = append(is.rLevels, int32(rL))
+		} else {
+			is.rLevels = append(is.rLevels, int32(maxRL))
+		}
+	}
+
+	return true, nil
+}
+
+func (is *int32Store) Len() int {
+	return is.len
+}
+
+func (is *int32Store) NotNulls() int {
+	return len(is.values)
+}
+
+func (is *int32Store) Column() int {
+	return len(is.dLevels)
+}
+
+func (is *int32Store) Values() []interface{} {
+	return is.values
+}
+
+func (is *int32Store) DefinitionLevels() []int32 {
+	return is.dLevels
+}
+
+func (is *int32Store) RepetitionLevels() []int32 {
+	return is.rLevels
 }

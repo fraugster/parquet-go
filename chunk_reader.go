@@ -37,7 +37,7 @@ type columnChunkReader struct {
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
 
 func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
-	switch typ.Type {
+	switch *typ.Type {
 	case parquet.Type_BYTE_ARRAY:
 		ret := &byteArrayPlainDecoder{}
 		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
