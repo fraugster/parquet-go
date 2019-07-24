@@ -62,19 +62,34 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	return len(dst), nil
 }
 
-// TODO: Implement fallback
-type dictEncoder struct {
-	w      io.Writer
+type dictStore struct {
 	values []interface{}
-
-	data []int32
+	data   []int32
 }
 
-func (d *dictEncoder) getValues() []interface{} {
+func (d *dictStore) init() {
+	d.values = d.values[:0]
+	d.data = d.data[:0]
+}
+
+func (d *dictStore) getValues() []interface{} {
 	return d.values
 }
 
-func (d *dictEncoder) getIndex(in interface{}) int32 {
+func (d *dictStore) getIndexes() []int32 {
+	return d.data
+}
+
+func (d *dictStore) assemble() []interface{} {
+	ret := make([]interface{}, len(d.data))
+	for i := range d.data {
+		ret[i] = d.values[d.data[i]]
+	}
+
+	return ret
+}
+
+func (d *dictStore) getIndex(in interface{}) int32 {
 	for i := range d.values {
 		// TODO: Better compare?
 		if d.values[i] == in {
@@ -86,10 +101,20 @@ func (d *dictEncoder) getIndex(in interface{}) int32 {
 	return int32(len(d.values) - 1)
 }
 
+func (d *dictStore) addValue(v interface{}) {
+	d.data = append(d.data, d.getIndex(v))
+}
+
+// TODO: Implement fallback
+type dictEncoder struct {
+	w io.Writer
+	dictStore
+}
+
 func (d *dictEncoder) Close() error {
 	v := len(d.values)
 	if v == 0 { // empty dictionary?
-		return nil
+		return errors.New("empty dictionary nothing to write")
 	}
 
 	// fallback to plain
@@ -98,7 +123,7 @@ func (d *dictEncoder) Close() error {
 	}
 
 	w := bits.Len(uint(v))
-	// first write the bitLenght in a byte
+	// first write the bitLength in a byte
 	if err := writeFull(d.w, []byte{byte(w)}); err != nil {
 		return err
 	}
@@ -115,17 +140,14 @@ func (d *dictEncoder) Close() error {
 
 func (d *dictEncoder) init(w io.Writer) error {
 	d.w = w
-	d.values = nil
+	d.dictStore.init()
+
 	return nil
 }
 
 func (d *dictEncoder) encodeValues(values []interface{}) error {
-	if d.data == nil {
-		d.data = make([]int32, 0, len(values))
-	}
 	for i := range values {
-		idx := d.getIndex(values[i])
-		d.data = append(d.data, idx)
+		d.addValue(values[i])
 	}
 
 	return nil

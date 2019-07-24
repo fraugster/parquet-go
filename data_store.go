@@ -1,7 +1,6 @@
 package go_parquet
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -11,26 +10,20 @@ import (
 // In memory (or maybe other type) of column store to buffer the column value before writing into a page
 // TODO: tune the functions, maybe we need more information, maybe less.
 type columnStore interface {
-	Reset(repetitionType parquet.FieldRepetitionType)
+	reset(repetitionType parquet.FieldRepetitionType)
 	// Min and Max in parquet byte
-	Max() []byte
-	Min() []byte
+	maxValue() []byte
+	minValue() []byte
 	// Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 	// the second argument s the definition level
 	// if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-	Add(data interface{}, defLvl int16, maxRepLvl int16, repLvl int16) (bool, error)
-	// Len of all values, including repetition and nulls
-	Len() int
-	// Len of not nulls value
-	NotNulls() int
-	// len of all values, not repetition
-	Column() int
+	add(data interface{}, defLvl int16, maxRepLvl int16, repLvl int16) (bool, error)
 	// Get all values
-	Values() []interface{}
+	dictionary() *dictStore
 	// TODO: int16? since we write it in the parquet using int32 encoder
-	DefinitionLevels() []int32
+	definitionLevels() []int32
 
-	RepetitionLevels() []int32
+	repetitionLevels() []int32
 }
 
 type column struct {
@@ -40,22 +33,6 @@ type column struct {
 	children []column
 
 	rep parquet.FieldRepetitionType
-}
-
-func (c *column) print(prefix string) {
-	fmt.Println(prefix + c.name)
-	if c.children != nil {
-		for i := range c.children {
-			c.children[i].print(prefix + "->")
-		}
-	}
-	if c.data != nil {
-		v := c.data.Values()
-		rep := strings.Repeat(" ", len(prefix))
-		for i := range v {
-			fmt.Printf("%s%+v\n", rep, v[i])
-		}
-	}
 }
 
 type rowStore struct {
@@ -91,12 +68,6 @@ func (r *rowStore) findDataColumn(path string) (columnStore, error) {
 	return d, nil
 }
 
-func (r *rowStore) print() {
-	for i := range r.children {
-		r.children[i].print("")
-	}
-}
-
 func (r *rowStore) add(m map[string]interface{}) error {
 	_, err := recursiveAdd(r.children, m, 0, 0, 0)
 	return err
@@ -105,7 +76,7 @@ func (r *rowStore) add(m map[string]interface{}) error {
 func recursiveNil(c []column, defLvl, maxRepLvl int16, repLvl int16) error {
 	for i := range c {
 		if c[i].data != nil {
-			_, err := c[i].data.Add(nil, defLvl, maxRepLvl, repLvl)
+			_, err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl)
 			if err != nil {
 				return err
 			}
@@ -125,7 +96,7 @@ func recursiveAdd(c []column, m interface{}, defLvl int16, maxRepLvl int16, repL
 	for i := range c {
 		d := data[c[i].name]
 		if c[i].data != nil {
-			inc, err := c[i].data.Add(d, defLvl, maxRepLvl, repLvl)
+			inc, err := c[i].data.add(d, defLvl, maxRepLvl, repLvl)
 			if err != nil {
 				return false, err
 			}
