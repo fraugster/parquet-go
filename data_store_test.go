@@ -11,7 +11,7 @@ import (
 )
 
 func newIntStore(rep parquet.FieldRepetitionType) columnStore {
-	d := &int32Store{}
+	d := newStore(&int32Store{})
 	d.reset(rep)
 	return d
 }
@@ -59,7 +59,7 @@ func TestOneColumnOptional(t *testing.T) {
 	}
 	d, err := row.findDataColumn("DocID")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(10), int32(0)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(10), nil}, d.dictionary().assemble())
 	assert.Equal(t, []int32{1, 0}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 0}, d.repetitionLevels())
 }
@@ -129,19 +129,19 @@ func TestComplexPart1(t *testing.T) {
 
 	d, err := row.findDataColumn("Name.Language.Code")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(1), int32(2), int32(0), int32(3)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(1), int32(2), nil, int32(3)}, d.dictionary().assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.repetitionLevels())
 
 	d, err = row.findDataColumn("Name.Language.Country")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(100), int32(0), int32(0), int32(101)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(100), nil, nil, int32(101)}, d.dictionary().assemble())
 	assert.Equal(t, []int32{3, 2, 1, 3}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.repetitionLevels())
 
 	d, err = row.findDataColumn("Name.URL")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(10), int32(11), int32(0)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(10), int32(11), nil}, d.dictionary().assemble())
 	assert.Equal(t, []int32{2, 2, 1}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 1, 1}, d.repetitionLevels())
 
@@ -192,7 +192,7 @@ func TestComplexPart2(t *testing.T) {
 
 	d, err = row.findDataColumn("Links.Backward")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(0), int32(10), int32(30)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{nil, int32(10), int32(30)}, d.dictionary().assemble())
 	assert.Equal(t, []int32{1, 2, 2}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 0, 1}, d.repetitionLevels())
 }
@@ -303,7 +303,7 @@ func TestComplex(t *testing.T) {
 
 	d, err = row.findDataColumn("Name.URL")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(10), int32(11), int32(0), int32(12)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(10), int32(11), nil, int32(12)}, d.dictionary().assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.repetitionLevels())
 
@@ -315,19 +315,19 @@ func TestComplex(t *testing.T) {
 
 	d, err = row.findDataColumn("Links.Backward")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(0), int32(10), int32(30)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{nil, int32(10), int32(30)}, d.dictionary().assemble())
 	assert.Equal(t, []int32{1, 2, 2}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 0, 1}, d.repetitionLevels())
 
 	d, err = row.findDataColumn("Name.Language.Country")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(100), int32(0), int32(0), int32(101), int32(0)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(100), nil, nil, int32(101), nil}, d.dictionary().assemble())
 	assert.Equal(t, []int32{3, 2, 1, 3, 1}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.repetitionLevels())
 
 	d, err = row.findDataColumn("Name.Language.Code")
 	require.NoError(t, err)
-	assert.Equal(t, []interface{}{int32(1), int32(2), int32(0), int32(3), int32(0)}, d.dictionary().assemble())
+	assert.Equal(t, []interface{}{int32(1), int32(2), nil, int32(3), nil}, d.dictionary().assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2, 1}, d.definitionLevels())
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.repetitionLevels())
 

@@ -3,6 +3,10 @@ package go_parquet
 import (
 	"encoding/binary"
 	"io"
+	"math"
+
+	"github.com/pkg/errors"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 type int64PlainDecoder struct {
@@ -104,4 +108,58 @@ func (d *int64DeltaBPEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return nil
+}
+
+type int64Store struct {
+	repTyp   parquet.FieldRepetitionType
+	min, max int64
+}
+
+func (is *int64Store) reset(rep parquet.FieldRepetitionType) {
+	is.repTyp = rep
+	is.min = math.MaxInt64
+	is.max = math.MinInt64
+}
+
+func (is *int64Store) maxValue() []byte {
+	ret := make([]byte, 8)
+	binary.LittleEndian.PutUint64(ret, uint64(is.max))
+	return ret
+}
+
+func (is *int64Store) minValue() []byte {
+	ret := make([]byte, 8)
+	binary.LittleEndian.PutUint64(ret, uint64(is.min))
+	return ret
+}
+
+func (is *int64Store) setMinMax(j int64) {
+	if j < is.min {
+		is.min = j
+	}
+	if j > is.max {
+		is.max = j
+	}
+}
+
+func (is *int64Store) getValues(v interface{}) ([]interface{}, error) {
+	var vals []interface{}
+	switch typed := v.(type) {
+	case int64:
+		is.setMinMax(typed)
+		vals = []interface{}{typed}
+	case []int64:
+		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, errors.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			is.setMinMax(typed[j])
+			vals[j] = typed[j]
+		}
+	default:
+		return nil, errors.Errorf("unsupported type for storing in int32 column %T => %+v", v, v)
+	}
+
+	return vals, nil
 }

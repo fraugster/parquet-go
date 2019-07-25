@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"io"
 	"math/rand"
+	"reflect"
 	"testing"
 
+	"github.com/fraugster/parquet-go/parquet"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +22,7 @@ func buildRandArray(count int, fn func() interface{}) []interface{} {
 	return ret
 }
 
-type testFixtures struct {
+type encodingFixtures struct {
 	name string
 	enc  valuesEncoder
 	dec  valuesDecoder
@@ -26,7 +30,7 @@ type testFixtures struct {
 }
 
 var (
-	tests = []testFixtures{
+	encFixtures = []encodingFixtures{
 		{
 			name: "Int32Plain",
 			enc:  &int32PlainEncoder{},
@@ -254,7 +258,7 @@ func TestTypes(t *testing.T) {
 	bufLen := 1000
 
 	bufRead := bufLen + bufLen/2
-	for _, data := range tests {
+	for _, data := range encFixtures {
 		t.Run(data.name, func(t *testing.T) {
 			arr1 := buildRandArray(bufLen, data.rand)
 			arr2 := buildRandArray(bufLen, data.rand)
@@ -282,6 +286,135 @@ func TestTypes(t *testing.T) {
 			n, err = data.dec.decodeValues(ret)
 			require.Equal(t, io.EOF, err)
 			require.Equal(t, ret[:n], arr2[bufRead-bufLen:])
+		})
+	}
+}
+
+func convertToInterface(arr interface{}) []interface{} {
+	v := reflect.ValueOf(arr)
+	ret := make([]interface{}, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		ret[i] = v.Index(i).Interface()
+	}
+
+	return ret
+}
+
+func getOne(arr interface{}) interface{} {
+	v := reflect.ValueOf(arr)
+	if v.Len() < 1 {
+		panic("no item in the array")
+	}
+
+	return v.Index(0).Interface()
+}
+
+// TODO : Add test for Min and Max
+type storeFixtures struct {
+	name  string
+	store typedColumnStore
+	rand  func(int) interface{}
+}
+
+var (
+	stFixtures = []storeFixtures{
+		{
+			name:  "Int32Store",
+			store: &int32Store{},
+			rand: func(n int) interface{} {
+				ret := make([]int32, n)
+				for i := range ret {
+					ret[i] = rand.Int31()
+				}
+				return ret
+			},
+		},
+		{
+			name:  "Int64Store",
+			store: &int64Store{},
+			rand: func(n int) interface{} {
+				ret := make([]int64, n)
+				for i := range ret {
+					ret[i] = rand.Int63()
+				}
+				return ret
+			},
+		},
+	}
+)
+
+func TestStores(t *testing.T) {
+	for _, fix := range stFixtures {
+		t.Run(fix.name, func(t *testing.T) {
+			st := newStore(fix.store)
+			randArr := fix.rand
+
+			st.reset(parquet.FieldRepetitionType_REPEATED)
+
+			data := randArr(3)
+			ok, err := st.add(data, 3, 3, 0)
+			require.NoError(t, err)
+			assert.True(t, ok)
+
+			assert.Equal(t, convertToInterface(data), st.dictionary().assemble())
+			// Field is not Required, so def level should be one more
+			assert.Equal(t, []int32{4, 4, 4}, st.definitionLevels())
+			// Filed is repeated so the rep level (except for the first one which is the new record)
+			// should be one more
+			assert.Equal(t, []int32{0, 4, 4}, st.repetitionLevels())
+
+			ok, err = st.add(randArr(0), 3, 3, 0)
+			require.NoError(t, err)
+			assert.False(t, ok)
+			// No Reset
+			assert.Equal(t, append(convertToInterface(data), nil), st.dictionary().assemble())
+			// The new field is nil
+			assert.Equal(t, []int32{4, 4, 4, 3}, st.definitionLevels())
+			assert.Equal(t, []int32{0, 4, 4, 0}, st.repetitionLevels())
+
+			// One record
+			data = randArr(1)
+			st.reset(parquet.FieldRepetitionType_REQUIRED)
+			ok, err = st.add(getOne(data), 3, 3, 0)
+			require.NoError(t, err)
+			assert.True(t, ok)
+
+			assert.Equal(t, convertToInterface(data), st.dictionary().assemble())
+			// Field is Required, so def level should be exact
+			assert.Equal(t, []int32{3}, st.definitionLevels())
+			assert.Equal(t, []int32{0}, st.repetitionLevels())
+
+			data2 := randArr(1)
+			ok, err = st.add(getOne(data2), 3, 3, 10)
+			require.NoError(t, err)
+			assert.True(t, ok)
+			// No reset
+			dArr := []interface{}{getOne(data), getOne(data2)}
+			assert.Equal(t, dArr, st.dictionary().assemble())
+			// Field is Required, so def level should be exact
+			assert.Equal(t, []int32{3, 3}, st.definitionLevels())
+			// rLevel is more than max, so its max now
+			assert.Equal(t, []int32{0, 3}, st.repetitionLevels())
+
+			// empty array had same effect as nil in repeated, but not in required
+			_, err = st.add(randArr(0), 3, 3, 10)
+			assert.Error(t, err)
+
+			// Just exact type and nil
+			_, err = st.add(struct{}{}, 3, 3, 0)
+			assert.Error(t, err)
+
+			dArr = append(dArr, nil)
+			ok, err = st.add(nil, 3, 3, 0)
+			assert.NoError(t, err)
+			assert.False(t, ok)
+
+			assert.Equal(t, dArr, st.dictionary().assemble())
+
+			// Field is Required, so def level should be exact
+			assert.Equal(t, []int32{3, 3, 3}, st.definitionLevels())
+			// rLevel is more than max, so its max now
+			assert.Equal(t, []int32{0, 3, 0}, st.repetitionLevels())
 		})
 	}
 }

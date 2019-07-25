@@ -26,6 +26,102 @@ type columnStore interface {
 	repetitionLevels() []int32
 }
 
+type typedColumnStore interface {
+	reset(repetitionType parquet.FieldRepetitionType)
+	// Min and Max in parquet byte
+	maxValue() []byte
+	minValue() []byte
+
+	// Should extract the value, turn it into an array and check for min and max on all values in this
+	getValues(v interface{}) ([]interface{}, error)
+}
+
+type genericStore struct {
+	repTyp parquet.FieldRepetitionType
+
+	values *dictStore
+
+	dLevels []int32
+	rLevels []int32
+	rep     []int
+
+	typedColumnStore
+}
+
+func (is *genericStore) reset(rep parquet.FieldRepetitionType) {
+	if is.typedColumnStore == nil {
+		panic("generic should be used with typed column store")
+	}
+	is.repTyp = rep
+	if is.values == nil {
+		is.values = &dictStore{}
+	}
+	is.values.init()
+	is.dLevels = is.dLevels[:0]
+	is.rLevels = is.rLevels[:0]
+	is.rep = is.rep[:0]
+
+	is.typedColumnStore.reset(rep)
+}
+
+func (is *genericStore) add(v interface{}, dL int16, maxRL, rL int16) (bool, error) {
+	// if the current column is repeated, we should increase the maxRL here
+	if is.repTyp == parquet.FieldRepetitionType_REPEATED {
+		maxRL++
+	}
+	if rL > maxRL {
+		rL = maxRL
+	}
+	// the dL is a little tricky. there is some case if the REQUIRED field here are nil (since there is something above
+	// them is nil) they can not be the first level, but if they are in the next levels, is actually ok, but the
+	// level is one less
+	if v == nil {
+		is.dLevels = append(is.dLevels, int32(dL))
+		is.rLevels = append(is.rLevels, int32(rL))
+		// TODO: the next line is the problem. how I can ignore the nil value here? I need the count to be exact, but nil
+		// should I save it in the dictionary?
+		is.values.addValue(nil)
+		return false, nil
+	}
+	vals, err := is.getValues(v)
+	if err != nil {
+		return false, err
+	}
+	if len(vals) == 0 {
+		// the MaxRl might be increased in the beginning and increased again in the next call but for nil its not important
+		return is.add(nil, dL, maxRL, rL)
+	}
+
+	is.rep = append(is.rep, len(vals))
+	for i, j := range vals {
+		is.values.addValue(j)
+		tmp := dL
+		if is.repTyp != parquet.FieldRepetitionType_REQUIRED {
+			tmp++
+		}
+		is.dLevels = append(is.dLevels, int32(tmp))
+		if i == 0 {
+			is.rLevels = append(is.rLevels, int32(rL))
+		} else {
+			is.rLevels = append(is.rLevels, int32(maxRL))
+		}
+	}
+
+	return true, nil
+}
+
+func (is *genericStore) dictionary() *dictStore {
+	return is.values
+}
+
+func (is *genericStore) definitionLevels() []int32 {
+	return is.dLevels
+}
+
+func (is *genericStore) repetitionLevels() []int32 {
+	return is.rLevels
+}
+
 type column struct {
 	name string
 	// one of the following could be not null. data or children
@@ -154,4 +250,8 @@ func recursiveAdd(c []column, m interface{}, defLvl int16, maxRepLvl int16, repL
 	}
 
 	return advance, nil
+}
+
+func newStore(typed typedColumnStore) columnStore {
+	return &genericStore{typedColumnStore: typed}
 }
