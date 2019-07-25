@@ -24,6 +24,10 @@ type columnStore interface {
 	definitionLevels() []int32
 
 	repetitionLevels() []int32
+
+	//// we can use the array to get this two, but its better to skip the loop
+	//maxDefinitionLevel() int16
+	//maxRepetitionLevel() int16
 }
 
 type typedColumnStore interface {
@@ -36,6 +40,8 @@ type typedColumnStore interface {
 	getValues(v interface{}) ([]interface{}, error)
 }
 
+// genericStore is a hack to less duplicate code and logic on each type. there is a place that we can actually benefit from
+// generics :/
 type genericStore struct {
 	repTyp parquet.FieldRepetitionType
 
@@ -129,8 +135,11 @@ type column struct {
 	children []column
 
 	rep parquet.FieldRepetitionType
+
+	element *parquet.SchemaElement
 }
 
+// TODO: merge this type with the Schema type
 type rowStore struct {
 	children []column
 }

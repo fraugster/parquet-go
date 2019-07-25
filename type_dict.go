@@ -2,7 +2,6 @@ package go_parquet
 
 import (
 	"io"
-	"math"
 	"math/bits"
 
 	"github.com/pkg/errors"
@@ -115,11 +114,6 @@ func (d *dictEncoder) Close() error {
 	v := len(d.values)
 	if v == 0 { // empty dictionary?
 		return errors.New("empty dictionary nothing to write")
-	}
-
-	// fallback to plain
-	if v >= math.MaxInt16 {
-		panic("TODO")
 	}
 
 	w := bits.Len(uint(v))

@@ -174,7 +174,6 @@ func (p *primitive) create(schema []*parquet.SchemaElement, name string, _ *Colu
 		return 0, errors.Errorf("field RepetitionType is nil in index %d", idx)
 	}
 
-	// TODO : validate here
 	if *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
 		dLevel++
 	}

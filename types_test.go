@@ -340,6 +340,41 @@ var (
 				return ret
 			},
 		},
+		{
+			name:  "Float32Store",
+			store: &floatStore{},
+			rand: func(n int) interface{} {
+				ret := make([]float32, n)
+				for i := range ret {
+					ret[i] = rand.Float32()
+				}
+				return ret
+			},
+		},
+		{
+			name:  "Float64Store",
+			store: &doubleStore{},
+			rand: func(n int) interface{} {
+				ret := make([]float64, n)
+				for i := range ret {
+					ret[i] = rand.Float64()
+				}
+				return ret
+			},
+		},
+		{
+			name:  "Int96Store",
+			store: &int96Store{},
+			rand: func(n int) interface{} {
+				var data = make([]Int96, n)
+				for c := 0; c < n; c++ {
+					for i := 0; i < 12; i++ {
+						data[c][i] = byte(rand.Intn(255))
+					}
+				}
+				return data
+			},
+		},
 	}
 )
 

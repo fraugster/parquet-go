@@ -4,6 +4,10 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+
+	"github.com/pkg/errors"
+
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 type floatPlainDecoder struct {
@@ -49,4 +53,58 @@ func (d *floatPlainEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return binary.Write(d.w, binary.LittleEndian, data)
+}
+
+type floatStore struct {
+	repTyp   parquet.FieldRepetitionType
+	min, max float32
+}
+
+func (f *floatStore) reset(rep parquet.FieldRepetitionType) {
+	f.repTyp = rep
+	f.min = math.MaxFloat32
+	f.max = -math.MaxFloat32
+}
+
+func (f *floatStore) maxValue() []byte {
+	ret := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ret, math.Float32bits(f.max))
+	return ret
+}
+
+func (f *floatStore) minValue() []byte {
+	ret := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ret, math.Float32bits(f.min))
+	return ret
+}
+
+func (f *floatStore) setMinMax(j float32) {
+	if j < f.min {
+		f.min = j
+	}
+	if j > f.max {
+		f.max = j
+	}
+}
+
+func (f *floatStore) getValues(v interface{}) ([]interface{}, error) {
+	var vals []interface{}
+	switch typed := v.(type) {
+	case float32:
+		f.setMinMax(typed)
+		vals = []interface{}{typed}
+	case []float32:
+		if f.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, errors.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			f.setMinMax(typed[j])
+			vals[j] = typed[j]
+		}
+	default:
+		return nil, errors.Errorf("unsupported type for storing in int32 column %T => %+v", v, v)
+	}
+
+	return vals, nil
 }
