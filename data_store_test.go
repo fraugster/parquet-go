@@ -16,14 +16,14 @@ func newIntStore(rep parquet.FieldRepetitionType) columnStore {
 	return d
 }
 
+func newIntStore2() columnStore {
+	d := newStore(&int32Store{})
+	return d
+}
+
 func TestOneColumn(t *testing.T) {
 	row := rowStore{}
-	row.children = []column{
-		{
-			name: "DocID",
-			data: newIntStore(parquet.FieldRepetitionType_REQUIRED),
-		},
-	}
+	require.NoError(t, row.addColumn("DocID", newIntStore2(), parquet.FieldRepetitionType_REQUIRED))
 
 	data := []map[string]interface{}{
 		{"DocID": int32(10)},
@@ -42,12 +42,7 @@ func TestOneColumn(t *testing.T) {
 
 func TestOneColumnOptional(t *testing.T) {
 	row := rowStore{}
-	row.children = []column{
-		{
-			name: "DocID",
-			data: newIntStore(parquet.FieldRepetitionType_OPTIONAL),
-		},
-	}
+	require.NoError(t, row.addColumn("DocID", newIntStore2(), parquet.FieldRepetitionType_OPTIONAL))
 
 	data := []map[string]interface{}{
 		{"DocID": int32(10)},
@@ -66,32 +61,11 @@ func TestOneColumnOptional(t *testing.T) {
 
 func TestComplexPart1(t *testing.T) {
 	row := &rowStore{}
-	row.children = []column{
-		{
-			name: "Name",
-			rep:  parquet.FieldRepetitionType_REPEATED,
-			children: []column{
-				{
-					name: "Language",
-					rep:  parquet.FieldRepetitionType_REPEATED,
-					children: []column{
-						{
-							name: "Code",
-							data: newIntStore(parquet.FieldRepetitionType_REQUIRED),
-						},
-						{
-							name: "Country",
-							data: newIntStore(parquet.FieldRepetitionType_OPTIONAL),
-						},
-					},
-				},
-				{
-					name: "URL",
-					data: newIntStore(parquet.FieldRepetitionType_OPTIONAL),
-				},
-			},
-		},
-	}
+	require.NoError(t, row.addGroup("Name", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addGroup("Name.Language", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addColumn("Name.Language.Code", newIntStore2(), parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.addColumn("Name.Language.Country", newIntStore2(), parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.addColumn("Name.URL", newIntStore2(), parquet.FieldRepetitionType_OPTIONAL))
 
 	data := []map[string]interface{}{
 		{
@@ -149,22 +123,9 @@ func TestComplexPart1(t *testing.T) {
 
 func TestComplexPart2(t *testing.T) {
 	row := &rowStore{}
-	row.children = []column{
-		{
-			name: "Links",
-			rep:  parquet.FieldRepetitionType_OPTIONAL,
-			children: []column{
-				{
-					name: "Backward",
-					data: newIntStore(parquet.FieldRepetitionType_REPEATED),
-				},
-				{
-					name: "Forward",
-					data: newIntStore(parquet.FieldRepetitionType_REPEATED),
-				},
-			},
-		},
-	}
+	require.NoError(t, row.addGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.addColumn("Links.Backward", newIntStore2(), parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addColumn("Links.Forward", newIntStore2(), parquet.FieldRepetitionType_REPEATED))
 
 	data := []map[string]interface{}{
 		{
@@ -200,50 +161,15 @@ func TestComplexPart2(t *testing.T) {
 func TestComplex(t *testing.T) {
 	// Based on this picture https://i.stack.imgur.com/raOFu.png from this doc https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36632.pdf
 	row := &rowStore{}
-	row.children = []column{
-		{
-			name: "DocId",
-			data: newIntStore(parquet.FieldRepetitionType_REQUIRED),
-		},
-		{
-			name: "Links",
-			rep:  parquet.FieldRepetitionType_OPTIONAL,
-			children: []column{
-				{
-					name: "Backward",
-					data: newIntStore(parquet.FieldRepetitionType_REPEATED),
-				},
-				{
-					name: "Forward",
-					data: newIntStore(parquet.FieldRepetitionType_REPEATED),
-				},
-			},
-		},
-		{
-			name: "Name",
-			rep:  parquet.FieldRepetitionType_REPEATED,
-			children: []column{
-				{
-					name: "Language",
-					rep:  parquet.FieldRepetitionType_REPEATED,
-					children: []column{
-						{
-							name: "Code",
-							data: newIntStore(parquet.FieldRepetitionType_REQUIRED),
-						},
-						{
-							name: "Country",
-							data: newIntStore(parquet.FieldRepetitionType_OPTIONAL),
-						},
-					},
-				},
-				{
-					name: "URL",
-					data: newIntStore(parquet.FieldRepetitionType_OPTIONAL),
-				},
-			},
-		},
-	}
+	require.NoError(t, row.addColumn("DocId", newIntStore2(), parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.addGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.addColumn("Links.Backward", newIntStore2(), parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addColumn("Links.Forward", newIntStore2(), parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addGroup("Name", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addGroup("Name.Language", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addColumn("Name.Language.Code", newIntStore2(), parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.addColumn("Name.Language.Country", newIntStore2(), parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.addColumn("Name.URL", newIntStore2(), parquet.FieldRepetitionType_OPTIONAL))
 
 	data := []map[string]interface{}{
 		{
@@ -336,18 +262,8 @@ func TestComplex(t *testing.T) {
 func TestTwitterBlog(t *testing.T) {
 	// Sample from here https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
 	row := &rowStore{}
-	row.children = []column{
-		{
-			name: "level1",
-			rep:  parquet.FieldRepetitionType_REPEATED,
-			children: []column{
-				{
-					name: "level2",
-					data: newIntStore(parquet.FieldRepetitionType_REPEATED),
-				},
-			},
-		},
-	}
+	require.NoError(t, row.addGroup("level1", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.addColumn("level1.level2", newIntStore2(), parquet.FieldRepetitionType_REPEATED))
 
 	data := []map[string]interface{}{
 		{

@@ -135,13 +135,101 @@ type column struct {
 	children []column
 
 	rep parquet.FieldRepetitionType
-
-	element *parquet.SchemaElement
 }
 
 // TODO: merge this type with the Schema type
 type rowStore struct {
 	children []column
+}
+
+// path is the dot separated path of the group, the parent group should be there or it will return an error
+func (r *rowStore) addGroup(path string, rep parquet.FieldRepetitionType) error {
+	if r.children == nil {
+		r.children = []column{}
+	}
+	pa := strings.Split(path, ".")
+	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
+	if name == "" {
+		return errors.Errorf("the name of the group is required")
+	}
+
+	c := &r.children
+	for i := 0; i < len(pa)-1; i++ {
+		found := false
+		if c == nil {
+			break
+		}
+		for j := range *c {
+			if (*c)[j].name == pa[i] {
+				found = true
+				c = &(*c)[j].children
+				break
+			}
+		}
+		if !found {
+			return errors.Errorf("path %s failed on %q", path, pa[i])
+		}
+		if c == nil && i < len(pa)-1 {
+			return errors.Errorf("path %s is not parent at %q", path, pa[i])
+		}
+	}
+	if c == nil {
+		return errors.New("the path was invalid")
+	}
+	*c = append(*c, column{
+		name:     name,
+		data:     nil,
+		children: []column{},
+		rep:      rep,
+	})
+
+	return nil
+}
+
+func (r *rowStore) addColumn(path string, store columnStore, rep parquet.FieldRepetitionType) error {
+	if r.children == nil {
+		r.children = []column{}
+	}
+	pa := strings.Split(path, ".")
+	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
+	if name == "" {
+		return errors.Errorf("the name of the column is required")
+	}
+
+	c := &r.children
+	for i := 0; i < len(pa)-1; i++ {
+		found := false
+		if c == nil {
+			break
+		}
+		for j := range *c {
+			if (*c)[j].name == pa[i] {
+				found = true
+				c = &(*c)[j].children
+				break
+			}
+		}
+		if !found {
+			return errors.Errorf("path %s failed on %q", path, pa[i])
+		}
+		if c == nil && i < len(pa)-1 {
+			return errors.Errorf("path %s is not parent at %q", path, pa[i])
+		}
+	}
+
+	if c == nil {
+		return errors.New("the children are nil")
+	}
+
+	store.reset(rep)
+	*c = append(*c, column{
+		name:     name,
+		data:     store,
+		children: nil,
+		rep:      rep,
+	})
+
+	return nil
 }
 
 func (r *rowStore) findDataColumn(path string) (columnStore, error) {
