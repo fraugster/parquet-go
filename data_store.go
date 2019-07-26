@@ -10,6 +10,7 @@ import (
 // In memory (or maybe other type) of column store to buffer the column value before writing into a page
 // TODO: tune the functions, maybe we need more information, maybe less.
 type columnStore interface {
+	// TODO: pass maxR and maxD
 	reset(repetitionType parquet.FieldRepetitionType)
 	// Min and Max in parquet byte
 	maxValue() []byte
@@ -17,17 +18,18 @@ type columnStore interface {
 	// Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 	// the second argument s the definition level
 	// if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-	add(data interface{}, defLvl int16, maxRepLvl int16, repLvl int16) (bool, error)
+	add(data interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) (bool, error)
 	// Get all values
 	dictionary() *dictStore
-	// TODO: int16? since we write it in the parquet using int32 encoder
+	// TODO: uint16? since we write it in the parquet using int32 encoder
 	definitionLevels() []int32
 
 	repetitionLevels() []int32
 
 	//// we can use the array to get this two, but its better to skip the loop
-	//maxDefinitionLevel() int16
-	//maxRepetitionLevel() int16
+	// TODO: uncomment this after fixing the todo on the init
+	//maxDefinitionLevel() uint16
+	//maxRepetitionLevel() uint16
 }
 
 type typedColumnStore interface {
@@ -70,7 +72,7 @@ func (is *genericStore) reset(rep parquet.FieldRepetitionType) {
 	is.typedColumnStore.reset(rep)
 }
 
-func (is *genericStore) add(v interface{}, dL int16, maxRL, rL int16) (bool, error) {
+func (is *genericStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, error) {
 	// if the current column is repeated, we should increase the maxRL here
 	if is.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -129,12 +131,42 @@ func (is *genericStore) repetitionLevels() []int32 {
 }
 
 type column struct {
-	name string
+	index          int
+	name, flatName string
 	// one of the following could be not null. data or children
 	data     columnStore
 	children []column
 
 	rep parquet.FieldRepetitionType
+
+	maxR, maxD uint16
+
+	// for the reader we should read this element from the meta, for the writer we need to build this element
+	element *parquet.SchemaElement
+}
+
+func (c *column) MaxDefinitionLevel() uint16 {
+	return c.maxD
+}
+
+func (c *column) MaxRepetitionLevel() uint16 {
+	return c.maxR
+}
+
+func (c *column) FlatName() string {
+	return c.flatName
+}
+
+func (c *column) Name() string {
+	return c.name
+}
+
+func (c *column) Index() int {
+	return c.index
+}
+
+func (c *column) Element() *parquet.SchemaElement {
+	return c.element
 }
 
 // TODO: merge this type with the Schema type
@@ -142,51 +174,48 @@ type rowStore struct {
 	children []column
 }
 
-// path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *rowStore) addGroup(path string, rep parquet.FieldRepetitionType) error {
-	if r.children == nil {
-		r.children = []column{}
-	}
-	pa := strings.Split(path, ".")
-	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
-	if name == "" {
-		return errors.Errorf("the name of the group is required")
-	}
+func (r *rowStore) sortIndex() {
+	var (
+		idx int
+		fn  func(c *[]column)
+	)
 
-	c := &r.children
-	for i := 0; i < len(pa)-1; i++ {
-		found := false
+	fn = func(c *[]column) {
 		if c == nil {
-			break
+			return
 		}
-		for j := range *c {
-			if (*c)[j].name == pa[i] {
-				found = true
-				c = &(*c)[j].children
-				break
+		for data := range *c {
+			if (*c)[data].data != nil {
+				(*c)[data].index = idx
+				idx++
+			} else {
+				fn(&(*c)[data].children)
 			}
 		}
-		if !found {
-			return errors.Errorf("path %s failed on %q", path, pa[i])
-		}
-		if c == nil && i < len(pa)-1 {
-			return errors.Errorf("path %s is not parent at %q", path, pa[i])
-		}
 	}
-	if c == nil {
-		return errors.New("the path was invalid")
-	}
-	*c = append(*c, column{
-		name:     name,
-		data:     nil,
-		children: []column{},
-		rep:      rep,
-	})
 
-	return nil
+	fn(&r.children)
+
 }
 
+// path is the dot separated path of the group, the parent group should be there or it will return an error
+func (r *rowStore) addGroup(path string, rep parquet.FieldRepetitionType) error {
+	return r.addColumnOrGroup(path, nil, rep)
+}
+
+// path is the dot separated path of the group, the parent group should be there or it will return an error
 func (r *rowStore) addColumn(path string, store columnStore, rep parquet.FieldRepetitionType) error {
+	if store == nil {
+		return errors.New("column should have column store")
+	}
+	return r.addColumnOrGroup(path, store, rep)
+}
+
+// do not call this function externally
+func (r *rowStore) addColumnOrGroup(path string, store columnStore, rep parquet.FieldRepetitionType) error {
+	var (
+		maxR, maxD uint16
+	)
 	if r.children == nil {
 		r.children = []column{}
 	}
@@ -205,6 +234,8 @@ func (r *rowStore) addColumn(path string, store columnStore, rep parquet.FieldRe
 		for j := range *c {
 			if (*c)[j].name == pa[i] {
 				found = true
+				maxR = (*c)[j].maxR
+				maxD = (*c)[j].maxD
 				c = &(*c)[j].children
 				break
 			}
@@ -220,28 +251,45 @@ func (r *rowStore) addColumn(path string, store columnStore, rep parquet.FieldRe
 	if c == nil {
 		return errors.New("the children are nil")
 	}
+	if rep != parquet.FieldRepetitionType_REQUIRED {
+		maxD++
+	}
+	if rep == parquet.FieldRepetitionType_REPEATED {
+		maxR++
+	}
 
-	store.reset(rep)
-	*c = append(*c, column{
+	col := column{
 		name:     name,
-		data:     store,
+		flatName: path,
+		data:     nil,
 		children: nil,
 		rep:      rep,
-	})
+		maxR:     maxR,
+		maxD:     maxD,
+	}
+	if store != nil {
+		store.reset(rep)
+		col.data = store
+	} else {
+		col.children = []column{}
+	}
+
+	*c = append(*c, col)
+	r.sortIndex()
 
 	return nil
 }
 
-func (r *rowStore) findDataColumn(path string) (columnStore, error) {
+func (r *rowStore) findDataColumn(path string) (*column, error) {
 	pa := strings.Split(path, ".")
 	c := r.children
-	var d columnStore
+	var ret *column
 	for i := 0; i < len(pa); i++ {
 		found := false
 		for j := range c {
 			if c[j].name == pa[i] {
 				found = true
-				d = c[j].data
+				ret = &c[j]
 				c = c[j].children
 				break
 			}
@@ -254,19 +302,19 @@ func (r *rowStore) findDataColumn(path string) (columnStore, error) {
 		}
 	}
 
-	if d == nil {
+	if ret == nil || ret.data == nil {
 		return nil, errors.Errorf("path %s doesnt end on data", path)
 	}
 
-	return d, nil
+	return ret, nil
 }
 
-func (r *rowStore) add(m map[string]interface{}) error {
+func (r *rowStore) addData(m map[string]interface{}) error {
 	_, err := recursiveAdd(r.children, m, 0, 0, 0)
 	return err
 }
 
-func recursiveNil(c []column, defLvl, maxRepLvl int16, repLvl int16) error {
+func recursiveNil(c []column, defLvl, maxRepLvl uint16, repLvl uint16) error {
 	for i := range c {
 		if c[i].data != nil {
 			_, err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl)
@@ -283,7 +331,7 @@ func recursiveNil(c []column, defLvl, maxRepLvl int16, repLvl int16) error {
 	return nil
 }
 
-func recursiveAdd(c []column, m interface{}, defLvl int16, maxRepLvl int16, repLvl int16) (bool, error) {
+func recursiveAdd(c []column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) (bool, error) {
 	var data = m.(map[string]interface{})
 	var advance bool
 	for i := range c {
