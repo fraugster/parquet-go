@@ -61,6 +61,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	return len(dst), nil
 }
 
+// TODO:  Not sure about storing nil value here, see if we need to discard them?
 type dictStore struct {
 	values []interface{}
 	data   []int32
@@ -91,7 +92,7 @@ func (d *dictStore) assemble() []interface{} {
 func (d *dictStore) getIndex(in interface{}) int32 {
 	for i := range d.values {
 		// TODO: Better compare?
-		if d.values[i] == in {
+		if compare(d.values[i], in) {
 			return int32(i)
 		}
 	}

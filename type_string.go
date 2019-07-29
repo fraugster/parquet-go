@@ -3,6 +3,8 @@ package go_parquet
 import (
 	"io"
 
+	"github.com/fraugster/parquet-go/parquet"
+
 	"github.com/pkg/errors"
 )
 
@@ -48,4 +50,30 @@ func (s *stringEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return s.byteArrayEncoder.encodeValues(converted)
+}
+
+type stringStore struct {
+	byteArrayStore
+}
+
+func (s *stringStore) getValues(v interface{}) ([]interface{}, error) {
+	var vals []interface{}
+	switch typed := v.(type) {
+	case string:
+		s.setMinMax([]byte(typed))
+		vals = []interface{}{typed}
+	case []string:
+		if s.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, errors.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			s.setMinMax([]byte(typed[j]))
+			vals[j] = typed[j]
+		}
+	default:
+		return nil, errors.Errorf("unsupported type for storing in string column %T => %+v", v, v)
+	}
+
+	return vals, nil
 }

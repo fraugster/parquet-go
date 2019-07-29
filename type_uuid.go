@@ -26,3 +26,7 @@ func (ue *uuidEncoder) init(w io.Writer) error {
 	}
 	return ue.byteArrayPlainEncoder.init(w)
 }
+
+type uuidStore struct {
+	byteArrayStore
+}

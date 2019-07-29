@@ -1,6 +1,7 @@
 package go_parquet
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 	"math"
@@ -252,4 +253,22 @@ func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
 	}
 
 	return enc.Close()
+}
+
+func compare(a, b interface{}) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	switch a.(type) {
+	case int, int32, int64, string, bool, float64, float32:
+		return a == b
+	case []byte:
+		return bytes.Compare(a.([]byte), b.([]byte)) == 0
+	case Int96:
+		a1 := a.(Int96)
+		b1 := b.(Int96)
+		return bytes.Compare(a1[:], b1[:]) == 0
+	default:
+		panic("not supported type")
+	}
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"io"
 
+	"github.com/fraugster/parquet-go/parquet"
+
 	"github.com/pkg/errors"
 )
 
@@ -324,4 +326,65 @@ func (b *byteArrayDeltaEncoder) Close() error {
 	}
 
 	return b.values.Close()
+}
+
+type byteArrayStore struct {
+	repTyp   parquet.FieldRepetitionType
+	min, max []byte
+}
+
+func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
+	is.repTyp = repetitionType
+	is.min = nil
+	is.max = nil
+}
+
+func (is *byteArrayStore) maxValue() []byte {
+	// TODO: copy?
+	return is.max
+}
+
+func (is *byteArrayStore) minValue() []byte {
+	return is.min
+}
+
+func (is *byteArrayStore) setMinMax(j []byte) {
+	// For nil value there is no need to set the min/max
+	if j == nil {
+		return
+	}
+	if is.max == nil || is.min == nil {
+		is.min = j
+		is.max = j
+		return
+	}
+	// TODO : verify the compare
+	if bytes.Compare(j, is.min) < 0 {
+		is.min = j
+	}
+	if bytes.Compare(j, is.max) > 0 {
+		is.max = j
+	}
+}
+
+func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
+	var vals []interface{}
+	switch typed := v.(type) {
+	case []byte:
+		is.setMinMax(typed)
+		vals = []interface{}{typed}
+	case [][]byte:
+		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, errors.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			is.setMinMax(typed[j])
+			vals[j] = typed[j]
+		}
+	default:
+		return nil, errors.Errorf("unsupported type for storing in []byte column %T => %+v", v, v)
+	}
+
+	return vals, nil
 }

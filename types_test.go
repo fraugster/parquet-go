@@ -13,6 +13,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+=-")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
 func buildRandArray(count int, fn func() interface{}) []interface{} {
 	ret := make([]interface{}, count)
 	for i := range ret {
@@ -373,6 +383,41 @@ var (
 					}
 				}
 				return data
+			},
+		},
+		{
+			name:  "StringStore",
+			store: &stringStore{},
+			rand: func(n int) interface{} {
+				ret := make([]string, n)
+				for c := 0; c < n; c++ {
+					ret[c] = randStringRunes(rand.Intn(10))
+				}
+
+				return ret
+			},
+		},
+		{
+			name:  "ByteStore(UUIDStore)",
+			store: &byteArrayStore{},
+			rand: func(n int) interface{} {
+				ret := make([][]byte, n)
+				for c := 0; c < n; c++ {
+					ret[c] = []byte(randStringRunes(rand.Intn(10)))
+				}
+
+				return ret
+			},
+		},
+		{
+			name:  "BooleanStore",
+			store: &booleanStore{},
+			rand: func(n int) interface{} {
+				ret := make([]bool, n)
+				for i := range ret {
+					ret[i] = rand.Int()%2 == 0
+				}
+				return ret
 			},
 		},
 	}

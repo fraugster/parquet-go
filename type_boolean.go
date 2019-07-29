@@ -2,6 +2,10 @@ package go_parquet
 
 import (
 	"io"
+
+	"github.com/pkg/errors"
+
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 type booleanPlainDecoder struct {
@@ -167,4 +171,42 @@ func (b *booleanRLEEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return b.encoder.encode(buf)
+}
+
+type booleanStore struct {
+	repTyp parquet.FieldRepetitionType
+	// Min and max is meaningless here :/
+	//min, max bool
+}
+
+func (b *booleanStore) reset(repetitionType parquet.FieldRepetitionType) {
+	b.repTyp = repetitionType
+}
+
+func (b *booleanStore) maxValue() []byte {
+	return nil
+}
+
+func (b *booleanStore) minValue() []byte {
+	return nil
+}
+
+func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {
+	var vals []interface{}
+	switch typed := v.(type) {
+	case bool:
+		vals = []interface{}{typed}
+	case []bool:
+		if b.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, errors.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			vals[j] = typed[j]
+		}
+	default:
+		return nil, errors.Errorf("unsupported type for storing in bool column %T => %+v", v, v)
+	}
+
+	return vals, nil
 }
