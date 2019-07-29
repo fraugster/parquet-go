@@ -63,13 +63,15 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 
 // TODO: Not sure about storing "nil" value here, do we need to discard them?
 type dictStore struct {
-	values []interface{}
-	data   []int32
+	values    []interface{}
+	data      []int32
+	nullCount int32
 }
 
 func (d *dictStore) init() {
 	d.values = d.values[:0]
 	d.data = d.data[:0]
+	d.nullCount = 0
 }
 
 func (d *dictStore) getValues() []interface{} {
@@ -83,6 +85,10 @@ func (d *dictStore) getIndexes() []int32 {
 func (d *dictStore) assemble() []interface{} {
 	ret := make([]interface{}, len(d.data))
 	for i := range d.data {
+		if d.data[i] < 0 {
+			ret[i] = nil
+			continue
+		}
 		ret[i] = d.values[d.data[i]]
 	}
 
@@ -102,7 +108,20 @@ func (d *dictStore) getIndex(in interface{}) int32 {
 }
 
 func (d *dictStore) addValue(v interface{}) {
+	if v == nil {
+		d.nullCount++
+		d.data = append(d.data, -1)
+		return
+	}
 	d.data = append(d.data, d.getIndex(v))
+}
+
+func (d *dictStore) numValues() int32 {
+	return int32(len(d.data))
+}
+
+func (d *dictStore) numNullValue() int32 {
+	return d.nullCount
 }
 
 // TODO: Implement fallback

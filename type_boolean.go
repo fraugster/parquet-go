@@ -175,8 +175,6 @@ func (b *booleanRLEEncoder) encodeValues(values []interface{}) error {
 
 type booleanStore struct {
 	repTyp parquet.FieldRepetitionType
-	// Min and max is meaningless here :/
-	//min, max bool
 }
 
 func (b *booleanStore) parquetType() parquet.Type {

@@ -37,6 +37,7 @@ type ColumnStore interface {
 
 	repetitionLevels() []int32
 
+	encoding() parquet.Encoding
 	//// we can use the array to get this two, but its better to skip the loop
 	// TODO: uncomment this after fixing the todo on the init
 	//maxDefinitionLevel() uint16
@@ -65,7 +66,12 @@ type genericStore struct {
 	rLevels []int32
 	rep     []int
 
+	enc parquet.Encoding
 	typedColumnStore
+}
+
+func (g *genericStore) encoding() parquet.Encoding {
+	return g.enc
 }
 
 func (g *genericStore) repetitionType() parquet.FieldRepetitionType {
@@ -146,55 +152,108 @@ func (g *genericStore) repetitionLevels() []int32 {
 	return g.rLevels
 }
 
-func newStore(typed typedColumnStore) ColumnStore {
-	return &genericStore{typedColumnStore: typed}
+func newStore(typed typedColumnStore, enc parquet.Encoding) ColumnStore {
+	return &genericStore{
+		typedColumnStore: typed,
+	}
 }
 
 // TODO: ColumnStore itself (not the internal api) should be public
 // TODO : add allow dictionary option
 // TODO : Add preferred encoding option on each type
 
-func NewBooleanStore() (ColumnStore, error) {
-	return newStore(&booleanStore{}), nil
+func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&booleanStore{}, enc), nil
 }
 
-func NewInt32Store() (ColumnStore, error) {
-	return newStore(&int32Store{}), nil
+func NewInt32Store(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&int32Store{}, enc), nil
 }
 
-func NewInt64Store() (ColumnStore, error) {
-	return newStore(&int64Store{}), nil
+func NewInt64Store(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&int64Store{}, enc), nil
 }
 
-func NewInt96Store() (ColumnStore, error) {
-	return newStore(&int96Store{}), nil
+func NewInt96Store(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&int96Store{}, enc), nil
 }
 
-func NewFloatStore() (ColumnStore, error) {
-	return newStore(&floatStore{}), nil
+func NewFloatStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&floatStore{}, enc), nil
 }
 
-func NewDoubleStore() (ColumnStore, error) {
-	return newStore(&doubleStore{}), nil
+func NewDoubleStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&doubleStore{}, enc), nil
 }
 
-func NewByteArrayStore() (ColumnStore, error) {
-	return newStore(&byteArrayStore{}), nil
+func NewByteArrayStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&byteArrayStore{}, enc), nil
 }
 
-func NewFixedByteArrayStore(l int) (ColumnStore, error) {
+func NewFixedByteArrayStore(enc parquet.Encoding, l int) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
 	if l <= 0 {
 		return nil, errors.Errorf("fix length with len %d is not possible", l)
 	}
+
 	return newStore(&byteArrayStore{
 		length: l,
-	}), nil
+	}, enc), nil
 }
 
-func NewStringStore() (ColumnStore, error) {
-	return newStore(&stringStore{}), nil
+func NewStringStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&stringStore{}, enc), nil
 }
 
-func NewUUIDStore() (ColumnStore, error) {
-	return newStore(&uuidStore{}), nil
+func NewUUIDStore(enc parquet.Encoding) (ColumnStore, error) {
+	switch enc {
+	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
+	default:
+		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+	}
+	return newStore(&uuidStore{}, enc), nil
 }

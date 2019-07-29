@@ -426,7 +426,8 @@ var (
 func TestStores(t *testing.T) {
 	for _, fix := range stFixtures {
 		t.Run(fix.name, func(t *testing.T) {
-			st := newStore(fix.store)
+			// The only encoding for all of them is Plain
+			st := newStore(fix.store, parquet.Encoding_PLAIN)
 			randArr := fix.rand
 
 			st.reset(parquet.FieldRepetitionType_REPEATED)

@@ -7,25 +7,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// Column is one column definition in the parquet file
-type Column interface {
-	// Index of the column in the schema
-	Index() int
-	// Name of the column
-	Name() string
-	// Name of the column with the name of parent structures, separated with dot
-	FlatName() string
-	// MaxDefinitionLevel of the column
-	MaxDefinitionLevel() uint16
-	// MaxRepetitionLevel of the column
-	MaxRepetitionLevel() uint16
-	// Element of the column in the schema
-	Element() *parquet.SchemaElement
-}
-
-// Columns array of the column
-type Columns []Column
-
 type column struct {
 	index          int
 	name, flatName string
@@ -62,11 +43,40 @@ func (c *column) Index() int {
 }
 
 func (c *column) Element() *parquet.SchemaElement {
+	if c.element == nil {
+		c.buildElement()
+	}
 	return c.element
+}
+
+func (c *column) buildElement() {
+	rep := c.rep
+	elem := &parquet.SchemaElement{
+		RepetitionType: &rep,
+		Name:           c.name,
+		FieldID:        nil, // Not sure about this field
+	}
+
+	if c.data != nil {
+		t := c.data.parquetType()
+		elem.Type = &t
+		elem.TypeLength = c.data.typeLen()
+		elem.ConvertedType = c.data.convertedType()
+		elem.Scale = c.data.scale()
+		elem.Precision = c.data.precision()
+		elem.LogicalType = c.data.logicalType()
+	} else {
+		nc := int32(len(c.children))
+		elem.NumChildren = &nc
+	}
+
+	c.element = elem
 }
 
 type Schema struct {
 	children []*column
+
+	numRecords int32
 }
 
 func (r *Schema) Columns() Columns {
@@ -149,16 +159,19 @@ func (r *Schema) sortIndex() {
 	fn(&r.children)
 }
 
-// path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *Schema) addGroup(path string, rep parquet.FieldRepetitionType) error {
+// AddGroup add a group to the parquet schema, path is the dot separated path of the group,
+// the parent group should be there or it will return an error
+func (r *Schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	return r.addColumnOrGroup(path, nil, rep)
 }
 
+// AddColumn is for adding a column to the parquet schema, it resets the store
 // path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *Schema) addColumn(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
+func (r *Schema) AddColumn(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
 	if store == nil {
 		return errors.New("column should have column store")
 	}
+	store.reset(rep)
 	return r.addColumnOrGroup(path, store, rep)
 }
 
@@ -260,8 +273,11 @@ func (r *Schema) findDataColumn(path string) (*column, error) {
 	return ret, nil
 }
 
-func (r *Schema) addData(m map[string]interface{}) error {
+func (r *Schema) AddData(m map[string]interface{}) error {
 	_, err := recursiveAddColumnData(r.children, m, 0, 0, 0)
+	if err != nil {
+		r.numRecords++
+	}
 	return err
 }
 

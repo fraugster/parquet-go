@@ -27,14 +27,15 @@ type columnChunkReader struct {
 	chunkMeta *parquet.ColumnMetaData
 
 	// Definition and repetition decoder
-	rDecoder, dDecoder func() levelDecoder
+	rDecoder, dDecoder getLevelDecoder
 
-	dictPage *dictionaryPage
+	dictPage *dictionaryPageReader
 
 	activePage pageReader
 }
 
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
+type getLevelDecoder func(parquet.Encoding) (levelDecoder, error)
 
 func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 	switch *typ.Type {
@@ -278,14 +279,17 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
 		// TODO: document level ranges
-		cr.dDecoder = func() levelDecoder {
-			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: cr.col.MaxDefinitionLevel()}
+		cr.dDecoder = func(parquet.Encoding) (levelDecoder, error) {
+			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: cr.col.MaxDefinitionLevel()}, nil
 		}
 	} else {
-		cr.dDecoder = func() levelDecoder {
+		cr.dDecoder = func(enc parquet.Encoding) (levelDecoder, error) {
+			if enc != parquet.Encoding_RLE {
+				return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+			}
 			dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
 			dec.buffered = true
-			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxDefinitionLevel()}
+			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxDefinitionLevel()}, nil
 		}
 	}
 	if !nested && repType != parquet.FieldRepetitionType_REPEATED {
@@ -293,14 +297,17 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
-		cr.rDecoder = func() levelDecoder {
-			return &levelDecoderWrapper{decoder: constDecoder(0), max: cr.col.MaxRepetitionLevel()}
+		cr.rDecoder = func(parquet.Encoding) (levelDecoder, error) {
+			return &levelDecoderWrapper{decoder: constDecoder(0), max: cr.col.MaxRepetitionLevel()}, nil
 		}
 	} else {
-		cr.rDecoder = func() levelDecoder {
+		cr.rDecoder = func(enc parquet.Encoding) (levelDecoder, error) {
+			if enc != parquet.Encoding_RLE {
+				return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+			}
 			dec := newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
 			dec.buffered = true
-			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxRepetitionLevel()}
+			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxRepetitionLevel()}, nil
 		}
 	}
 
@@ -316,7 +323,7 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 }
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface
-type dictionaryPage struct {
+type dictionaryPageReader struct {
 	ph *parquet.PageHeader
 
 	numValues int32
@@ -325,7 +332,7 @@ type dictionaryPage struct {
 	values []interface{}
 }
 
-func (dp *dictionaryPage) init(dict valuesDecoder) error {
+func (dp *dictionaryPageReader) init(dict valuesDecoder) error {
 	if dict == nil {
 		return errors.New("dictionary page without dictionary value encoder")
 	}
@@ -334,7 +341,7 @@ func (dp *dictionaryPage) init(dict valuesDecoder) error {
 	return nil
 }
 
-func (dp *dictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dictionaryPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
 		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
 	}
@@ -367,7 +374,7 @@ func (dp *dictionaryPage) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 	return nil
 }
 
-type dataPageV1 struct {
+type dataPageReaderV1 struct {
 	ph *parquet.PageHeader
 
 	numValues          int32
@@ -379,7 +386,7 @@ type dataPageV1 struct {
 	position int
 }
 
-func (dp *dataPageV1) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
 	size := len(val)
 	if rem := int(dp.numValues) - dp.position; rem < size {
 		size = rem
@@ -415,16 +422,24 @@ func (dp *dataPageV1) readValues(val []interface{}) (n int, dLevel []uint16, rLe
 	return size, dLevel, rLevel, nil
 }
 
-func (dp *dataPageV1) init(dDecoder, rDecoder func() levelDecoder, values getValueDecoderFn) error {
-	dp.dDecoder = dDecoder()
-	dp.rDecoder = rDecoder()
+func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
+	var err error
+	dp.dDecoder, err = dDecoder(dp.ph.DataPageHeader.DefinitionLevelEncoding)
+	if err != nil {
+		return err
+	}
+	dp.rDecoder, err = rDecoder(dp.ph.DataPageHeader.RepetitionLevelEncoding)
+	if err != nil {
+		return err
+	}
+
 	dp.fn = values
 	dp.position = 0
 
 	return nil
 }
 
-func (dp *dataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
 	if ph.DataPageHeader == nil {
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
@@ -455,7 +470,7 @@ func (dp *dataPageV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parque
 	return dp.valuesDecoder.init(reader)
 }
 
-type dataPageV2 struct {
+type dataPageReaderV2 struct {
 	ph *parquet.PageHeader
 
 	numValues          int32
@@ -466,7 +481,7 @@ type dataPageV2 struct {
 	position           int
 }
 
-func (dp *dataPageV2) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageReaderV2) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
 	size := len(val)
 	if rem := int(dp.numValues) - dp.position; rem < size {
 		size = rem
@@ -502,16 +517,24 @@ func (dp *dataPageV2) readValues(val []interface{}) (n int, dLevel []uint16, rLe
 	return size, dLevel, rLevel, nil
 }
 
-func (dp *dataPageV2) init(dDecoder, rDecoder func() levelDecoder, values getValueDecoderFn) error {
-	dp.dDecoder = dDecoder()
-	dp.rDecoder = rDecoder()
+func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
+	var err error
+	// Page v2 dose not have any encoding for the levels
+	dp.dDecoder, err = dDecoder(parquet.Encoding_RLE)
+	if err != nil {
+		return err
+	}
+	dp.rDecoder, err = rDecoder(parquet.Encoding_RLE)
+	if err != nil {
+		return err
+	}
 	dp.fn = values
 	dp.position = 0
 
 	return nil
 }
 
-func (dp *dataPageV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
 	// TODO: verify this format, there is some question
 	// 1- Uncompressed size is affected by the level lens?
 	// 2- If the levels are actually rle and the first byte is the size, since there is already size in header (NO)
@@ -579,7 +602,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 		if cr.dictPage != nil {
 			return nil, errors.New("there should be only one dictionary")
 		}
-		p := &dictionaryPage{}
+		p := &dictionaryPageReader{}
 		de, err := getDictValuesDecoder(cr.col.Element())
 		if err != nil {
 			return nil, err
@@ -610,9 +633,9 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 	var p pageReader
 	switch ph.Type {
 	case parquet.PageType_DATA_PAGE:
-		p = &dataPageV1{}
+		p = &dataPageReaderV1{}
 	case parquet.PageType_DATA_PAGE_V2:
-		p = &dataPageV2{}
+		p = &dataPageReaderV2{}
 	default:
 		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
@@ -636,7 +659,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 
 func (cr *columnChunkReader) Read(values []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
 	// TODO : the docs said each chunk could have one or more page, one is ok, two is ok since dictionary pages are always in pair
-	// but is there any chunk with 3 page or above? if there is, this function needs re-write.
+	// but is there any chunk with 3 data page or above? if there is, this function needs re-write.
 	if cr.activePage == nil {
 		cr.activePage, err = cr.readPage()
 		if err == errEndOfChunk { // if this is the end of chunk
