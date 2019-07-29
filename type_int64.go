@@ -115,6 +115,34 @@ type int64Store struct {
 	min, max int64
 }
 
+func (is *int64Store) parquetType() parquet.Type {
+	return parquet.Type_INT64
+}
+
+func (is *int64Store) typeLen() *int32 {
+	return nil
+}
+
+func (is *int64Store) repetitionType() parquet.FieldRepetitionType {
+	return is.repTyp
+}
+
+func (is *int64Store) convertedType() *parquet.ConvertedType {
+	return nil
+}
+
+func (is *int64Store) scale() *int32 {
+	return nil
+}
+
+func (is *int64Store) precision() *int32 {
+	return nil
+}
+
+func (is *int64Store) logicalType() *parquet.LogicalType {
+	return nil
+}
+
 func (is *int64Store) reset(rep parquet.FieldRepetitionType) {
 	is.repTyp = rep
 	is.min = math.MaxInt64

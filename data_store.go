@@ -1,16 +1,28 @@
 package go_parquet
 
 import (
+	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
 )
 
+type parquetColumn interface {
+	parquetType() parquet.Type
+	typeLen() *int32
+	repetitionType() parquet.FieldRepetitionType
+	convertedType() *parquet.ConvertedType
+	scale() *int32
+	precision() *int32
+	logicalType() *parquet.LogicalType
+}
+
 // In memory (or maybe other type) of column store to buffer the column value before writing into a page
 // TODO: tune the functions, maybe we need more information, maybe less.
-type columnStore interface {
+type ColumnStore interface {
+	parquetColumn
 	// TODO: pass maxR and maxD
+	// TODO: need to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
 	reset(repetitionType parquet.FieldRepetitionType)
-	// TODO: sort of redundant function to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
-	repetitionType() parquet.FieldRepetitionType
+
 	// Min and Max in parquet byte
 	maxValue() []byte
 	minValue() []byte
@@ -32,6 +44,7 @@ type columnStore interface {
 }
 
 type typedColumnStore interface {
+	parquetColumn
 	reset(repetitionType parquet.FieldRepetitionType)
 	// Min and Max in parquet byte
 	maxValue() []byte
@@ -133,6 +146,55 @@ func (g *genericStore) repetitionLevels() []int32 {
 	return g.rLevels
 }
 
-func newStore(typed typedColumnStore) columnStore {
+func newStore(typed typedColumnStore) ColumnStore {
 	return &genericStore{typedColumnStore: typed}
+}
+
+// TODO: ColumnStore itself (not the internal api) should be public
+// TODO : add allow dictionary option
+// TODO : Add preferred encoding option on each type
+
+func NewBooleanStore() (ColumnStore, error) {
+	return newStore(&booleanStore{}), nil
+}
+
+func NewInt32Store() (ColumnStore, error) {
+	return newStore(&int32Store{}), nil
+}
+
+func NewInt64Store() (ColumnStore, error) {
+	return newStore(&int64Store{}), nil
+}
+
+func NewInt96Store() (ColumnStore, error) {
+	return newStore(&int96Store{}), nil
+}
+
+func NewFloatStore() (ColumnStore, error) {
+	return newStore(&floatStore{}), nil
+}
+
+func NewDoubleStore() (ColumnStore, error) {
+	return newStore(&doubleStore{}), nil
+}
+
+func NewByteArrayStore() (ColumnStore, error) {
+	return newStore(&byteArrayStore{}), nil
+}
+
+func NewFixedByteArrayStore(l int) (ColumnStore, error) {
+	if l <= 0 {
+		return nil, errors.Errorf("fix length with len %d is not possible", l)
+	}
+	return newStore(&byteArrayStore{
+		length: l,
+	}), nil
+}
+
+func NewStringStore() (ColumnStore, error) {
+	return newStore(&stringStore{}), nil
+}
+
+func NewUUIDStore() (ColumnStore, error) {
+	return newStore(&uuidStore{}), nil
 }

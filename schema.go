@@ -30,7 +30,7 @@ type column struct {
 	index          int
 	name, flatName string
 	// one of the following could be not null. data or children
-	data     columnStore
+	data     ColumnStore
 	children []*column
 
 	rep parquet.FieldRepetitionType
@@ -155,7 +155,7 @@ func (r *Schema) addGroup(path string, rep parquet.FieldRepetitionType) error {
 }
 
 // path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *Schema) addColumn(path string, store columnStore, rep parquet.FieldRepetitionType) error {
+func (r *Schema) addColumn(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
 	if store == nil {
 		return errors.New("column should have column store")
 	}
@@ -163,7 +163,7 @@ func (r *Schema) addColumn(path string, store columnStore, rep parquet.FieldRepe
 }
 
 // do not call this function externally
-func (r *Schema) addColumnOrGroup(path string, store columnStore, rep parquet.FieldRepetitionType) error {
+func (r *Schema) addColumnOrGroup(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
 	var (
 		maxR, maxD uint16
 	)

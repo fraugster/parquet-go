@@ -71,6 +71,34 @@ type int96Store struct {
 	byteArrayStore
 }
 
+func (is *int96Store) parquetType() parquet.Type {
+	return parquet.Type_INT96
+}
+
+func (is *int96Store) typeLen() *int32 {
+	return nil
+}
+
+func (is *int96Store) repetitionType() parquet.FieldRepetitionType {
+	return is.repTyp
+}
+
+func (is *int96Store) convertedType() *parquet.ConvertedType {
+	return nil
+}
+
+func (is *int96Store) scale() *int32 {
+	return nil
+}
+
+func (is *int96Store) precision() *int32 {
+	return nil
+}
+
+func (is *int96Store) logicalType() *parquet.LogicalType {
+	return nil
+}
+
 func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {

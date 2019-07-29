@@ -10,7 +10,7 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-func newIntStore() columnStore {
+func newIntStore() ColumnStore {
 	d := newStore(&int32Store{})
 	return d
 }

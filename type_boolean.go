@@ -179,6 +179,34 @@ type booleanStore struct {
 	//min, max bool
 }
 
+func (b *booleanStore) parquetType() parquet.Type {
+	return parquet.Type_BOOLEAN
+}
+
+func (b *booleanStore) typeLen() *int32 {
+	return nil
+}
+
+func (b *booleanStore) repetitionType() parquet.FieldRepetitionType {
+	return b.repTyp
+}
+
+func (b *booleanStore) convertedType() *parquet.ConvertedType {
+	return nil
+}
+
+func (b *booleanStore) scale() *int32 {
+	return nil
+}
+
+func (b *booleanStore) precision() *int32 {
+	return nil
+}
+
+func (b *booleanStore) logicalType() *parquet.LogicalType {
+	return nil
+}
+
 func (b *booleanStore) reset(repetitionType parquet.FieldRepetitionType) {
 	b.repTyp = repetitionType
 }

@@ -2,6 +2,8 @@ package go_parquet
 
 import (
 	"io"
+
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 type uuidDecoder struct {
@@ -27,6 +29,19 @@ func (ue *uuidEncoder) init(w io.Writer) error {
 	return ue.byteArrayPlainEncoder.init(w)
 }
 
+// TODO: should it be fixed len?
 type uuidStore struct {
 	byteArrayStore
+}
+
+func (u *uuidStore) typeLen() *int32 {
+	// TODO : is that correct?
+	l := int32(16)
+	return &l
+}
+
+func (u uuidStore) logicalType() *parquet.LogicalType {
+	return &parquet.LogicalType{
+		UUID: &parquet.UUIDType{},
+	}
 }

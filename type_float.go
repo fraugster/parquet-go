@@ -60,6 +60,34 @@ type floatStore struct {
 	min, max float32
 }
 
+func (f *floatStore) parquetType() parquet.Type {
+	return parquet.Type_FLOAT
+}
+
+func (f *floatStore) typeLen() *int32 {
+	return nil
+}
+
+func (f *floatStore) repetitionType() parquet.FieldRepetitionType {
+	return f.repTyp
+}
+
+func (f *floatStore) convertedType() *parquet.ConvertedType {
+	return nil
+}
+
+func (f *floatStore) scale() *int32 {
+	return nil
+}
+
+func (f *floatStore) precision() *int32 {
+	return nil
+}
+
+func (f *floatStore) logicalType() *parquet.LogicalType {
+	return nil
+}
+
 func (f *floatStore) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
 	f.min = math.MaxFloat32

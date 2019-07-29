@@ -331,6 +331,43 @@ func (b *byteArrayDeltaEncoder) Close() error {
 type byteArrayStore struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max []byte
+
+	length int
+}
+
+func (is *byteArrayStore) parquetType() parquet.Type {
+	if is.length > 0 {
+		return parquet.Type_FIXED_LEN_BYTE_ARRAY
+	}
+	return parquet.Type_BYTE_ARRAY
+}
+
+func (is *byteArrayStore) typeLen() *int32 {
+	if is.length > 0 {
+		t := int32(is.length)
+		return &t
+	}
+	return nil
+}
+
+func (is *byteArrayStore) repetitionType() parquet.FieldRepetitionType {
+	return is.repTyp
+}
+
+func (is *byteArrayStore) convertedType() *parquet.ConvertedType {
+	return nil
+}
+
+func (is *byteArrayStore) scale() *int32 {
+	return nil
+}
+
+func (is *byteArrayStore) precision() *int32 {
+	return nil
+}
+
+func (is *byteArrayStore) logicalType() *parquet.LogicalType {
+	return nil
 }
 
 func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
@@ -348,15 +385,18 @@ func (is *byteArrayStore) minValue() []byte {
 	return is.min
 }
 
-func (is *byteArrayStore) setMinMax(j []byte) {
+func (is *byteArrayStore) setMinMax(j []byte) error {
+	if is.length > 0 && len(j) != is.length {
+		return errors.Errorf("the size of data should be %d but is %d", is.length, len(j))
+	}
 	// For nil value there is no need to set the min/max
 	if j == nil {
-		return
+		return nil
 	}
 	if is.max == nil || is.min == nil {
 		is.min = j
 		is.max = j
-		return
+		return nil
 	}
 	// TODO : verify the compare
 	if bytes.Compare(j, is.min) < 0 {
@@ -365,13 +405,17 @@ func (is *byteArrayStore) setMinMax(j []byte) {
 	if bytes.Compare(j, is.max) > 0 {
 		is.max = j
 	}
+
+	return nil
 }
 
 func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
 	case []byte:
-		is.setMinMax(typed)
+		if err := is.setMinMax(typed); err != nil {
+			return nil, err
+		}
 		vals = []interface{}{typed}
 	case [][]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
@@ -379,7 +423,9 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
-			is.setMinMax(typed[j])
+			if err := is.setMinMax(typed[j]); err != nil {
+				return nil, err
+			}
 			vals[j] = typed[j]
 		}
 	default:

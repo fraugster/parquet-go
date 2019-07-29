@@ -61,6 +61,19 @@ type stringStore struct {
 	byteArrayStore
 }
 
+func (s *stringStore) convertedType() *parquet.ConvertedType {
+	t := parquet.ConvertedType_UTF8
+	return &t
+}
+
+func (s *stringStore) logicalType() *parquet.LogicalType {
+	l := &parquet.LogicalType{
+		STRING: &parquet.StringType{},
+	}
+
+	return l
+}
+
 func (s *stringStore) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
