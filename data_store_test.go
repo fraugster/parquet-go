@@ -16,7 +16,7 @@ func newIntStore() columnStore {
 }
 
 func TestOneColumn(t *testing.T) {
-	row := rowStore{}
+	row := Schema{}
 	require.NoError(t, row.addColumn("DocID", newIntStore(), parquet.FieldRepetitionType_REQUIRED))
 
 	data := []map[string]interface{}{
@@ -37,7 +37,7 @@ func TestOneColumn(t *testing.T) {
 }
 
 func TestOneColumnOptional(t *testing.T) {
-	row := rowStore{}
+	row := Schema{}
 	require.NoError(t, row.addColumn("DocID", newIntStore(), parquet.FieldRepetitionType_OPTIONAL))
 
 	data := []map[string]interface{}{
@@ -58,7 +58,7 @@ func TestOneColumnOptional(t *testing.T) {
 }
 
 func TestComplexPart1(t *testing.T) {
-	row := &rowStore{}
+	row := &Schema{}
 	require.NoError(t, row.addGroup("Name", parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.addGroup("Name.Language", parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.addColumn("Name.Language.Code", newIntStore(), parquet.FieldRepetitionType_REQUIRED))
@@ -126,7 +126,7 @@ func TestComplexPart1(t *testing.T) {
 }
 
 func TestComplexPart2(t *testing.T) {
-	row := &rowStore{}
+	row := &Schema{}
 	require.NoError(t, row.addGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
 	require.NoError(t, row.addColumn("Links.Backward", newIntStore(), parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.addColumn("Links.Forward", newIntStore(), parquet.FieldRepetitionType_REPEATED))
@@ -168,7 +168,7 @@ func TestComplexPart2(t *testing.T) {
 
 func TestComplex(t *testing.T) {
 	// Based on this picture https://i.stack.imgur.com/raOFu.png from this doc https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36632.pdf
-	row := &rowStore{}
+	row := &Schema{}
 	require.NoError(t, row.addColumn("DocId", newIntStore(), parquet.FieldRepetitionType_REQUIRED))
 	require.NoError(t, row.addGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
 	require.NoError(t, row.addColumn("Links.Backward", newIntStore(), parquet.FieldRepetitionType_REPEATED))
@@ -281,7 +281,7 @@ func TestComplex(t *testing.T) {
 
 func TestTwitterBlog(t *testing.T) {
 	// Sample from here https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
-	row := &rowStore{}
+	row := &Schema{}
 	require.NoError(t, row.addGroup("level1", parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.addColumn("level1.level2", newIntStore(), parquet.FieldRepetitionType_REPEATED))
 

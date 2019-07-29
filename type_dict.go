@@ -61,7 +61,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	return len(dst), nil
 }
 
-// TODO:  Not sure about storing nil value here, see if we need to discard them?
+// TODO: Not sure about storing "nil" value here, do we need to discard them?
 type dictStore struct {
 	values []interface{}
 	data   []int32

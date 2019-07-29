@@ -26,7 +26,12 @@ func (s *stringDecoder) decodeValues(values []interface{}) (int, error) {
 	}
 
 	for i := 0; i < n; i++ {
-		values[i] = string(values[i].([]byte))
+		switch t := values[i].(type) {
+		case string: // This is only possible when the internal byteArrayDecoder is dictionary
+			values[i] = t
+		default: // Any other case should be string
+			values[i] = string(t.([]byte))
+		}
 	}
 
 	return n, err
