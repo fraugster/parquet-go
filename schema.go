@@ -22,6 +22,19 @@ type column struct {
 	element *parquet.SchemaElement
 }
 
+func (c *column) getSchemaArray() []*parquet.SchemaElement {
+	ret := []*parquet.SchemaElement{c.Element()}
+	if c.data != nil {
+		return ret
+	}
+
+	for i := range c.children {
+		ret = append(ret, c.children[i].getSchemaArray()...)
+	}
+
+	return ret
+}
+
 func (c *column) MaxDefinitionLevel() uint16 {
 	return c.maxD
 }
@@ -44,12 +57,14 @@ func (c *column) Index() int {
 
 func (c *column) Element() *parquet.SchemaElement {
 	if c.element == nil {
-		c.buildElement()
+		// If this is a no-element node, we need to re-create element every time to make sure the content is always up-to-date
+		// TODO: if its read only, we can build it
+		return c.buildElement()
 	}
 	return c.element
 }
 
-func (c *column) buildElement() {
+func (c *column) buildElement() *parquet.SchemaElement {
 	rep := c.rep
 	elem := &parquet.SchemaElement{
 		RepetitionType: &rep,
@@ -70,13 +85,37 @@ func (c *column) buildElement() {
 		elem.NumChildren = &nc
 	}
 
-	c.element = elem
+	return elem
 }
 
 type Schema struct {
-	children []*column
+	root *column
 
-	numRecords int32
+	numRecords int64
+
+	readOnly int
+}
+
+// TODO(f0rud): a hacky way to fix the problem (my wrong assumption of the root element) at the last minute. fix it
+func (r *Schema) ensureRoot() {
+	if r.root == nil {
+		r.root = &column{
+			index:    0,
+			name:     "go_parquet_root",
+			flatName: "",
+			data:     nil,
+			children: []*column{},
+			rep:      0,
+			maxR:     0,
+			maxD:     0,
+			element:  nil,
+		}
+	}
+}
+
+func (r *Schema) getSchemaArray() []*parquet.SchemaElement {
+	r.ensureRoot()
+	return r.root.getSchemaArray()
 }
 
 func (r *Schema) Columns() Columns {
@@ -92,8 +131,8 @@ func (r *Schema) Columns() Columns {
 			}
 		}
 	}
-
-	fn(r.children)
+	r.ensureRoot()
+	fn(r.root.children)
 	return ret
 }
 
@@ -115,8 +154,8 @@ func (r *Schema) GetColumnByName(path string) Column {
 
 		return nil
 	}
-
-	return fn(r.children)
+	r.ensureRoot()
+	return fn(r.root.children)
 }
 
 // resetData is useful for resetting data after writing a chunk, to collect data for the next chunk
@@ -132,8 +171,9 @@ func (r *Schema) resetData() {
 			}
 		}
 	}
-
-	fn(r.children)
+	r.ensureRoot()
+	fn(r.root.children)
+	r.numRecords = 0
 }
 
 func (r *Schema) sortIndex() {
@@ -155,8 +195,8 @@ func (r *Schema) sortIndex() {
 			}
 		}
 	}
-
-	fn(&r.children)
+	r.ensureRoot()
+	fn(&r.root.children)
 }
 
 // AddGroup add a group to the parquet schema, path is the dot separated path of the group,
@@ -177,11 +217,16 @@ func (r *Schema) AddColumn(path string, store ColumnStore, rep parquet.FieldRepe
 
 // do not call this function externally
 func (r *Schema) addColumnOrGroup(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
+	if r.readOnly != 0 {
+		return errors.New("the schema is read only")
+	}
+
+	r.ensureRoot()
 	var (
 		maxR, maxD uint16
 	)
-	if r.children == nil {
-		r.children = []*column{}
+	if r.root.children == nil {
+		r.root.children = []*column{}
 	}
 	pa := strings.Split(path, ".")
 	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
@@ -189,7 +234,7 @@ func (r *Schema) addColumnOrGroup(path string, store ColumnStore, rep parquet.Fi
 		return errors.Errorf("the name of the column is required")
 	}
 
-	c := &r.children
+	c := &r.root.children
 	for i := 0; i < len(pa)-1; i++ {
 		found := false
 		if c == nil {
@@ -246,7 +291,8 @@ func (r *Schema) addColumnOrGroup(path string, store ColumnStore, rep parquet.Fi
 
 func (r *Schema) findDataColumn(path string) (*column, error) {
 	pa := strings.Split(path, ".")
-	c := r.children
+	r.ensureRoot()
+	c := r.root.children
 	var ret *column
 	for i := 0; i < len(pa); i++ {
 		found := false
@@ -274,8 +320,10 @@ func (r *Schema) findDataColumn(path string) (*column, error) {
 }
 
 func (r *Schema) AddData(m map[string]interface{}) error {
-	_, err := recursiveAddColumnData(r.children, m, 0, 0, 0)
-	if err != nil {
+	r.readOnly = 1
+	r.ensureRoot()
+	_, err := recursiveAddColumnData(r.root.children, m, 0, 0, 0)
+	if err == nil {
 		r.numRecords++
 	}
 	return err
@@ -458,6 +506,7 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 }
 
 func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
+	r.readOnly = 1
 	var err error
 	for idx := 0; idx < len(schema); {
 		c := &column{}
@@ -466,13 +515,13 @@ func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
 			if err != nil {
 				return err
 			}
-			r.children = append(r.children, c)
+			r.root.children = append(r.root.children, c)
 		} else {
 			idx, err = c.readColumnSchema(schema, "", idx, 0, 0)
 			if err != nil {
 				return err
 			}
-			r.children = append(r.children, c)
+			r.root.children = append(r.root.children, c)
 		}
 	}
 	r.sortIndex()
@@ -480,10 +529,23 @@ func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
 }
 
 func MakeSchema(meta *parquet.FileMetaData) (*Schema, error) {
-	s := &Schema{
-		children: make([]*column, 0, len(meta.Schema)-1),
+	if len(meta.Schema) < 1 {
+		return nil, errors.New("no schema element found")
 	}
-	err := s.readSchema(meta.Schema)
+	s := &Schema{
+		root: &column{
+			index:    0,
+			name:     meta.Schema[0].Name,
+			flatName: "",
+			data:     nil,
+			children: make([]*column, 0, len(meta.Schema)-1),
+			rep:      0,
+			maxR:     0,
+			maxD:     0,
+			element:  meta.Schema[0],
+		},
+	}
+	err := s.readSchema(meta.Schema[1:])
 	if err != nil {
 		return nil, err
 	}

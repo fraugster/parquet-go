@@ -295,3 +295,23 @@ func compare(a, b interface{}) bool {
 		panic("not supported type")
 	}
 }
+
+type writePos interface {
+	io.Writer
+	Pos() int64
+}
+
+type writePosStruct struct {
+	w   io.Writer
+	pos int64
+}
+
+func (w *writePosStruct) Write(p []byte) (n int, err error) {
+	n, err = w.w.Write(p)
+	w.pos += int64(n)
+	return n, err
+}
+
+func (w *writePosStruct) Pos() int64 {
+	return w.pos
+}
