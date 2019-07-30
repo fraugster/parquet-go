@@ -2,6 +2,7 @@ package go_parquet
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 
@@ -59,7 +60,11 @@ func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
 		}
 	} else {
 		for i := range values {
-			d[i] = values[i].(int32)
+			var ok bool
+			d[i], ok = values[i].(int32)
+			if !ok {
+				fmt.Print(i)
+			}
 		}
 	}
 	return binary.Write(i.w, binary.LittleEndian, d)

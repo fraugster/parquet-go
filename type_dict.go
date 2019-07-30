@@ -83,7 +83,7 @@ func (d *dictStore) getIndexes() []int32 {
 }
 
 func (d *dictStore) assemble(null bool) []interface{} {
-	ret := make([]interface{}, len(d.data))
+	ret := make([]interface{}, 0, len(d.data))
 	for i := range d.data {
 		if d.data[i] < 0 {
 			if null {
@@ -91,7 +91,7 @@ func (d *dictStore) assemble(null bool) []interface{} {
 			}
 			continue
 		}
-		ret[i] = d.values[d.data[i]]
+		ret = append(ret, d.values[d.data[i]])
 	}
 
 	return ret

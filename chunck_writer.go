@@ -203,22 +203,21 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 
 func (dp *dataPageWriterV1) Write(w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
-	levelBuf := &bytes.Buffer{}
+	dataBuf := &bytes.Buffer{}
 	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
 	// if it is nested or it is not repeated we need the dLevel data
 	if nested || dp.col.data.repetitionType() != parquet.FieldRepetitionType_REQUIRED {
-		if err := encodeLevels(levelBuf, dp.col.MaxDefinitionLevel(), dp.col.data.definitionLevels()); err != nil {
+		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.definitionLevels()); err != nil {
 			return 0, 0, err
 		}
 	}
 	// if this is nested or if the data is repeated
 	if nested || dp.col.data.repetitionType() == parquet.FieldRepetitionType_REPEATED {
-		if err := encodeLevels(levelBuf, dp.col.MaxRepetitionLevel(), dp.col.data.repetitionLevels()); err != nil {
+		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.repetitionLevels()); err != nil {
 			return 0, 0, err
 		}
 	}
 
-	dataBuf := &bytes.Buffer{}
 	encoder, err := getValuesEncoder(dp.col.data.encoding(), dp.col.Element(), dp.col.data.dictionary())
 	if err != nil {
 		return 0, 0, err
@@ -236,10 +235,6 @@ func (dp *dataPageWriterV1) Write(w io.Writer) (int, int, error) {
 
 	header := dp.getHeader(compSize, unCompSize)
 	if err := writeThrift(header, w); err != nil {
-		return 0, 0, err
-	}
-
-	if err := writeFull(w, levelBuf.Bytes()); err != nil {
 		return 0, 0, err
 	}
 
