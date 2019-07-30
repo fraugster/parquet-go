@@ -437,7 +437,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, convertToInterface(data), st.dictionary().assemble())
+			assert.Equal(t, convertToInterface(data), st.dictionary().assemble(true))
 			// Field is not Required, so def level should be one more
 			assert.Equal(t, []int32{4, 4, 4}, st.definitionLevels())
 			// Filed is repeated so the rep level (except for the first one which is the new record)
@@ -448,7 +448,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, ok)
 			// No Reset
-			assert.Equal(t, append(convertToInterface(data), nil), st.dictionary().assemble())
+			assert.Equal(t, append(convertToInterface(data), nil), st.dictionary().assemble(true))
 			// The new field is nil
 			assert.Equal(t, []int32{4, 4, 4, 3}, st.definitionLevels())
 			assert.Equal(t, []int32{0, 4, 4, 0}, st.repetitionLevels())
@@ -460,7 +460,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, convertToInterface(data), st.dictionary().assemble())
+			assert.Equal(t, convertToInterface(data), st.dictionary().assemble(true))
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3}, st.definitionLevels())
 			assert.Equal(t, []int32{0}, st.repetitionLevels())
@@ -471,7 +471,7 @@ func TestStores(t *testing.T) {
 			assert.True(t, ok)
 			// No reset
 			dArr := []interface{}{getOne(data), getOne(data2)}
-			assert.Equal(t, dArr, st.dictionary().assemble())
+			assert.Equal(t, dArr, st.dictionary().assemble(true))
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3}, st.definitionLevels())
 			// rLevel is more than max, so its max now
@@ -490,7 +490,7 @@ func TestStores(t *testing.T) {
 			assert.NoError(t, err)
 			assert.False(t, ok)
 
-			assert.Equal(t, dArr, st.dictionary().assemble())
+			assert.Equal(t, dArr, st.dictionary().assemble(true))
 
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3, 3}, st.definitionLevels())

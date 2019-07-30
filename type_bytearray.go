@@ -17,7 +17,7 @@ type bytesArrayDecoder interface {
 	bytesArray()
 }
 
-type byteArrayEncoder interface {
+type bytesArrayEncoder interface {
 	valuesEncoder
 
 	bytesArray()

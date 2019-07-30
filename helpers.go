@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"math/bits"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
@@ -120,6 +121,16 @@ func readThrift(tr thriftReader, r io.Reader) error {
 	transport := &thrift.StreamTransport{Reader: r}
 	proto := thrift.NewTCompactProtocol(transport)
 	return tr.Read(proto)
+}
+
+type thriftWriter interface {
+	Write(thrift.TProtocol) error
+}
+
+func writeThrift(tr thriftWriter, w io.Writer) error {
+	transport := &thrift.StreamTransport{Writer: w}
+	proto := thrift.NewTCompactProtocol(transport)
+	return tr.Write(proto)
 }
 
 func decodeUint16(d decoder, data []uint16) error {
@@ -253,6 +264,18 @@ func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
 	}
 
 	return enc.Close()
+}
+
+func encodeLevels(w io.Writer, max uint16, values []int32) error {
+	rle := newHybridEncoder(bits.Len16(max))
+	if err := rle.initSize(w); err != nil {
+		return errors.Wrap(err, "level writer initialize with size failed")
+	}
+	if err := rle.encode(values); err != nil {
+		return errors.Wrap(err, "level writer encode values failed")
+	}
+
+	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
 func compare(a, b interface{}) bool {

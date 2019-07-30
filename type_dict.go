@@ -82,11 +82,13 @@ func (d *dictStore) getIndexes() []int32 {
 	return d.data
 }
 
-func (d *dictStore) assemble() []interface{} {
+func (d *dictStore) assemble(null bool) []interface{} {
 	ret := make([]interface{}, len(d.data))
 	for i := range d.data {
 		if d.data[i] < 0 {
-			ret[i] = nil
+			if null {
+				ret[i] = nil
+			}
 			continue
 		}
 		ret[i] = d.values[d.data[i]]
@@ -128,6 +130,10 @@ func (d *dictStore) numNullValue() int32 {
 type dictEncoder struct {
 	w io.Writer
 	dictStore
+}
+
+func (d *dictEncoder) bytesArray() {
+	panic("do not call me")
 }
 
 func (d *dictEncoder) Close() error {

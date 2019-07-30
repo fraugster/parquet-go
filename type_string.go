@@ -38,14 +38,14 @@ func (s *stringDecoder) decodeValues(values []interface{}) (int, error) {
 }
 
 type stringEncoder struct {
-	byteArrayEncoder
+	bytesArrayEncoder
 }
 
 func (s *stringEncoder) init(w io.Writer) error {
-	if s.byteArrayEncoder == nil {
+	if s.bytesArrayEncoder == nil {
 		return errors.New("you should set the bytes array encoder")
 	}
-	return s.byteArrayEncoder.init(w)
+	return s.bytesArrayEncoder.init(w)
 }
 
 func (s *stringEncoder) encodeValues(values []interface{}) error {
@@ -54,7 +54,7 @@ func (s *stringEncoder) encodeValues(values []interface{}) error {
 		converted[i] = []byte(values[i].(string))
 	}
 
-	return s.byteArrayEncoder.encodeValues(converted)
+	return s.bytesArrayEncoder.encodeValues(converted)
 }
 
 type stringStore struct {

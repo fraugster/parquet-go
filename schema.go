@@ -364,87 +364,6 @@ func recursiveAddColumnData(c []*column, m interface{}, defLvl uint16, maxRepLvl
 	return advance, nil
 }
 
-func readColumnSchema(s *parquet.SchemaElement, prefix string, rLevel, dLevel uint16) (*column, error) {
-	// TODO: validate Name is not empty
-	if s.RepetitionType == nil {
-		return nil, errors.Errorf("field RepetitionType is nil")
-	}
-
-	if *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
-		dLevel++
-	}
-
-	if *s.RepetitionType == parquet.FieldRepetitionType_REPEATED {
-		rLevel++
-	}
-	flatName := s.Name
-	if prefix != "" {
-		flatName = prefix + "." + flatName
-	}
-	return &column{
-		index:    0,
-		name:     s.Name,
-		flatName: flatName,
-		data:     &genericStore{}, // TODO: this is a reader, make sure this is not nil, but not a real reader
-		children: nil,
-		rep:      *s.RepetitionType,
-		maxR:     rLevel,
-		maxD:     dLevel,
-		element:  s,
-	}, nil
-}
-
-func readGroupSchema(schema []*parquet.SchemaElement, idx int, prefix string, rLevel, dLevel uint16) (*column, int, error) {
-	if idx > len(schema) {
-		return nil, 0, errors.Errorf("the schema len is %d but the index is %d", len(schema), idx)
-	}
-	s := schema[idx]
-	if s.Type != nil {
-		return nil, 0, errors.Errorf("field Type is not nil in index %d", idx)
-	}
-	if s.NumChildren == nil {
-		return nil, 0, errors.Errorf("the field NumChildren is invalid in index %d", idx)
-	}
-	l := int(*s.NumChildren)
-
-	if len(schema) <= idx+l {
-		return nil, 0, errors.Errorf("not enough element in the schema list in index %d", idx)
-	}
-	flatName := s.Name
-	if prefix != "" {
-		flatName = prefix + "." + flatName
-	}
-	if *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
-		dLevel++
-	}
-
-	if *s.RepetitionType == parquet.FieldRepetitionType_REPEATED {
-		rLevel++
-	}
-	c := &column{
-		index:    0,
-		name:     s.Name,
-		flatName: flatName,
-		data:     nil,
-		children: nil,
-		rep:      *s.RepetitionType,
-		maxR:     rLevel,
-		maxD:     dLevel,
-		element:  s,
-	}
-
-	for i := 1; i <= l; i++ {
-		child, err := readColumnSchema(schema[idx+i], flatName, rLevel, dLevel)
-		if err != nil {
-			return nil, 0, errors.Wrapf(err, "read data column schema in index %d failed", idx+i)
-		}
-
-		c.children = append(c.children, child)
-	}
-
-	return c, l + 1, nil
-}
-
 func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, idx int, dLevel, rLevel uint16) (int, error) {
 	s := schema[idx]
 
@@ -469,7 +388,7 @@ func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	if name == "" {
 		c.flatName = s.Name
 	}
-	return idx, nil
+	return idx + 1, nil
 }
 
 func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, idx int, dLevel, rLevel uint16) (int, error) {
@@ -515,8 +434,8 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	c.children = make([]*column, 0, l)
 
 	var err error
+	idx++ // move idx from this group to next
 	for i := 0; i < l; i++ {
-		idx++
 		if schema[idx].Type == nil {
 			// another group
 			child := &column{}
@@ -539,21 +458,20 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 }
 
 func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
+	var err error
 	for idx := 0; idx < len(schema); {
 		c := &column{}
 		if schema[idx].Type == nil {
-			l, err := c.readGroupSchema(schema, "", idx, 0, 0)
+			idx, err = c.readGroupSchema(schema, "", idx, 0, 0)
 			if err != nil {
 				return err
 			}
-			idx += l
 			r.children = append(r.children, c)
 		} else {
-			c, err := readColumnSchema(schema[idx], "", 0, 0)
+			idx, err = c.readColumnSchema(schema, "", idx, 0, 0)
 			if err != nil {
 				return err
 			}
-			idx++
 			r.children = append(r.children, c)
 		}
 	}

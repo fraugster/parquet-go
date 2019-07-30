@@ -1,40 +1,12 @@
 package go_parquet
 
 import (
-	"bytes"
-	"compress/gzip"
-	"io/ioutil"
 	"testing"
 
-	"github.com/golang/snappy"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/fraugster/parquet-go/parquet"
 )
-
-func compressBlock(in []byte, method parquet.CompressionCodec) []byte {
-	switch method {
-	case parquet.CompressionCodec_UNCOMPRESSED:
-		ret := make([]byte, len(in))
-		copy(ret, in)
-		return ret
-	case parquet.CompressionCodec_GZIP:
-		buf := &bytes.Buffer{}
-		cmp := gzip.NewWriter(buf)
-		if _, err := cmp.Write(in); err != nil {
-			panic(err)
-		}
-		if err := cmp.Close(); err != nil {
-			panic(err)
-		}
-
-		return buf.Bytes()
-	case parquet.CompressionCodec_SNAPPY:
-		return snappy.Encode(nil, in)
-	}
-
-	panic("invalid method")
-}
 
 func TestCompressor(t *testing.T) {
 	block := []byte(`lorem ipsum dolor sit amet, consectetur adipiscing elit, 
@@ -51,11 +23,10 @@ occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim 
 	}
 
 	for _, m := range methods {
-		b := compressBlock(block, m)
-		r, err := newBlockReader(bytes.NewReader(b), m, int32(len(b)), int32(len(block)))
-		assert.NoError(t, err)
-		buf, err := ioutil.ReadAll(r)
-		assert.NoError(t, err)
-		assert.Equal(t, buf, block)
+		b, err := compressBlock(block, m)
+		require.NoError(t, err)
+		b2, err := decompressBlock(b, m)
+		require.NoError(t, err)
+		assert.Equal(t, block, b2)
 	}
 }

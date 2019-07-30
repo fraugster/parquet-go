@@ -124,12 +124,12 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		if ret == nil {
 			break
 		}
-
-		// Should convert to string? enums are not supported in go, so they are simply string
-		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		if typ.ConvertedType != nil {
+			// Should convert to string? enums are not supported in go, so they are simply string
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringDecoder{bytesArrayDecoder: ret}, nil
+			}
 		}
-
 		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
 			return &stringDecoder{bytesArrayDecoder: ret}, nil
 		}
@@ -160,10 +160,11 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 		// Should convert to string? enums are not supported in go, so they are simply string
-		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringDecoder{bytesArrayDecoder: ret}, nil
+			}
 		}
-
 		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
 			return &stringDecoder{bytesArrayDecoder: ret}, nil
 		}
@@ -187,8 +188,10 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	case parquet.Type_INT32:
 		var unSigned bool
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
-			unSigned = true
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+				unSigned = true
+			}
 		}
 		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
 			unSigned = true
@@ -204,8 +207,10 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	case parquet.Type_INT64:
 		var unSigned bool
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
-			unSigned = true
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+				unSigned = true
+			}
 		}
 		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
 			unSigned = true
@@ -293,7 +298,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 		}
 	}
 	if !nested && repType != parquet.FieldRepetitionType_REPEATED {
-		// TODO: I think we need to check all schemaElements in the path (confirm if above)
+		// TODO: I think we need to check all schemaElements in the path
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
@@ -633,9 +638,13 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 	var p pageReader
 	switch ph.Type {
 	case parquet.PageType_DATA_PAGE:
-		p = &dataPageReaderV1{}
+		p = &dataPageReaderV1{
+			ph: ph,
+		}
 	case parquet.PageType_DATA_PAGE_V2:
-		p = &dataPageReaderV2{}
+		p = &dataPageReaderV2{
+			ph: ph,
+		}
 	default:
 		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
@@ -658,8 +667,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 }
 
 func (cr *columnChunkReader) Read(values []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
-	// TODO : the docs said each chunk could have one or more page, one is ok, two is ok since dictionary pages are always in pair
-	// but is there any chunk with 3 data page or above? if there is, this function needs re-write.
+	// TODO : For pageV1 there is only one page per chunk, but for V2 it can be more then one. we need to re-write this
 	if cr.activePage == nil {
 		cr.activePage, err = cr.readPage()
 		if err == errEndOfChunk { // if this is the end of chunk
