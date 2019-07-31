@@ -177,6 +177,12 @@ type booleanStore struct {
 	repTyp parquet.FieldRepetitionType
 }
 
+func (b *booleanStore) sizeOf(v interface{}) int {
+	// Cheating here. boolean size is one bit, but the size is in byte. so zero to make sure
+	// we never use dictionary on this. // TODO: is this make sense?
+	return 0
+}
+
 func (b *booleanStore) parquetType() parquet.Type {
 	return parquet.Type_BOOLEAN
 }

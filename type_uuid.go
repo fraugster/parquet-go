@@ -34,6 +34,10 @@ type uuidStore struct {
 	byteArrayStore
 }
 
+func (*uuidStore) sizeOf(v interface{}) int {
+	return 16
+}
+
 func (u *uuidStore) typeLen() *int32 {
 	// TODO : is that correct?
 	l := int32(16)

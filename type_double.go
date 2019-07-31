@@ -59,6 +59,10 @@ type doubleStore struct {
 	min, max float64
 }
 
+func (*doubleStore) sizeOf(v interface{}) int {
+	return 8
+}
+
 func (f *doubleStore) parquetType() parquet.Type {
 	return parquet.Type_DOUBLE
 }

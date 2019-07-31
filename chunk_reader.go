@@ -41,8 +41,10 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 	switch *typ.Type {
 	case parquet.Type_BYTE_ARRAY:
 		ret := &byteArrayPlainDecoder{}
-		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringDecoder{bytesArrayDecoder: ret}, nil
+			}
 		}
 
 		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
@@ -54,8 +56,10 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 			return nil, errors.Errorf("type %s with nil type len", typ)
 		}
 		ret := &byteArrayPlainDecoder{length: int(*typ.TypeLength)}
-		if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-			return &stringDecoder{bytesArrayDecoder: ret}, nil
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringDecoder{bytesArrayDecoder: ret}, nil
+			}
 		}
 
 		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
@@ -68,8 +72,10 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 		return &doublePlainDecoder{}, nil
 	case parquet.Type_INT32:
 		var unSigned bool
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
-			unSigned = true
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+				unSigned = true
+			}
 		}
 		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
 			unSigned = true
@@ -77,8 +83,10 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 		return &int32PlainDecoder{unSigned: unSigned}, nil
 	case parquet.Type_INT64:
 		var unSigned bool
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
-			unSigned = true
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+				unSigned = true
+			}
 		}
 		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
 			unSigned = true
@@ -325,154 +333,6 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	}
 
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
-}
-
-// dictionaryPage is not a real data page, so there is no need to implement the page interface
-type dictionaryPageReader struct {
-	ph *parquet.PageHeader
-
-	numValues int32
-	enc       valuesDecoder
-
-	values []interface{}
-}
-
-func (dp *dictionaryPageReader) init(dict valuesDecoder) error {
-	if dict == nil {
-		return errors.New("dictionary page without dictionary value encoder")
-	}
-
-	dp.enc = dict
-	return nil
-}
-
-func (dp *dictionaryPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
-	if ph.DictionaryPageHeader == nil {
-		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
-	}
-
-	if dp.numValues = ph.DictionaryPageHeader.NumValues; dp.numValues < 0 {
-		return errors.Errorf("negative NumValues in DICTIONARY_PAGE: %d", dp.numValues)
-	}
-
-	if ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN && ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN_DICTIONARY {
-		return errors.Errorf("only Encoding_PLAIN and Encoding_PLAIN_DICTIONARY is supported for dict values encoder")
-	}
-
-	dp.ph = ph
-
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
-	if err != nil {
-		return err
-	}
-
-	dp.values = make([]interface{}, dp.numValues)
-	if err := dp.enc.init(reader); err != nil {
-		return err
-	}
-
-	// no error is accepted here, even EOF
-	if n, err := dp.enc.decodeValues(dp.values); err != nil {
-		return errors.Wrapf(err, "expected %d value read %d value", dp.numValues, n)
-	}
-
-	return nil
-}
-
-type dataPageReaderV1 struct {
-	ph *parquet.PageHeader
-
-	numValues          int32
-	encoding           parquet.Encoding
-	dDecoder, rDecoder levelDecoder
-	valuesDecoder      valuesDecoder
-	fn                 getValueDecoderFn
-
-	position int
-}
-
-func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
-	size := len(val)
-	if rem := int(dp.numValues) - dp.position; rem < size {
-		size = rem
-	}
-
-	if size == 0 {
-		return 0, nil, nil, nil
-	}
-
-	dLevel = make([]uint16, size)
-	if err := decodeUint16(dp.dDecoder, dLevel); err != nil {
-		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
-	}
-
-	rLevel = make([]uint16, size)
-	if err := decodeUint16(dp.rDecoder, rLevel); err != nil {
-		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
-	}
-
-	notNull := 0
-	for _, dl := range dLevel {
-		if dl == dp.dDecoder.maxLevel() {
-			notNull++
-		}
-	}
-
-	if notNull != 0 {
-		if n, err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
-			return 0, nil, nil, errors.Wrapf(err, "read values from page failed, need %d value read %d", notNull, n)
-		}
-	}
-	dp.position += size
-	return size, dLevel, rLevel, nil
-}
-
-func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
-	var err error
-	dp.dDecoder, err = dDecoder(dp.ph.DataPageHeader.DefinitionLevelEncoding)
-	if err != nil {
-		return err
-	}
-	dp.rDecoder, err = rDecoder(dp.ph.DataPageHeader.RepetitionLevelEncoding)
-	if err != nil {
-		return err
-	}
-
-	dp.fn = values
-	dp.position = 0
-
-	return nil
-}
-
-func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
-	if ph.DataPageHeader == nil {
-		return errors.Errorf("null DataPageHeader in %+v", ph)
-	}
-
-	if dp.numValues = ph.DataPageHeader.NumValues; dp.numValues < 0 {
-		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.numValues)
-	}
-	dp.encoding = ph.DataPageHeader.Encoding
-	dp.ph = ph
-
-	if dp.valuesDecoder, err = dp.fn(dp.encoding); err != nil {
-		return err
-	}
-
-	if err := dp.dDecoder.initSize(r); err != nil {
-		return err
-	}
-
-	if err := dp.rDecoder.initSize(r); err != nil {
-		return err
-	}
-
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
-	if err != nil {
-		return err
-	}
-
-	return dp.valuesDecoder.init(reader)
 }
 
 type dataPageReaderV2 struct {

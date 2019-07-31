@@ -60,6 +60,10 @@ type floatStore struct {
 	min, max float32
 }
 
+func (*floatStore) sizeOf(v interface{}) int {
+	return 4
+}
+
 func (f *floatStore) parquetType() parquet.Type {
 	return parquet.Type_FLOAT
 }

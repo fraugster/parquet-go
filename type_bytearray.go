@@ -335,6 +335,10 @@ type byteArrayStore struct {
 	length int
 }
 
+func (is *byteArrayStore) sizeOf(v interface{}) int {
+	return len(v.([]byte))
+}
+
 func (is *byteArrayStore) parquetType() parquet.Type {
 	if is.length > 0 {
 		return parquet.Type_FIXED_LEN_BYTE_ARRAY

@@ -71,6 +71,10 @@ type int96Store struct {
 	byteArrayStore
 }
 
+func (*int96Store) sizeOf(v interface{}) int {
+	return 12
+}
+
 func (is *int96Store) parquetType() parquet.Type {
 	return parquet.Type_INT96
 }

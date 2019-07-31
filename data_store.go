@@ -1,6 +1,8 @@
 package go_parquet
 
 import (
+	"math"
+
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -32,6 +34,7 @@ type ColumnStore interface {
 	add(data interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) (bool, error)
 	// Get all values
 	dictionary() *dictStore
+	useDictionary() bool
 	// TODO: uint16? since we write it in the parquet using int32 encoder
 	definitionLevels() []int32
 
@@ -53,6 +56,7 @@ type typedColumnStore interface {
 
 	// Should extract the value, turn it into an array and check for min and max on all values in this
 	getValues(v interface{}) ([]interface{}, error)
+	sizeOf(v interface{}) int
 }
 
 // genericStore is a hack to less duplicate code and logic on each type. there is a place that we can actually benefit from
@@ -66,8 +70,24 @@ type genericStore struct {
 	rLevels []int32
 	rep     []int
 
-	enc parquet.Encoding
+	enc       parquet.Encoding
+	allowDict bool
 	typedColumnStore
+}
+
+// useDictionary is simply a function to decide to use dictionary or not,
+// TODO: the logic here is very simple, we need to rethink it
+func (g *genericStore) useDictionary() bool {
+	if !g.allowDict {
+		return false
+	}
+	// TODO: Better number?
+	if len(g.values.data) > math.MaxInt16 {
+		return false
+	}
+
+	dictLen, noDictLen := g.values.sizes()
+	return dictLen < noDictLen
 }
 
 func (g *genericStore) encoding() parquet.Encoding {
@@ -110,7 +130,7 @@ func (g *genericStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 		g.rLevels = append(g.rLevels, int32(rL))
 		// TODO: the next line is the problem. how I can ignore the nil value here? I need the count to be exact, but nil
 		// should I save it in the dictionary?
-		g.values.addValue(nil)
+		g.values.addValue(nil, 0)
 		return false, nil
 	}
 	vals, err := g.getValues(v)
@@ -124,7 +144,7 @@ func (g *genericStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 
 	g.rep = append(g.rep, len(vals))
 	for i, j := range vals {
-		g.values.addValue(j)
+		g.values.addValue(j, g.sizeOf(j))
 		tmp := dL
 		if g.repTyp != parquet.FieldRepetitionType_REQUIRED {
 			tmp++
@@ -152,8 +172,10 @@ func (g *genericStore) repetitionLevels() []int32 {
 	return g.rLevels
 }
 
-func newStore(typed typedColumnStore, enc parquet.Encoding) ColumnStore {
+func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) ColumnStore {
 	return &genericStore{
+		enc:              enc,
+		allowDict:        allowDict,
 		typedColumnStore: typed,
 	}
 }
@@ -162,70 +184,73 @@ func newStore(typed typedColumnStore, enc parquet.Encoding) ColumnStore {
 // TODO : add allow dictionary option
 // TODO : Add preferred encoding option on each type
 
-func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
+// NewBooleanStore create new boolean store, the allowDict is a hint, no means no dictionary, but yes means if the data
+// is good for dictionary, then yes, otherwise no.
+// TODO: is it make sense to use dictionary on boolean? its RLE encoded 1 bit per one value.
+func NewBooleanStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&booleanStore{}, enc), nil
+	return newStore(&booleanStore{}, enc, allowDict), nil
 }
 
-func NewInt32Store(enc parquet.Encoding) (ColumnStore, error) {
+func NewInt32Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{}, enc), nil
+	return newStore(&int32Store{}, enc, allowDict), nil
 }
 
-func NewInt64Store(enc parquet.Encoding) (ColumnStore, error) {
+func NewInt64Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{}, enc), nil
+	return newStore(&int64Store{}, enc, allowDict), nil
 }
 
-func NewInt96Store(enc parquet.Encoding) (ColumnStore, error) {
+func NewInt96Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int96Store{}, enc), nil
+	return newStore(&int96Store{}, enc, allowDict), nil
 }
 
-func NewFloatStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewFloatStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{}, enc), nil
+	return newStore(&floatStore{}, enc, allowDict), nil
 }
 
-func NewDoubleStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewDoubleStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{}, enc), nil
+	return newStore(&doubleStore{}, enc, allowDict), nil
 }
 
-func NewByteArrayStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&byteArrayStore{}, enc), nil
+	return newStore(&byteArrayStore{}, enc, allowDict), nil
 }
 
-func NewFixedByteArrayStore(enc parquet.Encoding, l int) (ColumnStore, error) {
+func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
@@ -237,23 +262,23 @@ func NewFixedByteArrayStore(enc parquet.Encoding, l int) (ColumnStore, error) {
 
 	return newStore(&byteArrayStore{
 		length: l,
-	}, enc), nil
+	}, enc, allowDict), nil
 }
 
-func NewStringStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewStringStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&stringStore{}, enc), nil
+	return newStore(&stringStore{}, enc, allowDict), nil
 }
 
-func NewUUIDStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewUUIDStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&uuidStore{}, enc), nil
+	return newStore(&uuidStore{}, enc, allowDict), nil
 }

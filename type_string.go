@@ -61,6 +61,10 @@ type stringStore struct {
 	byteArrayStore
 }
 
+func (*stringStore) sizeOf(v interface{}) int {
+	return len(v.(string))
+}
+
 func (s *stringStore) convertedType() *parquet.ConvertedType {
 	t := parquet.ConvertedType_UTF8
 	return &t
@@ -78,7 +82,9 @@ func (s *stringStore) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
 	case string:
-		s.setMinMax([]byte(typed))
+		if err := s.setMinMax([]byte(typed)); err != nil {
+			return nil, err
+		}
 		vals = []interface{}{typed}
 	case []string:
 		if s.repTyp != parquet.FieldRepetitionType_REPEATED {
@@ -86,7 +92,9 @@ func (s *stringStore) getValues(v interface{}) ([]interface{}, error) {
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
-			s.setMinMax([]byte(typed[j]))
+			if err := s.setMinMax([]byte(typed[j])); err != nil {
+				return nil, err
+			}
 			vals[j] = typed[j]
 		}
 	default:

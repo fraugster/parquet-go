@@ -115,6 +115,10 @@ type int64Store struct {
 	min, max int64
 }
 
+func (*int64Store) sizeOf(v interface{}) int {
+	return 8
+}
+
 func (is *int64Store) parquetType() parquet.Type {
 	return parquet.Type_INT64
 }

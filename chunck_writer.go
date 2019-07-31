@@ -1,16 +1,18 @@
 package go_parquet
 
 import (
-	"bytes"
-	"io"
 	"strings"
 
 	"github.com/pkg/errors"
-
 	"github.com/fraugster/parquet-go/parquet"
 )
 
 func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, store *dictStore) (valuesEncoder, error) {
+	// Change the deprecated value
+	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
+		pageEncoding = parquet.Encoding_RLE_DICTIONARY
+	}
+
 	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
 		switch pageEncoding {
@@ -167,84 +169,108 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	}
 
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
-
 }
 
-type dataPageWriterV1 struct {
-	col *column
-
-	codec parquet.CompressionCodec
-}
-
-func (dp *dataPageWriterV1) init(schema *Schema, col *column, codec parquet.CompressionCodec) error {
-	dp.col = col
-	dp.codec = codec
-	return nil
-}
-
-func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
-	ph := &parquet.PageHeader{
-		Type:                 parquet.PageType_DATA_PAGE,
-		UncompressedPageSize: int32(unComp),
-		CompressedPageSize:   int32(comp),
-		Crc:                  nil, // TODO: add crc?
-		DataPageHeader: &parquet.DataPageHeader{
-			NumValues: dp.col.data.dictionary().numValues(),
-			Encoding:  dp.col.data.encoding(),
-			// Only RLE supported for now, not sure if we need support for more encoding
-			DefinitionLevelEncoding: parquet.Encoding_RLE,
-			RepetitionLevelEncoding: parquet.Encoding_RLE,
-			// TODO : add statistics support
-			Statistics: nil,
-		},
-	}
-	return ph
-}
-
-func (dp *dataPageWriterV1) Write(w io.Writer) (int, int, error) {
-	// In V1 data page is compressed separately
-	dataBuf := &bytes.Buffer{}
-	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
-	// if it is nested or it is not repeated we need the dLevel data
-	if nested || dp.col.data.repetitionType() != parquet.FieldRepetitionType_REQUIRED {
-		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.definitionLevels()); err != nil {
-			return 0, 0, err
+func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
+	switch *typ.Type {
+	case parquet.Type_BYTE_ARRAY:
+		ret := &byteArrayPlainEncoder{}
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringEncoder{bytesArrayEncoder: ret}, nil
+			}
 		}
-	}
-	// if this is nested or if the data is repeated
-	if nested || dp.col.data.repetitionType() == parquet.FieldRepetitionType_REPEATED {
-		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.repetitionLevels()); err != nil {
-			return 0, 0, err
+
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return &stringEncoder{bytesArrayEncoder: ret}, nil
 		}
+		return ret, nil
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		if typ.TypeLength == nil {
+			return nil, errors.Errorf("type %s with nil type len", typ)
+		}
+		ret := &byteArrayPlainEncoder{length: int(*typ.TypeLength)}
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return &stringEncoder{bytesArrayEncoder: ret}, nil
+			}
+		}
+
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return &stringEncoder{bytesArrayEncoder: ret}, nil
+		}
+		return ret, nil
+	case parquet.Type_FLOAT:
+		return &floatPlainEncoder{}, nil
+	case parquet.Type_DOUBLE:
+		return &doublePlainEncoder{}, nil
+	case parquet.Type_INT32:
+		var unSigned bool
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+				unSigned = true
+			}
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
+		return &int32PlainEncoder{unSigned: unSigned}, nil
+	case parquet.Type_INT64:
+		var unSigned bool
+		if typ.ConvertedType != nil {
+			if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+				unSigned = true
+			}
+		}
+		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+			unSigned = true
+		}
+		return &int64PlainEncoder{unSigned: unSigned}, nil
+	case parquet.Type_INT96:
+		return &int96PlainEncoder{}, nil
 	}
 
-	encoder, err := getValuesEncoder(dp.col.data.encoding(), dp.col.Element(), dp.col.data.dictionary())
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if err := encodeValue(dataBuf, encoder, dp.col.data.dictionary().assemble(false)); err != nil {
-		return 0, 0, err
-	}
-
-	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)
-	if err != nil {
-		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
-	}
-	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
-
-	header := dp.getHeader(compSize, unCompSize)
-	if err := writeThrift(header, w); err != nil {
-		return 0, 0, err
-	}
-
-	return compSize, unCompSize, writeFull(w, comp)
+	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
 func writeChunk(w writePos, schema *Schema, col *column, codec parquet.CompressionCodec) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
+	chunkOffset := pos
 	// TODO: support more data page version? or just latest?
-	page := &dataPageWriterV1{}
+	var (
+		dictPageOffset *int64
+		useDict        bool
+		// NOTE :
+		// This is documentation on these two field :
+		//  - TotalUncompressedSize: total byte size of all uncompressed pages in this column chunk (including the headers) *
+		//  - TotalCompressedSize: total byte size of all compressed pages in this column chunk (including the headers) *
+		// the including header part is confusing. for uncompressed size, we can use the position, but for the compressed
+		// the only value we have doesn't contain the header
+		totalComp   int64
+		totalUnComp int64
+	)
+	if col.data.useDictionary() {
+		useDict = true
+		tmp := pos // make a copy, do not use the pos here
+		dictPageOffset = &tmp
+		dict := &dictPageWriter{}
+		if err := dict.init(schema, col, codec); err != nil {
+			return nil, err
+		}
+		compSize, unCompSize, err := dict.Write(w)
+		if err != nil {
+			return nil, err
+		}
+		totalComp = w.Pos() - pos
+		// Header size plus the rLevel and dLevel size
+		headerSize := totalComp - int64(compSize)
+		totalUnComp = int64(unCompSize) + headerSize
+		pos = w.Pos() // Move position for data pos
+	}
+
+	page := &dataPageWriterV1{
+		dictionary: useDict,
+	}
 
 	if err := page.init(schema, col, codec); err != nil {
 		return nil, err
@@ -255,27 +281,27 @@ func writeChunk(w writePos, schema *Schema, col *column, codec parquet.Compressi
 		return nil, err
 	}
 
-	// TODO: these two are reminder for supporting multi-page writer
-	// NOTE :
-	// This is documentation on these two field :
-	//  - TotalUncompressedSize: total byte size of all uncompressed pages in this column chunk (including the headers) *
-	//  - TotalCompressedSize: total byte size of all compressed pages in this column chunk (including the headers) *
-	// the including header part is confusing. for uncompressed size, we can use the position, but for the compressed
-	// the only value we have doesn't contain the header
-	totalComp := w.Pos() - pos
+	totalComp += w.Pos() - pos
 	// Header size plus the rLevel and dLevel size
 	headerSize := totalComp - int64(compSize)
-	totalUnComp := int64(unCompSize) + headerSize
+	totalUnComp += int64(unCompSize) + headerSize
+
+	encodings := make([]parquet.Encoding, 0, 3)
+	encodings = append(encodings,
+		parquet.Encoding_RLE, // TODO: used For rLevel and dLevel is it required here to?
+		col.data.encoding(),
+	)
+	if useDict {
+		encodings[1] = parquet.Encoding_PLAIN // In dictionary we use PLAIN for the data, not the column encoding
+		encodings = append(encodings, parquet.Encoding_RLE_DICTIONARY)
+	}
 
 	ch := &parquet.ColumnChunk{
 		FilePath:   nil, // No support for external
-		FileOffset: pos,
+		FileOffset: chunkOffset,
 		MetaData: &parquet.ColumnMetaData{
-			Type: col.data.parquetType(),
-			Encodings: []parquet.Encoding{
-				parquet.Encoding_RLE, // TODO: used For rLevel and dLevel is it required here to?
-				col.data.encoding(),
-			},
+			Type:                  col.data.parquetType(),
+			Encodings:             encodings,
 			PathInSchema:          strings.Split(col.flatName, "."),
 			Codec:                 codec,
 			NumValues:             schema.numRecords,
@@ -284,7 +310,7 @@ func writeChunk(w writePos, schema *Schema, col *column, codec parquet.Compressi
 			KeyValueMetadata:      nil, // TODO: add key/value metadata support
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
-			DictionaryPageOffset:  nil,
+			DictionaryPageOffset:  dictPageOffset,
 			Statistics:            nil,
 			EncodingStats:         nil,
 			BloomFilterOffset:     nil,

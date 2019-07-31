@@ -61,11 +61,12 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	return len(dst), nil
 }
 
-// TODO: Not sure about storing "nil" value here, do we need to discard them?
 type dictStore struct {
 	values    []interface{}
 	data      []int32
 	nullCount int32
+	size      int64
+	valueSize int64
 }
 
 func (d *dictStore) init() {
@@ -87,7 +88,7 @@ func (d *dictStore) assemble(null bool) []interface{} {
 	for i := range d.data {
 		if d.data[i] < 0 {
 			if null {
-				ret[i] = nil
+				ret = append(ret, nil)
 			}
 			continue
 		}
@@ -97,33 +98,53 @@ func (d *dictStore) assemble(null bool) []interface{} {
 	return ret
 }
 
-func (d *dictStore) getIndex(in interface{}) int32 {
+func (d *dictStore) getIndex(in interface{}, size int) int32 {
 	for i := range d.values {
 		// TODO: Better compare?
 		if compare(d.values[i], in) {
 			return int32(i)
 		}
 	}
+	d.valueSize += int64(size)
 	d.values = append(d.values, in)
 
 	return int32(len(d.values) - 1)
 }
 
-func (d *dictStore) addValue(v interface{}) {
+func (d *dictStore) addValue(v interface{}, size int) {
 	if v == nil {
 		d.nullCount++
 		d.data = append(d.data, -1)
 		return
 	}
-	d.data = append(d.data, d.getIndex(v))
+	d.size += int64(size)
+	d.data = append(d.data, d.getIndex(v, size))
 }
 
 func (d *dictStore) numValues() int32 {
 	return int32(len(d.data))
 }
 
+func (d *dictStore) numDistinctValues() int32 {
+	return int32(len(d.values))
+}
+
 func (d *dictStore) numNullValue() int32 {
 	return d.nullCount
+}
+
+// sizes is an experimental guess for the dictionary size and real value size (when there is no dictionary)
+func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
+	count := len(d.data) - int(d.nullCount)
+	max := bits.Len(uint(len(d.values))) // bits required for any value in data
+	if max > 0 {
+		dictLen = int64(count/max) + 1
+	}
+
+	dictLen += d.valueSize
+	noDictLen = d.size
+	return
+
 }
 
 // TODO: Implement fallback
@@ -167,7 +188,7 @@ func (d *dictEncoder) init(w io.Writer) error {
 
 func (d *dictEncoder) encodeValues(values []interface{}) error {
 	for i := range values {
-		d.addValue(values[i])
+		d.addValue(values[i], 0) // size is not important here
 	}
 
 	return nil

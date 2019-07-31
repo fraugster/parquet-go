@@ -2,7 +2,6 @@ package go_parquet
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math"
 
@@ -59,12 +58,8 @@ func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
 			d[i] = int32(values[i].(uint32))
 		}
 	} else {
-		for i := range values {
-			var ok bool
-			d[i], ok = values[i].(int32)
-			if !ok {
-				fmt.Print(i)
-			}
+		for j := range values {
+			d[j] = values[j].(int32)
 		}
 	}
 	return binary.Write(i.w, binary.LittleEndian, d)
@@ -117,6 +112,10 @@ func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
 type int32Store struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max int32
+}
+
+func (*int32Store) sizeOf(v interface{}) int {
+	return 4
 }
 
 func (is *int32Store) parquetType() parquet.Type {
