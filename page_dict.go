@@ -9,7 +9,7 @@ import (
 )
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface
-type dictionaryPageReader struct {
+type dictPageReader struct {
 	ph *parquet.PageHeader
 
 	numValues int32
@@ -18,7 +18,7 @@ type dictionaryPageReader struct {
 	values []interface{}
 }
 
-func (dp *dictionaryPageReader) init(dict valuesDecoder) error {
+func (dp *dictPageReader) init(dict valuesDecoder) error {
 	if dict == nil {
 		return errors.New("dictionary page without dictionary value encoder")
 	}
@@ -27,7 +27,7 @@ func (dp *dictionaryPageReader) init(dict valuesDecoder) error {
 	return nil
 }
 
-func (dp *dictionaryPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dictPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
 		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
 	}
@@ -87,7 +87,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 	return ph
 }
 
-func (dp *dictPageWriter) Write(w io.Writer) (int, int, error) {
+func (dp *dictPageWriter) write(w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 

@@ -187,13 +187,13 @@ func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) Colu
 // NewBooleanStore create new boolean store, the allowDict is a hint, no means no dictionary, but yes means if the data
 // is good for dictionary, then yes, otherwise no.
 // TODO: is it make sense to use dictionary on boolean? its RLE encoded 1 bit per one value.
-func NewBooleanStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&booleanStore{}, enc, allowDict), nil
+	return newStore(&booleanStore{}, enc, false), nil
 }
 
 func NewInt32Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {

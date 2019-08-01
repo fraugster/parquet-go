@@ -322,7 +322,7 @@ func getOne(arr interface{}) interface{} {
 // TODO : Add test for Min and Max
 type storeFixtures struct {
 	name  string
-	store typedColumnStore
+	store ColumnStore
 	rand  func(int) interface{}
 }
 
@@ -330,7 +330,7 @@ var (
 	stFixtures = []storeFixtures{
 		{
 			name:  "Int32Store",
-			store: &int32Store{},
+			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([]int32, n)
 				for i := range ret {
@@ -341,7 +341,7 @@ var (
 		},
 		{
 			name:  "Int64Store",
-			store: &int64Store{},
+			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([]int64, n)
 				for i := range ret {
@@ -352,7 +352,7 @@ var (
 		},
 		{
 			name:  "Float32Store",
-			store: &floatStore{},
+			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([]float32, n)
 				for i := range ret {
@@ -363,7 +363,7 @@ var (
 		},
 		{
 			name:  "Float64Store",
-			store: &doubleStore{},
+			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([]float64, n)
 				for i := range ret {
@@ -374,7 +374,7 @@ var (
 		},
 		{
 			name:  "Int96Store",
-			store: &int96Store{},
+			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				var data = make([]Int96, n)
 				for c := 0; c < n; c++ {
@@ -387,7 +387,7 @@ var (
 		},
 		{
 			name:  "StringStore",
-			store: &stringStore{},
+			store: mustColumnStore(NewStringStore(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([]string, n)
 				for c := 0; c < n; c++ {
@@ -399,7 +399,7 @@ var (
 		},
 		{
 			name:  "ByteStore(UUIDStore)",
-			store: &byteArrayStore{},
+			store: mustColumnStore(NewUUIDStore(parquet.Encoding_PLAIN, false)),
 			rand: func(n int) interface{} {
 				ret := make([][]byte, n)
 				for c := 0; c < n; c++ {
@@ -411,7 +411,7 @@ var (
 		},
 		{
 			name:  "BooleanStore",
-			store: &booleanStore{},
+			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN)),
 			rand: func(n int) interface{} {
 				ret := make([]bool, n)
 				for i := range ret {
@@ -423,11 +423,18 @@ var (
 	}
 )
 
+func mustColumnStore(store ColumnStore, err error) ColumnStore {
+	if err != nil {
+		panic(err)
+	}
+
+	return store
+}
+
 func TestStores(t *testing.T) {
 	for _, fix := range stFixtures {
 		t.Run(fix.name, func(t *testing.T) {
-			// The only encoding for all of them is Plain
-			st := newStore(fix.store, parquet.Encoding_PLAIN, false)
+			st := fix.store
 			randArr := fix.rand
 
 			st.reset(parquet.FieldRepetitionType_REPEATED)

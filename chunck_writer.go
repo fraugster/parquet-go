@@ -257,7 +257,7 @@ func writeChunk(w writePos, schema *Schema, col *column, codec parquet.Compressi
 		if err := dict.init(schema, col, codec); err != nil {
 			return nil, err
 		}
-		compSize, unCompSize, err := dict.Write(w)
+		compSize, unCompSize, err := dict.write(w)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +276,7 @@ func writeChunk(w writePos, schema *Schema, col *column, codec parquet.Compressi
 		return nil, err
 	}
 
-	compSize, unCompSize, err := page.Write(w)
+	compSize, unCompSize, err := page.write(w)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func writeChunk(w writePos, schema *Schema, col *column, codec parquet.Compressi
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
 			DictionaryPageOffset:  dictPageOffset,
-			Statistics:            nil,
+			Statistics:            nil, // TODO: add statistics
 			EncodingStats:         nil,
 			BloomFilterOffset:     nil,
 		},

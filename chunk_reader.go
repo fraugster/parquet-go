@@ -29,7 +29,7 @@ type columnChunkReader struct {
 	// Definition and repetition decoder
 	rDecoder, dDecoder getLevelDecoder
 
-	dictPage *dictionaryPageReader
+	dictPage *dictPageReader
 
 	activePage pageReader
 }
@@ -467,7 +467,7 @@ func (cr *columnChunkReader) readPage() (pageReader, error) {
 		if cr.dictPage != nil {
 			return nil, errors.New("there should be only one dictionary")
 		}
-		p := &dictionaryPageReader{}
+		p := &dictPageReader{}
 		de, err := getDictValuesDecoder(cr.col.Element())
 		if err != nil {
 			return nil, err

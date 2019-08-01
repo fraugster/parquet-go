@@ -137,7 +137,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 	return ph
 }
 
-func (dp *dataPageWriterV1) Write(w io.Writer) (int, int, error) {
+func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
