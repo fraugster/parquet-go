@@ -140,3 +140,10 @@ func (f *floatStore) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*floatStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]float32, 0, 1)
+	}
+	return append(arrayIn.([]float32), value.(float32))
+}

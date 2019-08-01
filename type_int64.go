@@ -195,3 +195,10 @@ func (is *int64Store) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*int64Store) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]int64, 0, 1)
+	}
+	return append(arrayIn.([]int64), value.(int64))
+}

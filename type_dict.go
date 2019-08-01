@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO: dictionary encoding is not a good design, the best way is to handle the dictionary in the final stage, not in encoding level
+
 type dictDecoder struct {
 	values []interface{}
 
@@ -17,6 +19,7 @@ func (d *dictDecoder) bytesArray() {
 	panic("should not call me")
 }
 
+// just for tests
 func (d *dictDecoder) setValues(v []interface{}) {
 	d.values = v
 }
@@ -67,6 +70,9 @@ type dictStore struct {
 	nullCount int32
 	size      int64
 	valueSize int64
+
+	readPos    int
+	noDictMode bool
 }
 
 func (d *dictStore) init() {
@@ -75,15 +81,10 @@ func (d *dictStore) init() {
 	d.nullCount = 0
 }
 
-func (d *dictStore) getValues() []interface{} {
-	return d.values
-}
-
-func (d *dictStore) getIndexes() []int32 {
-	return d.data
-}
-
 func (d *dictStore) assemble(null bool) []interface{} {
+	if d.noDictMode {
+		return d.values
+	}
 	ret := make([]interface{}, 0, len(d.data))
 	for i := range d.data {
 		if d.data[i] < 0 {
@@ -119,6 +120,26 @@ func (d *dictStore) addValue(v interface{}, size int) {
 	}
 	d.size += int64(size)
 	d.data = append(d.data, d.getIndex(v, size))
+}
+
+func (d *dictStore) getNextValue() (interface{}, error) {
+	if d.noDictMode {
+		if d.readPos >= len(d.values) {
+			return nil, errors.New("out of range")
+		}
+		d.readPos++
+		return d.values[d.readPos-1], nil
+	}
+
+	if d.readPos >= len(d.data) {
+		return nil, errors.New("out of range")
+	}
+	d.readPos++
+	pos := d.data[d.readPos-1]
+	if pos < 0 {
+		return nil, nil // nil value
+	}
+	return d.values[pos], nil
 }
 
 func (d *dictStore) numValues() int32 {
@@ -192,4 +213,9 @@ func (d *dictEncoder) encodeValues(values []interface{}) error {
 	}
 
 	return nil
+}
+
+// just for tests
+func (d *dictEncoder) getValues() []interface{} {
+	return d.values
 }

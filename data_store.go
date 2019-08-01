@@ -7,61 +7,8 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-type parquetColumn interface {
-	parquetType() parquet.Type
-	typeLen() *int32
-	repetitionType() parquet.FieldRepetitionType
-	convertedType() *parquet.ConvertedType
-	scale() *int32
-	precision() *int32
-	logicalType() *parquet.LogicalType
-}
-
 // In memory (or maybe other type) of column store to buffer the column value before writing into a page
-// TODO: tune the functions, maybe we need more information, maybe less.
-type ColumnStore interface {
-	parquetColumn
-	// TODO: pass maxR and maxD
-	// TODO: need to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
-	reset(repetitionType parquet.FieldRepetitionType)
-
-	// Min and Max in parquet byte
-	maxValue() []byte
-	minValue() []byte
-	// Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
-	// the second argument s the definition level
-	// if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-	add(data interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) (bool, error)
-	// Get all values
-	dictionary() *dictStore
-	useDictionary() bool
-	// TODO: uint16? since we write it in the parquet using int32 encoder
-	definitionLevels() []int32
-
-	repetitionLevels() []int32
-
-	encoding() parquet.Encoding
-	//// we can use the array to get this two, but its better to skip the loop
-	// TODO: uncomment this after fixing the todo on the init
-	//maxDefinitionLevel() uint16
-	//maxRepetitionLevel() uint16
-}
-
-type typedColumnStore interface {
-	parquetColumn
-	reset(repetitionType parquet.FieldRepetitionType)
-	// Min and Max in parquet byte
-	maxValue() []byte
-	minValue() []byte
-
-	// Should extract the value, turn it into an array and check for min and max on all values in this
-	getValues(v interface{}) ([]interface{}, error)
-	sizeOf(v interface{}) int
-}
-
-// genericStore is a hack to less duplicate code and logic on each type. there is a place that we can actually benefit from
-// generics :/
-type genericStore struct {
+type ColumnStore struct {
 	repTyp parquet.FieldRepetitionType
 
 	values *dictStore
@@ -72,51 +19,57 @@ type genericStore struct {
 
 	enc       parquet.Encoding
 	allowDict bool
+	readPos   int
 	typedColumnStore
 }
 
 // useDictionary is simply a function to decide to use dictionary or not,
 // TODO: the logic here is very simple, we need to rethink it
-func (g *genericStore) useDictionary() bool {
-	if !g.allowDict {
+func (cs *ColumnStore) useDictionary() bool {
+	if !cs.allowDict {
 		return false
 	}
 	// TODO: Better number?
-	if len(g.values.data) > math.MaxInt16 {
+	if len(cs.values.data) > math.MaxInt16 {
 		return false
 	}
 
-	dictLen, noDictLen := g.values.sizes()
+	dictLen, noDictLen := cs.values.sizes()
 	return dictLen < noDictLen
 }
 
-func (g *genericStore) encoding() parquet.Encoding {
-	return g.enc
+func (cs *ColumnStore) encoding() parquet.Encoding {
+	return cs.enc
 }
 
-func (g *genericStore) repetitionType() parquet.FieldRepetitionType {
-	return g.repTyp
+func (cs *ColumnStore) repetitionType() parquet.FieldRepetitionType {
+	return cs.repTyp
 }
 
-func (g *genericStore) reset(rep parquet.FieldRepetitionType) {
-	if g.typedColumnStore == nil {
+// TODO: pass maxR and maxD
+// TODO: need to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
+func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType) {
+	if cs.typedColumnStore == nil {
 		panic("generic should be used with typed column store")
 	}
-	g.repTyp = rep
-	if g.values == nil {
-		g.values = &dictStore{}
+	cs.repTyp = rep
+	if cs.values == nil {
+		cs.values = &dictStore{}
 	}
-	g.values.init()
-	g.dLevels = g.dLevels[:0]
-	g.rLevels = g.rLevels[:0]
-	g.rep = g.rep[:0]
+	cs.values.init()
+	cs.dLevels = cs.dLevels[:0]
+	cs.rLevels = cs.rLevels[:0]
+	cs.rep = cs.rep[:0]
 
-	g.typedColumnStore.reset(rep)
+	cs.typedColumnStore.reset(rep)
 }
 
-func (g *genericStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, error) {
+// Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
+// the second argument s the definition level
+// if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
+func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, error) {
 	// if the current column is repeated, we should increase the maxRL here
-	if g.repTyp == parquet.FieldRepetitionType_REPEATED {
+	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
 	}
 	if rL > maxRL {
@@ -126,63 +79,161 @@ func (g *genericStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 	// them is nil) they can not be the first level, but if they are in the next levels, is actually ok, but the
 	// level is one less
 	if v == nil {
-		g.dLevels = append(g.dLevels, int32(dL))
-		g.rLevels = append(g.rLevels, int32(rL))
+		cs.dLevels = append(cs.dLevels, int32(dL))
+		cs.rLevels = append(cs.rLevels, int32(rL))
 		// TODO: the next line is the problem. how I can ignore the nil value here? I need the count to be exact, but nil
 		// should I save it in the dictionary?
-		g.values.addValue(nil, 0)
+		cs.values.addValue(nil, 0)
 		return false, nil
 	}
-	vals, err := g.getValues(v)
+	vals, err := cs.getValues(v)
 	if err != nil {
 		return false, err
 	}
 	if len(vals) == 0 {
 		// the MaxRl might be increased in the beginning and increased again in the next call but for nil its not important
-		return g.add(nil, dL, maxRL, rL)
+		return cs.add(nil, dL, maxRL, rL)
 	}
 
-	g.rep = append(g.rep, len(vals))
+	cs.rep = append(cs.rep, len(vals))
 	for i, j := range vals {
-		g.values.addValue(j, g.sizeOf(j))
+		cs.values.addValue(j, cs.sizeOf(j))
 		tmp := dL
-		if g.repTyp != parquet.FieldRepetitionType_REQUIRED {
+		if cs.repTyp != parquet.FieldRepetitionType_REQUIRED {
 			tmp++
 		}
-		g.dLevels = append(g.dLevels, int32(tmp))
+		cs.dLevels = append(cs.dLevels, int32(tmp))
 		if i == 0 {
-			g.rLevels = append(g.rLevels, int32(rL))
+			cs.rLevels = append(cs.rLevels, int32(rL))
 		} else {
-			g.rLevels = append(g.rLevels, int32(maxRL))
+			cs.rLevels = append(cs.rLevels, int32(maxRL))
 		}
 	}
 
 	return true, nil
 }
 
-func (g *genericStore) dictionary() *dictStore {
-	return g.values
+// getDRLevelAt return the next rLevel in the read position, if there is no value left, it returns true
+// if the position is less than zero, then it returns the current position
+func (cs *ColumnStore) getDRLevelAt(pos int) (int32, int32, bool) {
+	if pos < 0 {
+		pos = cs.readPos
+	}
+	if pos >= len(cs.rLevels) || pos >= len(cs.dLevels) {
+		return 0, 0, true
+	}
+
+	return cs.dLevels[pos], cs.rLevels[pos], false
 }
 
-func (g *genericStore) definitionLevels() []int32 {
-	return g.dLevels
+func (cs *ColumnStore) getNext(pos int, maxD, maxR int32) (v interface{}, err error) {
+	v, err = cs.values.getNextValue()
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
-func (g *genericStore) repetitionLevels() []int32 {
-	return g.rLevels
+func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
+	if cs.readPos >= len(cs.rLevels) || cs.readPos >= len(cs.dLevels) {
+		return nil, errors.New("out of range")
+	}
+	v, err := cs.getNext(cs.readPos, maxD, maxR)
+	if err != nil {
+		return nil, err
+	}
+
+	// if this is not repeated just return the value, the result is not an array
+	if cs.repTyp != parquet.FieldRepetitionType_REPEATED || v == nil {
+		cs.readPos++
+		return v, err
+	}
+
+	// the first rLevel in current object is always less than maxR (only for the repeated values) // TODO : validate that on first value?
+	// the next data in this object, should have maxR as the rLevel. the first rLevel less than maxR means the value
+	// is from the next object and we should not touch it in this call
+
+	var ret = cs.typedColumnStore.append(nil, v)
+	for {
+		cs.readPos++
+		_, rl, last := cs.getDRLevelAt(cs.readPos)
+		if last || rl < maxR {
+			// end of this object
+			return ret, nil
+		}
+		v, err := cs.getNext(cs.readPos, maxD, maxR)
+		if err != nil {
+			return nil, err
+		}
+
+		ret = cs.typedColumnStore.append(ret, v)
+	}
 }
 
-func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) ColumnStore {
-	return &genericStore{
+func (cs *ColumnStore) repetitionLevels() []int32 {
+	return cs.rLevels
+}
+
+func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) *ColumnStore {
+	return &ColumnStore{
 		enc:              enc,
 		allowDict:        allowDict,
 		typedColumnStore: typed,
 	}
 }
 
+func newPlainStore(typed typedColumnStore) *ColumnStore {
+	return newStore(typed, parquet.Encoding_PLAIN, true)
+}
+
+// getValuesStore is internally used for the reader
+func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
+	switch *typ.Type {
+	case parquet.Type_BOOLEAN:
+		return newPlainStore(&booleanStore{}), nil
+	case parquet.Type_BYTE_ARRAY:
+		if typ.ConvertedType != nil {
+			// Should convert to string? enums are not supported in go, so they are simply string
+			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
+				return newPlainStore(&stringStore{}), nil
+			}
+		}
+		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
+			return newPlainStore(&stringStore{}), nil
+		}
+
+		return newPlainStore(&byteArrayStore{}), nil
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+
+		if typ.LogicalType != nil && typ.LogicalType.UUID != nil {
+			return newPlainStore(&uuidStore{}), nil
+		}
+
+		if typ.TypeLength == nil {
+			return nil, errors.Errorf("type %s with nil type len", typ.Type)
+		}
+
+		return newPlainStore(&byteArrayStore{length: int(*typ.TypeLength)}), nil
+
+	case parquet.Type_FLOAT:
+		return newPlainStore(&floatStore{}), nil
+	case parquet.Type_DOUBLE:
+		return newPlainStore(&doubleStore{}), nil
+
+	case parquet.Type_INT32:
+		return newPlainStore(&int32Store{}), nil
+	case parquet.Type_INT64:
+		return newPlainStore(&int64Store{}), nil
+	case parquet.Type_INT96:
+		return newPlainStore(&int96Store{}), nil
+	default:
+		return nil, errors.Errorf("unsupported type: %s", typ.Type)
+	}
+}
+
 // NewBooleanStore create new boolean store
 // TODO: is it make sense to use dictionary on boolean? its RLE encoded 1 bit per one value.
-func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
+func NewBooleanStore(enc parquet.Encoding) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
 	default:
@@ -193,7 +244,7 @@ func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
 
 // NewInt32Store create a new int32 store, the allowDict is a hint, no means no dictionary, but yes means if the data
 // is good for dictionary, then yes, otherwise no.
-func NewInt32Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewInt32Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
@@ -202,7 +253,7 @@ func NewInt32Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&int32Store{}, enc, allowDict), nil
 }
 
-func NewInt64Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewInt64Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
@@ -211,7 +262,7 @@ func NewInt64Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&int64Store{}, enc, allowDict), nil
 }
 
-func NewInt96Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewInt96Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
@@ -220,7 +271,7 @@ func NewInt96Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&int96Store{}, enc, allowDict), nil
 }
 
-func NewFloatStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewFloatStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
@@ -229,7 +280,7 @@ func NewFloatStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&floatStore{}, enc, allowDict), nil
 }
 
-func NewDoubleStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewDoubleStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
@@ -238,7 +289,7 @@ func NewDoubleStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&doubleStore{}, enc, allowDict), nil
 }
 
-func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
@@ -247,7 +298,7 @@ func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error
 	return newStore(&byteArrayStore{}, enc, allowDict), nil
 }
 
-func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (ColumnStore, error) {
+func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
@@ -262,7 +313,7 @@ func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (Column
 	}, enc, allowDict), nil
 }
 
-func NewStringStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewStringStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
@@ -271,7 +322,7 @@ func NewStringStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	return newStore(&stringStore{}, enc, allowDict), nil
 }
 
-func NewUUIDStore(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
+func NewUUIDStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:

@@ -103,3 +103,10 @@ func (s *stringStore) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*stringStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]string, 0, 1)
+	}
+	return append(arrayIn.([]string), value.(string))
+}

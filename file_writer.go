@@ -12,7 +12,7 @@ type FileWriter struct {
 	w writePos
 
 	version int32
-	Schema
+	SchemaWriter
 
 	totalNumRecords int64
 	kvStore         map[string]string
@@ -27,11 +27,11 @@ func NewFileWriter(w io.Writer, version int32) *FileWriter {
 			w:   w,
 			pos: 0,
 		},
-		version:   version,
-		Schema:    Schema{},
-		kvStore:   make(map[string]string),
-		rowGroups: []*parquet.RowGroup{},
-		createdBy: "parquet-go", // TODO : better info
+		version:      version,
+		SchemaWriter: &schema{},
+		kvStore:      make(map[string]string),
+		rowGroups:    []*parquet.RowGroup{},
+		createdBy:    "parquet-go", // TODO : better info
 	}
 }
 
@@ -41,7 +41,7 @@ func (fw *FileWriter) AddMeteData(key string, value string) {
 
 func (fw *FileWriter) FlushRowGroup(codec parquet.CompressionCodec) error {
 	// Write the entire row group
-	if fw.numRecords == 0 {
+	if fw.NumRecords() == 0 {
 		// TODO: maybe simply return nil?
 		return errors.New("nothing to write")
 	}
@@ -52,7 +52,7 @@ func (fw *FileWriter) FlushRowGroup(codec parquet.CompressionCodec) error {
 		}
 	}
 
-	cc, err := writeRowGroup(fw.w, &fw.Schema, codec)
+	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, codec)
 	if err != nil {
 		return err
 	}
@@ -60,12 +60,12 @@ func (fw *FileWriter) FlushRowGroup(codec parquet.CompressionCodec) error {
 	fw.rowGroups = append(fw.rowGroups, &parquet.RowGroup{
 		Columns:        cc,
 		TotalByteSize:  0,
-		NumRows:        fw.numRecords,
+		NumRows:        fw.NumRecords(),
 		SortingColumns: nil, // TODO: support Sorting
 	})
-	fw.totalNumRecords += fw.Schema.numRecords
+	fw.totalNumRecords += fw.NumRecords()
 	// flush the schema
-	fw.Schema.resetData()
+	fw.SchemaWriter.resetData()
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (fw *FileWriter) Close() error {
 	}
 	meta := &parquet.FileMetaData{
 		Version:          fw.version,
-		Schema:           fw.Schema.getSchemaArray(),
+		Schema:           fw.getSchemaArray(),
 		NumRows:          fw.totalNumRecords,
 		RowGroups:        fw.rowGroups,
 		KeyValueMetadata: kv,

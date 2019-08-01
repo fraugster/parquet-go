@@ -107,7 +107,9 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
 	case Int96:
-		is.setMinMax(typed[:])
+		if err := is.setMinMax(typed[:]); err != nil {
+			return nil, err
+		}
 		vals = []interface{}{typed}
 	case []Int96:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
@@ -115,7 +117,9 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
-			is.setMinMax(typed[j][:])
+			if err := is.setMinMax(typed[j][:]); err != nil {
+				return nil, err
+			}
 			vals[j] = typed[j]
 		}
 	default:
@@ -123,4 +127,11 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 	}
 
 	return vals, nil
+}
+
+func (*int96Store) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]Int96, 0, 1)
+	}
+	return append(arrayIn.([]Int96), value.(Int96))
 }

@@ -242,3 +242,10 @@ func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (b *booleanStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]bool, 0, 1)
+	}
+	return append(arrayIn.([]bool), value.(bool))
+}

@@ -139,3 +139,10 @@ func (f *doubleStore) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*doubleStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]float64, 0, 1)
+	}
+	return append(arrayIn.([]float64), value.(float64))
+}

@@ -12,7 +12,7 @@ import (
 type dataPageReaderV1 struct {
 	ph *parquet.PageHeader
 
-	numValues          int32
+	valuesCount        int32
 	encoding           parquet.Encoding
 	dDecoder, rDecoder levelDecoder
 	valuesDecoder      valuesDecoder
@@ -21,9 +21,13 @@ type dataPageReaderV1 struct {
 	position int
 }
 
-func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageReaderV1) numValues() int32 {
+	return dp.valuesCount
+}
+
+func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []int32, rLevel []int32, err error) {
 	size := len(val)
-	if rem := int(dp.numValues) - dp.position; rem < size {
+	if rem := int(dp.valuesCount) - dp.position; rem < size {
 		size = rem
 	}
 
@@ -31,19 +35,19 @@ func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []uint1
 		return 0, nil, nil, nil
 	}
 
-	dLevel = make([]uint16, size)
-	if err := decodeUint16(dp.dDecoder, dLevel); err != nil {
+	dLevel = make([]int32, size)
+	if err := decodeInt32(dp.dDecoder, dLevel); err != nil {
 		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
 	}
 
-	rLevel = make([]uint16, size)
-	if err := decodeUint16(dp.rDecoder, rLevel); err != nil {
+	rLevel = make([]int32, size)
+	if err := decodeInt32(dp.rDecoder, rLevel); err != nil {
 		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
 	}
 
 	notNull := 0
 	for _, dl := range dLevel {
-		if dl == dp.dDecoder.maxLevel() {
+		if dl == int32(dp.dDecoder.maxLevel()) {
 			notNull++
 		}
 	}
@@ -79,8 +83,8 @@ func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
 
-	if dp.numValues = ph.DataPageHeader.NumValues; dp.numValues < 0 {
-		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.numValues)
+	if dp.valuesCount = ph.DataPageHeader.NumValues; dp.valuesCount < 0 {
+		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
@@ -112,7 +116,7 @@ type dataPageWriterV1 struct {
 	dictionary bool
 }
 
-func (dp *dataPageWriterV1) init(schema *Schema, col *column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV1) init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil
@@ -125,7 +129,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil, // TODO: add crc?
 		DataPageHeader: &parquet.DataPageHeader{
-			NumValues: dp.col.data.dictionary().numValues(),
+			NumValues: dp.col.data.values.numValues(),
 			Encoding:  dp.col.data.encoding(),
 			// Only RLE supported for now, not sure if we need support for more encoding
 			DefinitionLevelEncoding: parquet.Encoding_RLE,
@@ -143,13 +147,13 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
 	// if it is nested or it is not repeated we need the dLevel data
 	if nested || dp.col.data.repetitionType() != parquet.FieldRepetitionType_REQUIRED {
-		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.definitionLevels()); err != nil {
+		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
 	// if this is nested or if the data is repeated
 	if nested || dp.col.data.repetitionType() == parquet.FieldRepetitionType_REPEATED {
-		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.repetitionLevels()); err != nil {
+		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -159,12 +163,12 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.dictionary())
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	if err := encodeValue(dataBuf, encoder, dp.col.data.dictionary().assemble(false)); err != nil {
+	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble(false)); err != nil {
 		return 0, 0, err
 	}
 

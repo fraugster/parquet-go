@@ -194,3 +194,10 @@ func (is *int32Store) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*int32Store) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([]int32, 0, 1)
+	}
+	return append(arrayIn.([]int32), value.(int32))
+}

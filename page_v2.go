@@ -11,7 +11,7 @@ import (
 type dataPageReaderV2 struct {
 	ph *parquet.PageHeader
 
-	numValues          int32
+	valuesCount        int32
 	encoding           parquet.Encoding
 	valuesDecoder      valuesDecoder
 	dDecoder, rDecoder levelDecoder
@@ -19,9 +19,13 @@ type dataPageReaderV2 struct {
 	position           int
 }
 
-func (dp *dataPageReaderV2) readValues(val []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
+func (dp *dataPageReaderV2) numValues() int32 {
+	return dp.valuesCount
+}
+
+func (dp *dataPageReaderV2) readValues(val []interface{}) (n int, dLevel []int32, rLevel []int32, err error) {
 	size := len(val)
-	if rem := int(dp.numValues) - dp.position; rem < size {
+	if rem := int(dp.valuesCount) - dp.position; rem < size {
 		size = rem
 	}
 
@@ -29,19 +33,19 @@ func (dp *dataPageReaderV2) readValues(val []interface{}) (n int, dLevel []uint1
 		return 0, nil, nil, nil
 	}
 
-	dLevel = make([]uint16, size)
-	if err := decodeUint16(dp.dDecoder, dLevel); err != nil {
+	dLevel = make([]int32, size)
+	if err := decodeInt32(dp.dDecoder, dLevel); err != nil {
 		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
 	}
 
-	rLevel = make([]uint16, size)
-	if err := decodeUint16(dp.rDecoder, rLevel); err != nil {
+	rLevel = make([]int32, size)
+	if err := decodeInt32(dp.rDecoder, rLevel); err != nil {
 		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
 	}
 
 	notNull := 0
 	for _, dl := range dLevel {
-		if dl == dp.dDecoder.maxLevel() {
+		if dl == int32(dp.dDecoder.maxLevel()) {
 			notNull++
 		}
 	}
@@ -80,8 +84,8 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
 	}
 
-	if dp.numValues = ph.DataPageHeaderV2.NumValues; dp.numValues < 0 {
-		return errors.Errorf("negative NumValues in DATA_PAGE_V2: %d", dp.numValues)
+	if dp.valuesCount = ph.DataPageHeaderV2.NumValues; dp.valuesCount < 0 {
+		return errors.Errorf("negative NumValues in DATA_PAGE_V2: %d", dp.valuesCount)
 	}
 
 	if ph.DataPageHeaderV2.RepetitionLevelsByteLength < 0 {

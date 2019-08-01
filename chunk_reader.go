@@ -11,28 +11,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-var (
-	errEndOfChunk = errors.New("End Of Chunk")
-)
-
-// columnChunkReader allows to read data from a single column chunk of a parquet
-// file.
-// TODO: get rid of this type, Reader should return an Page
-type columnChunkReader struct {
-	col Column
-
-	reader    *offsetReader
-	meta      *parquet.FileMetaData
-	chunkMeta *parquet.ColumnMetaData
-
-	// Definition and repetition decoder
-	rDecoder, dDecoder getLevelDecoder
-
-	dictPage *dictPageReader
-
-	activePage pageReader
-}
-
 type getValueDecoderFn func(parquet.Encoding) (valuesDecoder, error)
 type getLevelDecoder func(parquet.Encoding) (levelDecoder, error)
 
@@ -246,9 +224,97 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
-func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Column, chunk *parquet.ColumnChunk) (*columnChunkReader, error) {
+func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
+	if compressedSize < 0 || uncompressedSize < 0 {
+		return nil, errors.New("invalid page data size")
+	}
+
+	return newBlockReader(r, codec, compressedSize, uncompressedSize)
+}
+
+func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (*dictPageReader, []pageReader, error) {
+	var (
+		dictPage *dictPageReader
+		pages    []pageReader
+	)
+
+	for {
+		if chunkMeta.TotalCompressedSize-r.Count() <= 0 {
+			break
+		}
+		ph := &parquet.PageHeader{}
+		if err := readThrift(ph, r); err != nil {
+			return nil, nil, err
+		}
+
+		if ph.Type == parquet.PageType_DICTIONARY_PAGE {
+			if dictPage != nil {
+				return nil, nil, errors.New("there should be only one dictionary")
+			}
+			p := &dictPageReader{}
+			de, err := getDictValuesDecoder(col.Element())
+			if err != nil {
+				return nil, nil, err
+			}
+			if err := p.init(de); err != nil {
+				return nil, nil, err
+			}
+
+			// re-use the value dictionary store
+			p.values = col.getColumnStore().values.values
+			if err := p.read(r, ph, chunkMeta.Codec); err != nil {
+				return nil, nil, err
+			}
+
+			dictPage = p
+			// Go to the next data Page
+			// if we have a DictionaryPageOffset we should return to DataPageOffset
+			if chunkMeta.DictionaryPageOffset != nil {
+				if *chunkMeta.DictionaryPageOffset != r.offset {
+					if _, err := r.Seek(chunkMeta.DataPageOffset, io.SeekStart); err != nil {
+						return nil, nil, err
+					}
+				}
+			}
+			continue // go to next page
+		}
+
+		var p pageReader
+		switch ph.Type {
+		case parquet.PageType_DATA_PAGE:
+			p = &dataPageReaderV1{
+				ph: ph,
+			}
+		case parquet.PageType_DATA_PAGE_V2:
+			p = &dataPageReaderV2{
+				ph: ph,
+			}
+		default:
+			return nil, nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
+		}
+		var dictValue []interface{}
+		if dictPage != nil {
+			dictValue = dictPage.values
+		}
+		var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
+			return getValuesDecoder(typ, col.Element(), dictValue)
+		}
+		if err := p.init(dDecoder, rDecoder, fn); err != nil {
+			return nil, nil, err
+		}
+
+		if err := p.read(r, ph, chunkMeta.Codec); err != nil {
+			return nil, nil, err
+		}
+		pages = append(pages, p)
+	}
+
+	return dictPage, pages, nil
+}
+
+func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) (*dictPageReader, []pageReader, error) {
 	if chunk.FilePath != nil {
-		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
+		return nil, nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
 
 	c := col.Index()
@@ -256,11 +322,11 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return nil, errors.Errorf("missing meta data for column %c", c)
+		return nil, nil, errors.Errorf("missing meta data for column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return nil, errors.Errorf("wrong type in column chunk metadata, expected %s was %s",
+		return nil, nil, errors.Errorf("wrong type in column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -271,153 +337,103 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquet.FileMetaData, col Colum
 	// Seek to the beginning of the first Page
 	_, err := r.Seek(offset, io.SeekStart)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	cr := &columnChunkReader{
-		col: col,
-		reader: &offsetReader{
-			inner:  r,
-			offset: offset,
-			count:  0,
-		},
-		meta:      meta,
-		chunkMeta: chunk.MetaData,
+	reader := &offsetReader{
+		inner:  r,
+		offset: offset,
+		count:  0,
 	}
+
+	dDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
+		if enc != parquet.Encoding_RLE {
+			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+		}
+		dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
+		dec.buffered = true
+		return &levelDecoderWrapper{decoder: dec, max: col.MaxDefinitionLevel()}, nil
+	}
+
+	rDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
+		if enc != parquet.Encoding_RLE {
+			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+		}
+		dec := newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
+		dec.buffered = true
+		return &levelDecoderWrapper{decoder: dec, max: col.MaxRepetitionLevel()}, nil
+	}
+
 	nested := strings.IndexByte(col.FlatName(), '.') >= 0
 	repType := *col.Element().RepetitionType
-	if !nested && repType == parquet.FieldRepetitionType_REQUIRED {
-		// TODO: also check that len(Path) = maxD
-		// For data that is required, the definition levels are not encoded and
-		// always have the value of the max definition level.
-		// TODO: document level ranges
-		cr.dDecoder = func(parquet.Encoding) (levelDecoder, error) {
-			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: cr.col.MaxDefinitionLevel()}, nil
-		}
-	} else {
-		cr.dDecoder = func(enc parquet.Encoding) (levelDecoder, error) {
-			if enc != parquet.Encoding_RLE {
-				return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+	if !nested {
+		if repType == parquet.FieldRepetitionType_REQUIRED {
+			// TODO: also check that len(Path) = maxD
+			// For data that is required, the definition levels are not encoded and
+			// always have the value of the max definition level.
+			// TODO: document level ranges
+			dDecoder = func(parquet.Encoding) (levelDecoder, error) {
+				return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: col.MaxDefinitionLevel()}, nil
 			}
-			dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
-			dec.buffered = true
-			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxDefinitionLevel()}, nil
 		}
-	}
-	if !nested && repType != parquet.FieldRepetitionType_REPEATED {
-		// TODO: I think we need to check all schemaElements in the path
-		// TODO: clarify the following comment from parquet-format/README:
-		// If the column is not nested the repetition levels are not encoded and
-		// always have the value of 1
-		cr.rDecoder = func(parquet.Encoding) (levelDecoder, error) {
-			return &levelDecoderWrapper{decoder: constDecoder(0), max: cr.col.MaxRepetitionLevel()}, nil
-		}
-	} else {
-		cr.rDecoder = func(enc parquet.Encoding) (levelDecoder, error) {
-			if enc != parquet.Encoding_RLE {
-				return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+
+		if repType != parquet.FieldRepetitionType_REPEATED {
+			// TODO: I think we need to check all schemaElements in the path
+			// TODO: clarify the following comment from parquet-format/README:
+			// If the column is not nested the repetition levels are not encoded and
+			// always have the value of 1
+			rDecoder = func(parquet.Encoding) (levelDecoder, error) {
+				return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxRepetitionLevel()}, nil
 			}
-			dec := newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
-			dec.buffered = true
-			return &levelDecoderWrapper{decoder: dec, max: cr.col.MaxRepetitionLevel()}, nil
 		}
 	}
 
-	return cr, nil
+	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
-func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
-	if compressedSize < 0 || uncompressedSize < 0 {
-		return nil, errors.New("invalid page data size")
+func readPageData(col Column, dict *dictPageReader, pages []pageReader) error {
+	s := col.getColumnStore()
+	if dict != nil {
+		s.values.values = dict.values
 	}
-
-	return newBlockReader(r, codec, compressedSize, uncompressedSize)
-}
-
-func (cr *columnChunkReader) readPage() (pageReader, error) {
-	if cr.chunkMeta.TotalCompressedSize-cr.reader.Count() <= 0 {
-		return nil, errEndOfChunk
-	}
-	ph := &parquet.PageHeader{}
-	if err := readThrift(ph, cr.reader); err != nil {
-		return nil, err
-	}
-
-	if ph.Type == parquet.PageType_DICTIONARY_PAGE {
-		if cr.dictPage != nil {
-			return nil, errors.New("there should be only one dictionary")
-		}
-		p := &dictPageReader{}
-		de, err := getDictValuesDecoder(cr.col.Element())
+	for i := range pages {
+		data := make([]interface{}, pages[i].numValues())
+		n, dl, rl, err := pages[i].readValues(data)
 		if err != nil {
-			return nil, err
-		}
-		if err := p.init(de); err != nil {
-			return nil, err
+			return err
 		}
 
-		if err := p.read(cr.reader, ph, cr.chunkMeta.Codec); err != nil {
-			return nil, err
+		if int32(n) != pages[i].numValues() {
+			return errors.Errorf("expect %d value but read %d", pages[i].numValues(), n)
 		}
 
-		cr.dictPage = p
-		// Go to the next data Page
-		// if we have a DictionaryPageOffset we should return to DataPageOffset
-		if cr.chunkMeta.DictionaryPageOffset != nil {
-			if *cr.chunkMeta.DictionaryPageOffset != cr.reader.offset {
-				if _, err := cr.reader.Seek(cr.chunkMeta.DataPageOffset, io.SeekStart); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		// Return the real data Page, not the dictionary Page
-		return cr.readPage()
+		// using append to make sure we handle the multiple data page correctly
+		s.rLevels = append(s.rLevels, rl...)
+		s.dLevels = append(s.dLevels, dl...)
+		// TODO : having a dictEncoder/decoder is wrong. they should be a plain decoder for header and a int32 hybrid for
+		// values. the mix should happen here not in the dict itself
+		s.values.values = append(s.values.values, data...)
+		s.values.noDictMode = true
 	}
 
-	var p pageReader
-	switch ph.Type {
-	case parquet.PageType_DATA_PAGE:
-		p = &dataPageReaderV1{
-			ph: ph,
-		}
-	case parquet.PageType_DATA_PAGE_V2:
-		p = &dataPageReaderV2{
-			ph: ph,
-		}
-	default:
-		return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
-	}
-	var dictValue []interface{}
-	if cr.dictPage != nil {
-		dictValue = cr.dictPage.values
-	}
-	var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
-		return getValuesDecoder(typ, cr.col.Element(), dictValue)
-	}
-	if err := p.init(cr.dDecoder, cr.rDecoder, fn); err != nil {
-		return nil, err
-	}
-
-	if err := p.read(cr.reader, ph, cr.chunkMeta.Codec); err != nil {
-		return nil, err
-	}
-
-	return p, nil
+	return nil
 }
 
-func (cr *columnChunkReader) Read(values []interface{}) (n int, dLevel []uint16, rLevel []uint16, err error) {
-	// TODO : For pageV1 there is only one page per chunk, but for V2 it can be more then one. we need to re-write this
-	if cr.activePage == nil {
-		cr.activePage, err = cr.readPage()
-		if err == errEndOfChunk { // if this is the end of chunk
-			return n, dLevel, rLevel, nil
-		}
-
+func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGroup) error {
+	dataCols := schema.Columns()
+	schema.resetData()
+	schema.setNumRecords(rowGroups.NumRows)
+	for _, c := range dataCols {
+		chunk := rowGroups.Columns[c.Index()]
+		// TODO : Safe cast
+		dict, pages, err := readChunk(r, c, chunk)
 		if err != nil {
-			return 0, nil, nil, errors.Wrap(err, "read page failed")
+			return err
+		}
+		if err := readPageData(c, dict, pages); err != nil {
+			return err
 		}
 	}
 
-	return cr.activePage.readValues(values[n:])
+	return nil
 }

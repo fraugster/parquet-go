@@ -9,11 +9,15 @@ import (
 
 // TODO: Add MAP support
 
+// TODO: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple
+// reader but its better to add concurrency support to the file reader itself
+// TODO: add validation so every parent at least have one child.
+
 type column struct {
 	index          int
 	name, flatName string
 	// one of the following could be not null. data or children
-	data     ColumnStore
+	data     *ColumnStore
 	children []*column
 
 	rep parquet.FieldRepetitionType
@@ -67,6 +71,10 @@ func (c *column) Element() *parquet.SchemaElement {
 	return c.element
 }
 
+func (c *column) getColumnStore() *ColumnStore {
+	return c.data
+}
+
 func (c *column) buildElement() *parquet.SchemaElement {
 	rep := c.rep
 	elem := &parquet.SchemaElement{
@@ -98,20 +106,102 @@ func (c *column) buildElement() *parquet.SchemaElement {
 	return elem
 }
 
-type Schema struct {
-	root *column
+func (c *column) getNextData() (map[string]interface{}, error) {
+	if c.children == nil {
+		return nil, errors.New("bug: call getNextData on non group node")
+	}
+	ret := make(map[string]interface{})
+	notNil := 0
+	for i := range c.children {
+		data, err := c.children[i].getData()
+		if err != nil {
+			return nil, err
+		}
 
-	numRecords int64
+		// https://golang.org/doc/faq#nil_error
+		if m, ok := data.(map[string]interface{}); ok && m == nil {
+			data = nil
+		}
 
-	readOnly int
+		// if the data is not nil, then its ok, but if its nil, we need to know in which definition level is this nil is.
+		// if its exactly one below max definition level, then the parent is there
+		if data != nil {
+			ret[c.children[i].name] = data
+			notNil++
+		}
+	}
+
+	if notNil == 0 {
+		return nil, nil
+	}
+
+	return ret, nil
 }
 
-// TODO(f0rud): a hacky way to fix the problem (my wrong assumption of the root element) at the last minute. fix it
-func (r *Schema) ensureRoot() {
+func (c *column) getFirstDRLevel() (int32, int32, bool) {
+	if c.data != nil {
+		return c.data.getDRLevelAt(-1)
+	}
+
+	// there should be at lease 1 child, // TODO : add validation
+	for i := range c.children {
+		dl, rl, last := c.children[i].getFirstDRLevel()
+		if last {
+			return dl, rl, last
+		}
+
+		// if this value is not nil, dLevel less than this level is not interesting
+		if dl >= int32(c.maxD) {
+			return dl, rl, last
+		}
+	}
+
+	return c.children[0].getFirstDRLevel()
+}
+
+func (c *column) getData() (interface{}, error) {
+	if c.children != nil {
+		data, err := c.getNextData()
+		if err != nil {
+			return nil, err
+		}
+
+		if c.rep != parquet.FieldRepetitionType_REPEATED || data == nil {
+			return data, nil
+		}
+
+		ret := []map[string]interface{}{data}
+		for {
+			_, rl, last := c.getFirstDRLevel()
+			if last || rl < int32(c.maxR) {
+				// end of this object
+				return ret, nil
+			}
+
+			data, err := c.getNextData()
+			if err != nil {
+				return nil, err
+			}
+
+			ret = append(ret, data)
+		}
+	}
+
+	return c.data.get(int32(c.maxD), int32(c.maxR))
+}
+
+type schema struct {
+	root       *column
+	numRecords int64
+	readOnly   int
+}
+
+// TODO(f0rud): a hacky way to make sure the root is not nil (because of my wrong assumption of the root element) at the last minute. fix it
+func (r *schema) ensureRoot() {
 	if r.root == nil {
 		r.root = &column{
 			index:    0,
-			name:     "go_parquet_root",
+			name:     "go_parquet_root", // TODO: Make it configurable
 			flatName: "",
 			data:     nil,
 			children: []*column{},
@@ -123,12 +213,12 @@ func (r *Schema) ensureRoot() {
 	}
 }
 
-func (r *Schema) getSchemaArray() []*parquet.SchemaElement {
+func (r *schema) getSchemaArray() []*parquet.SchemaElement {
 	r.ensureRoot()
 	return r.root.getSchemaArray()
 }
 
-func (r *Schema) Columns() Columns {
+func (r *schema) Columns() Columns {
 	var ret []Column
 	var fn func([]*column)
 
@@ -146,7 +236,7 @@ func (r *Schema) Columns() Columns {
 	return ret
 }
 
-func (r *Schema) GetColumnByName(path string) Column {
+func (r *schema) GetColumnByName(path string) Column {
 	var fn func([]*column) *column
 
 	fn = func(columns []*column) *column {
@@ -169,7 +259,7 @@ func (r *Schema) GetColumnByName(path string) Column {
 }
 
 // resetData is useful for resetting data after writing a chunk, to collect data for the next chunk
-func (r *Schema) resetData() {
+func (r *schema) resetData() {
 	var fn func(c []*column)
 
 	fn = func(c []*column) {
@@ -186,7 +276,11 @@ func (r *Schema) resetData() {
 	r.numRecords = 0
 }
 
-func (r *Schema) sortIndex() {
+func (r *schema) setNumRecords(n int64) {
+	r.numRecords = n
+}
+
+func (r *schema) sortIndex() {
 	var (
 		idx int
 		fn  func(c *[]*column)
@@ -210,7 +304,7 @@ func (r *Schema) sortIndex() {
 }
 
 // NewDataColumn create new column, not a group
-func NewDataColumn(store ColumnStore, rep parquet.FieldRepetitionType) Column {
+func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) Column {
 	store.reset(rep)
 	return &column{
 		data:     store,
@@ -245,7 +339,7 @@ func NewListColumn(element Column, rep parquet.FieldRepetitionType) (Column, err
 
 // AddGroup add a group to the parquet schema, path is the dot separated path of the group,
 // the parent group should be there or it will return an error
-func (r *Schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
+func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	return r.addColumnOrGroup(path, &column{
 		children: []*column{},
 		data:     nil,
@@ -255,7 +349,7 @@ func (r *Schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 
 // AddColumn is for adding a column to the parquet schema, it resets the store
 // path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *Schema) AddColumn(path string, col Column) error {
+func (r *schema) AddColumn(path string, col Column) error {
 	c, ok := col.(*column)
 	if !ok {
 		return errors.Errorf("type %T is not supported, use the NewDataColumn or NewListColumn to create the column", col)
@@ -285,7 +379,7 @@ func recursiveFix(col *column, path string, maxR, maxD uint16) {
 }
 
 // do not call this function externally
-func (r *Schema) addColumnOrGroup(path string, col *column) error {
+func (r *schema) addColumnOrGroup(path string, col *column) error {
 	if r.readOnly != 0 {
 		return errors.New("the schema is read only")
 	}
@@ -331,7 +425,7 @@ func (r *Schema) addColumnOrGroup(path string, col *column) error {
 	return nil
 }
 
-func (r *Schema) findDataColumn(path string) (*column, error) {
+func (r *schema) findDataColumn(path string) (*column, error) {
 	pa := strings.Split(path, ".")
 	r.ensureRoot()
 	c := r.root.children
@@ -361,7 +455,7 @@ func (r *Schema) findDataColumn(path string) (*column, error) {
 	return ret, nil
 }
 
-func (r *Schema) AddData(m map[string]interface{}) error {
+func (r *schema) AddData(m map[string]interface{}) error {
 	r.readOnly = 1
 	r.ensureRoot()
 	_, err := recursiveAddColumnData(r.root.children, m, 0, 0, 0)
@@ -369,6 +463,19 @@ func (r *Schema) AddData(m map[string]interface{}) error {
 		r.numRecords++
 	}
 	return err
+}
+
+func (r *schema) GetData() (map[string]interface{}, error) {
+	// TODO: keep track of read row count
+	d, err := r.root.getData()
+	if err != nil {
+		return nil, err
+	}
+	if d.(map[string]interface{}) == nil {
+		d = make(map[string]interface{}) // just non nil root doc
+	}
+
+	return d.(map[string]interface{}), nil
 }
 
 func recursiveAddColumnNil(c []*column, defLvl, maxRepLvl uint16, repLvl uint16) error {
@@ -474,7 +581,11 @@ func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	c.element = s
 	c.maxR = rLevel
 	c.maxD = dLevel
-	c.data = &genericStore{} // Non nil but invalid store?
+	data, err := getValuesStore(s)
+	if err != nil {
+		return 0, err
+	}
+	c.data = data
 	c.flatName = name + "." + s.Name
 	if name == "" {
 		c.flatName = s.Name
@@ -548,7 +659,7 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	return idx, nil
 }
 
-func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
+func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	r.readOnly = 1
 	var err error
 	for idx := 0; idx < len(schema); {
@@ -571,11 +682,42 @@ func (r *Schema) readSchema(schema []*parquet.SchemaElement) error {
 	return nil
 }
 
-func MakeSchema(meta *parquet.FileMetaData) (*Schema, error) {
+func (r *schema) NumRecords() int64 {
+	return r.numRecords
+}
+
+type schemaCommon interface {
+	// Columns return only data columns, not all columns
+	Columns() Columns
+	// Return a column by its name
+	GetColumnByName(path string) Column
+
+	NumRecords() int64
+	// Internal functions
+	resetData()
+	getSchemaArray() []*parquet.SchemaElement
+}
+
+// SchemaReader is a reader for the schema file
+type SchemaReader interface {
+	schemaCommon
+	setNumRecords(int64)
+	GetData() (map[string]interface{}, error)
+}
+
+type SchemaWriter interface {
+	schemaCommon
+
+	AddData(m map[string]interface{}) error
+	AddGroup(path string, rep parquet.FieldRepetitionType) error
+	AddColumn(path string, col Column) error
+}
+
+func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
 	}
-	s := &Schema{
+	s := &schema{
 		root: &column{
 			index:    0,
 			name:     meta.Schema[0].Name,

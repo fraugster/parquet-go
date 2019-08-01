@@ -438,3 +438,10 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 
 	return vals, nil
 }
+
+func (*byteArrayStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if arrayIn == nil {
+		arrayIn = make([][]byte, 0, 1)
+	}
+	return append(arrayIn.([][]byte), value.([]byte))
+}
