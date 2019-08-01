@@ -7,6 +7,8 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
+// TODO: Add MAP support
+
 type column struct {
 	index          int
 	name, flatName string
@@ -18,6 +20,7 @@ type column struct {
 
 	maxR, maxD uint16
 
+	listParent bool // TODO: adding a boolean is always a problem on alignment of the struct, but let it be
 	// for the reader we should read this element from the meta, for the writer we need to build this element
 	element *parquet.SchemaElement
 }
@@ -82,6 +85,13 @@ func (c *column) buildElement() *parquet.SchemaElement {
 		elem.LogicalType = c.data.logicalType()
 	} else {
 		nc := int32(len(c.children))
+		if c.listParent {
+			ct := parquet.ConvertedType_LIST
+			elem.ConvertedType = &ct
+			elem.LogicalType = &parquet.LogicalType{
+				LIST: &parquet.ListType{},
+			}
+		}
 		elem.NumChildren = &nc
 	}
 
@@ -199,91 +209,123 @@ func (r *Schema) sortIndex() {
 	fn(&r.root.children)
 }
 
+// NewDataColumn create new column, not a group
+func NewDataColumn(store ColumnStore, rep parquet.FieldRepetitionType) Column {
+	store.reset(rep)
+	return &column{
+		data:     store,
+		children: nil,
+		rep:      rep,
+	}
+}
+
+// NewListColumn return a new LIST in parquet file
+func NewListColumn(element Column, rep parquet.FieldRepetitionType) (Column, error) {
+	// the higher level element doesn't need name, but all lower level does.
+	c, ok := element.(*column)
+	if !ok {
+		return nil, errors.Errorf("type %T is not supported, use the NewDataColumn or NewListColumn to create the column", element)
+	}
+
+	c.name = "element"
+	return &column{
+		data:       nil,
+		rep:        rep,
+		listParent: true,
+		children: []*column{
+			{
+				name:     "list",
+				data:     nil,
+				rep:      parquet.FieldRepetitionType_REPEATED,
+				children: []*column{c},
+			},
+		},
+	}, nil
+}
+
 // AddGroup add a group to the parquet schema, path is the dot separated path of the group,
 // the parent group should be there or it will return an error
 func (r *Schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
-	return r.addColumnOrGroup(path, nil, rep)
+	return r.addColumnOrGroup(path, &column{
+		children: []*column{},
+		data:     nil,
+		rep:      rep,
+	})
 }
 
 // AddColumn is for adding a column to the parquet schema, it resets the store
 // path is the dot separated path of the group, the parent group should be there or it will return an error
-func (r *Schema) AddColumn(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
-	if store == nil {
-		return errors.New("column should have column store")
+func (r *Schema) AddColumn(path string, col Column) error {
+	c, ok := col.(*column)
+	if !ok {
+		return errors.Errorf("type %T is not supported, use the NewDataColumn or NewListColumn to create the column", col)
 	}
-	store.reset(rep)
-	return r.addColumnOrGroup(path, store, rep)
+
+	return r.addColumnOrGroup(path, c)
+}
+
+func recursiveFix(col *column, path string, maxR, maxD uint16) {
+	if col.rep != parquet.FieldRepetitionType_REQUIRED {
+		maxD++
+	}
+	if col.rep == parquet.FieldRepetitionType_REPEATED {
+		maxR++
+	}
+
+	col.maxR = maxR
+	col.maxD = maxD
+	col.flatName = path + "." + col.name
+	if col.data != nil {
+		return
+	}
+
+	for i := range col.children {
+		recursiveFix(col.children[i], col.flatName, maxR, maxD)
+	}
 }
 
 // do not call this function externally
-func (r *Schema) addColumnOrGroup(path string, store ColumnStore, rep parquet.FieldRepetitionType) error {
+func (r *Schema) addColumnOrGroup(path string, col *column) error {
 	if r.readOnly != 0 {
 		return errors.New("the schema is read only")
 	}
 
 	r.ensureRoot()
-	var (
-		maxR, maxD uint16
-	)
-	if r.root.children == nil {
-		r.root.children = []*column{}
-	}
 	pa := strings.Split(path, ".")
 	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
 	if name == "" {
 		return errors.Errorf("the name of the column is required")
 	}
 
-	c := &r.root.children
+	col.name = name
+	c := r.root
 	for i := 0; i < len(pa)-1; i++ {
 		found := false
-		if c == nil {
+		if c.children == nil {
 			break
 		}
-		for j := range *c {
-			if (*c)[j].name == pa[i] {
+		for j := range c.children {
+			if c.children[j].name == pa[i] {
 				found = true
-				maxR = (*c)[j].maxR
-				maxD = (*c)[j].maxD
-				c = &(*c)[j].children
+				c = c.children[j]
 				break
 			}
 		}
 		if !found {
 			return errors.Errorf("path %s failed on %q", path, pa[i])
 		}
-		if c == nil && i < len(pa)-1 {
+		if c.children == nil && i < len(pa)-1 {
 			return errors.Errorf("path %s is not parent at %q", path, pa[i])
 		}
 	}
 
-	if c == nil {
+	if c.children == nil {
 		return errors.New("the children are nil")
 	}
-	if rep != parquet.FieldRepetitionType_REQUIRED {
-		maxD++
-	}
-	if rep == parquet.FieldRepetitionType_REPEATED {
-		maxR++
-	}
 
-	col := &column{
-		name:     name,
-		flatName: path,
-		data:     nil,
-		children: nil,
-		rep:      rep,
-		maxR:     maxR,
-		maxD:     maxD,
-	}
-	if store != nil {
-		store.reset(rep)
-		col.data = store
-	} else {
-		col.children = []*column{}
-	}
+	recursiveFix(col, c.flatName, c.maxR, c.maxD)
 
-	*c = append(*c, col)
+	c.children = append(c.children, col)
 	r.sortIndex()
 
 	return nil
@@ -346,6 +388,7 @@ func recursiveAddColumnNil(c []*column, defLvl, maxRepLvl uint16, repLvl uint16)
 	return nil
 }
 
+// TODO: maxRepLvl is available in the *column at definition time, we can remove it here
 func recursiveAddColumnData(c []*column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) (bool, error) {
 	var data = m.(map[string]interface{})
 	var advance bool

@@ -180,12 +180,7 @@ func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) Colu
 	}
 }
 
-// TODO: ColumnStore itself (not the internal api) should be public
-// TODO : add allow dictionary option
-// TODO : Add preferred encoding option on each type
-
-// NewBooleanStore create new boolean store, the allowDict is a hint, no means no dictionary, but yes means if the data
-// is good for dictionary, then yes, otherwise no.
+// NewBooleanStore create new boolean store
 // TODO: is it make sense to use dictionary on boolean? its RLE encoded 1 bit per one value.
 func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
 	switch enc {
@@ -196,6 +191,8 @@ func NewBooleanStore(enc parquet.Encoding) (ColumnStore, error) {
 	return newStore(&booleanStore{}, enc, false), nil
 }
 
+// NewInt32Store create a new int32 store, the allowDict is a hint, no means no dictionary, but yes means if the data
+// is good for dictionary, then yes, otherwise no.
 func NewInt32Store(enc parquet.Encoding, allowDict bool) (ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
