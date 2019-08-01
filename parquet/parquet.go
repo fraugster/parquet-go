@@ -422,7 +422,6 @@ const (
   PageType_INDEX_PAGE PageType = 1
   PageType_DICTIONARY_PAGE PageType = 2
   PageType_DATA_PAGE_V2 PageType = 3
-  PageType_BLOOM_FILTER_PAGE PageType = 4
 )
 
 func (p PageType) String() string {
@@ -431,7 +430,6 @@ func (p PageType) String() string {
   case PageType_INDEX_PAGE: return "INDEX_PAGE"
   case PageType_DICTIONARY_PAGE: return "DICTIONARY_PAGE"
   case PageType_DATA_PAGE_V2: return "DATA_PAGE_V2"
-  case PageType_BLOOM_FILTER_PAGE: return "BLOOM_FILTER_PAGE"
   }
   return "<UNSET>"
 }
@@ -442,7 +440,6 @@ func PageTypeFromString(s string) (PageType, error) {
   case "INDEX_PAGE": return PageType_INDEX_PAGE, nil 
   case "DICTIONARY_PAGE": return PageType_DICTIONARY_PAGE, nil 
   case "DATA_PAGE_V2": return PageType_DATA_PAGE_V2, nil 
-  case "BLOOM_FILTER_PAGE": return PageType_BLOOM_FILTER_PAGE, nil 
   }
   return PageType(0), fmt.Errorf("not a valid PageType string")
 }
@@ -4752,43 +4749,43 @@ func (p *BloomFilterHash) String() string {
 //  - NumBytes: The size of bitset in bytes *
 //  - Algorithm: The algorithm for setting bits. *
 //  - Hash: The hash function used for Bloom filter. *
-type BloomFilterPageHeader struct {
+type BloomFilterHeader struct {
   NumBytes int32 `thrift:"numBytes,1,required" db:"numBytes" json:"numBytes"`
   Algorithm *BloomFilterAlgorithm `thrift:"algorithm,2,required" db:"algorithm" json:"algorithm"`
   Hash *BloomFilterHash `thrift:"hash,3,required" db:"hash" json:"hash"`
 }
 
-func NewBloomFilterPageHeader() *BloomFilterPageHeader {
-  return &BloomFilterPageHeader{}
+func NewBloomFilterHeader() *BloomFilterHeader {
+  return &BloomFilterHeader{}
 }
 
 
-func (p *BloomFilterPageHeader) GetNumBytes() int32 {
+func (p *BloomFilterHeader) GetNumBytes() int32 {
   return p.NumBytes
 }
-var BloomFilterPageHeader_Algorithm_DEFAULT *BloomFilterAlgorithm
-func (p *BloomFilterPageHeader) GetAlgorithm() *BloomFilterAlgorithm {
+var BloomFilterHeader_Algorithm_DEFAULT *BloomFilterAlgorithm
+func (p *BloomFilterHeader) GetAlgorithm() *BloomFilterAlgorithm {
   if !p.IsSetAlgorithm() {
-    return BloomFilterPageHeader_Algorithm_DEFAULT
+    return BloomFilterHeader_Algorithm_DEFAULT
   }
 return p.Algorithm
 }
-var BloomFilterPageHeader_Hash_DEFAULT *BloomFilterHash
-func (p *BloomFilterPageHeader) GetHash() *BloomFilterHash {
+var BloomFilterHeader_Hash_DEFAULT *BloomFilterHash
+func (p *BloomFilterHeader) GetHash() *BloomFilterHash {
   if !p.IsSetHash() {
-    return BloomFilterPageHeader_Hash_DEFAULT
+    return BloomFilterHeader_Hash_DEFAULT
   }
 return p.Hash
 }
-func (p *BloomFilterPageHeader) IsSetAlgorithm() bool {
+func (p *BloomFilterHeader) IsSetAlgorithm() bool {
   return p.Algorithm != nil
 }
 
-func (p *BloomFilterPageHeader) IsSetHash() bool {
+func (p *BloomFilterHeader) IsSetHash() bool {
   return p.Hash != nil
 }
 
-func (p *BloomFilterPageHeader) Read(iprot thrift.TProtocol) error {
+func (p *BloomFilterHeader) Read(iprot thrift.TProtocol) error {
   if _, err := iprot.ReadStructBegin(); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
   }
@@ -4861,7 +4858,7 @@ func (p *BloomFilterPageHeader) Read(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *BloomFilterPageHeader)  ReadField1(iprot thrift.TProtocol) error {
+func (p *BloomFilterHeader)  ReadField1(iprot thrift.TProtocol) error {
   if v, err := iprot.ReadI32(); err != nil {
   return thrift.PrependError("error reading field 1: ", err)
 } else {
@@ -4870,7 +4867,7 @@ func (p *BloomFilterPageHeader)  ReadField1(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *BloomFilterPageHeader)  ReadField2(iprot thrift.TProtocol) error {
+func (p *BloomFilterHeader)  ReadField2(iprot thrift.TProtocol) error {
   p.Algorithm = &BloomFilterAlgorithm{}
   if err := p.Algorithm.Read(iprot); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Algorithm), err)
@@ -4878,7 +4875,7 @@ func (p *BloomFilterPageHeader)  ReadField2(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *BloomFilterPageHeader)  ReadField3(iprot thrift.TProtocol) error {
+func (p *BloomFilterHeader)  ReadField3(iprot thrift.TProtocol) error {
   p.Hash = &BloomFilterHash{}
   if err := p.Hash.Read(iprot); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Hash), err)
@@ -4886,8 +4883,8 @@ func (p *BloomFilterPageHeader)  ReadField3(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *BloomFilterPageHeader) Write(oprot thrift.TProtocol) error {
-  if err := oprot.WriteStructBegin("BloomFilterPageHeader"); err != nil {
+func (p *BloomFilterHeader) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("BloomFilterHeader"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
   if p != nil {
     if err := p.writeField1(oprot); err != nil { return err }
@@ -4901,7 +4898,7 @@ func (p *BloomFilterPageHeader) Write(oprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *BloomFilterPageHeader) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *BloomFilterHeader) writeField1(oprot thrift.TProtocol) (err error) {
   if err := oprot.WriteFieldBegin("numBytes", thrift.I32, 1); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:numBytes: ", p), err) }
   if err := oprot.WriteI32(int32(p.NumBytes)); err != nil {
@@ -4911,7 +4908,7 @@ func (p *BloomFilterPageHeader) writeField1(oprot thrift.TProtocol) (err error) 
   return err
 }
 
-func (p *BloomFilterPageHeader) writeField2(oprot thrift.TProtocol) (err error) {
+func (p *BloomFilterHeader) writeField2(oprot thrift.TProtocol) (err error) {
   if err := oprot.WriteFieldBegin("algorithm", thrift.STRUCT, 2); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:algorithm: ", p), err) }
   if err := p.Algorithm.Write(oprot); err != nil {
@@ -4922,7 +4919,7 @@ func (p *BloomFilterPageHeader) writeField2(oprot thrift.TProtocol) (err error) 
   return err
 }
 
-func (p *BloomFilterPageHeader) writeField3(oprot thrift.TProtocol) (err error) {
+func (p *BloomFilterHeader) writeField3(oprot thrift.TProtocol) (err error) {
   if err := oprot.WriteFieldBegin("hash", thrift.STRUCT, 3); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:hash: ", p), err) }
   if err := p.Hash.Write(oprot); err != nil {
@@ -4933,17 +4930,17 @@ func (p *BloomFilterPageHeader) writeField3(oprot thrift.TProtocol) (err error) 
   return err
 }
 
-func (p *BloomFilterPageHeader) String() string {
+func (p *BloomFilterHeader) String() string {
   if p == nil {
     return "<nil>"
   }
-  return fmt.Sprintf("BloomFilterPageHeader(%+v)", *p)
+  return fmt.Sprintf("BloomFilterHeader(%+v)", *p)
 }
 
 // Attributes:
 //  - Type: the type of the page: indicates which of the *_header fields is set *
 //  - UncompressedPageSize: Uncompressed page size in bytes (not including this header) *
-//  - CompressedPageSize: Compressed page size in bytes (not including this header) *
+//  - CompressedPageSize: Compressed (and potentially encrypted) page size in bytes, not including this header *
 //  - Crc: The 32bit CRC for the page, to be be calculated as follows:
 // - Using the standard CRC32 algorithm
 // - On the data only, i.e. this header should not be included. 'Data'
@@ -4972,7 +4969,6 @@ func (p *BloomFilterPageHeader) String() string {
 //  - IndexPageHeader
 //  - DictionaryPageHeader
 //  - DataPageHeaderV2
-//  - BloomFilterPageHeader
 type PageHeader struct {
   Type PageType `thrift:"type,1,required" db:"type" json:"type"`
   UncompressedPageSize int32 `thrift:"uncompressed_page_size,2,required" db:"uncompressed_page_size" json:"uncompressed_page_size"`
@@ -4982,7 +4978,6 @@ type PageHeader struct {
   IndexPageHeader *IndexPageHeader `thrift:"index_page_header,6" db:"index_page_header" json:"index_page_header,omitempty"`
   DictionaryPageHeader *DictionaryPageHeader `thrift:"dictionary_page_header,7" db:"dictionary_page_header" json:"dictionary_page_header,omitempty"`
   DataPageHeaderV2 *DataPageHeaderV2 `thrift:"data_page_header_v2,8" db:"data_page_header_v2" json:"data_page_header_v2,omitempty"`
-  BloomFilterPageHeader *BloomFilterPageHeader `thrift:"bloom_filter_page_header,9" db:"bloom_filter_page_header" json:"bloom_filter_page_header,omitempty"`
 }
 
 func NewPageHeader() *PageHeader {
@@ -5036,13 +5031,6 @@ func (p *PageHeader) GetDataPageHeaderV2() *DataPageHeaderV2 {
   }
 return p.DataPageHeaderV2
 }
-var PageHeader_BloomFilterPageHeader_DEFAULT *BloomFilterPageHeader
-func (p *PageHeader) GetBloomFilterPageHeader() *BloomFilterPageHeader {
-  if !p.IsSetBloomFilterPageHeader() {
-    return PageHeader_BloomFilterPageHeader_DEFAULT
-  }
-return p.BloomFilterPageHeader
-}
 func (p *PageHeader) IsSetCrc() bool {
   return p.Crc != nil
 }
@@ -5061,10 +5049,6 @@ func (p *PageHeader) IsSetDictionaryPageHeader() bool {
 
 func (p *PageHeader) IsSetDataPageHeaderV2() bool {
   return p.DataPageHeaderV2 != nil
-}
-
-func (p *PageHeader) IsSetBloomFilterPageHeader() bool {
-  return p.BloomFilterPageHeader != nil
 }
 
 func (p *PageHeader) Read(iprot thrift.TProtocol) error {
@@ -5159,16 +5143,6 @@ func (p *PageHeader) Read(iprot thrift.TProtocol) error {
     case 8:
       if fieldTypeId == thrift.STRUCT {
         if err := p.ReadField8(iprot); err != nil {
-          return err
-        }
-      } else {
-        if err := iprot.Skip(fieldTypeId); err != nil {
-          return err
-        }
-      }
-    case 9:
-      if fieldTypeId == thrift.STRUCT {
-        if err := p.ReadField9(iprot); err != nil {
           return err
         }
       } else {
@@ -5271,14 +5245,6 @@ func (p *PageHeader)  ReadField8(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *PageHeader)  ReadField9(iprot thrift.TProtocol) error {
-  p.BloomFilterPageHeader = &BloomFilterPageHeader{}
-  if err := p.BloomFilterPageHeader.Read(iprot); err != nil {
-    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.BloomFilterPageHeader), err)
-  }
-  return nil
-}
-
 func (p *PageHeader) Write(oprot thrift.TProtocol) error {
   if err := oprot.WriteStructBegin("PageHeader"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
@@ -5291,7 +5257,6 @@ func (p *PageHeader) Write(oprot thrift.TProtocol) error {
     if err := p.writeField6(oprot); err != nil { return err }
     if err := p.writeField7(oprot); err != nil { return err }
     if err := p.writeField8(oprot); err != nil { return err }
-    if err := p.writeField9(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
@@ -5390,19 +5355,6 @@ func (p *PageHeader) writeField8(oprot thrift.TProtocol) (err error) {
     }
     if err := oprot.WriteFieldEnd(); err != nil {
       return thrift.PrependError(fmt.Sprintf("%T write field end error 8:data_page_header_v2: ", p), err) }
-  }
-  return err
-}
-
-func (p *PageHeader) writeField9(oprot thrift.TProtocol) (err error) {
-  if p.IsSetBloomFilterPageHeader() {
-    if err := oprot.WriteFieldBegin("bloom_filter_page_header", thrift.STRUCT, 9); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:bloom_filter_page_header: ", p), err) }
-    if err := p.BloomFilterPageHeader.Write(oprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.BloomFilterPageHeader), err)
-    }
-    if err := oprot.WriteFieldEnd(); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T write field end error 9:bloom_filter_page_header: ", p), err) }
   }
   return err
 }
@@ -5930,7 +5882,8 @@ func (p *PageEncodingStats) String() string {
 //  - Codec: Compression codec *
 //  - NumValues: Number of values in this column *
 //  - TotalUncompressedSize: total byte size of all uncompressed pages in this column chunk (including the headers) *
-//  - TotalCompressedSize: total byte size of all compressed pages in this column chunk (including the headers) *
+//  - TotalCompressedSize: total byte size of all compressed, and potentially encrypted, pages
+// in this column chunk (including the headers) *
 //  - KeyValueMetadata: Optional key/value metadata *
 //  - DataPageOffset: Byte offset from beginning of file to first data page *
 //  - IndexPageOffset: Byte offset from beginning of file to root index page *
@@ -6659,6 +6612,377 @@ func (p *ColumnMetaData) String() string {
   return fmt.Sprintf("ColumnMetaData(%+v)", *p)
 }
 
+type EncryptionWithFooterKey struct {
+}
+
+func NewEncryptionWithFooterKey() *EncryptionWithFooterKey {
+  return &EncryptionWithFooterKey{}
+}
+
+func (p *EncryptionWithFooterKey) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    if err := iprot.Skip(fieldTypeId); err != nil {
+      return err
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  return nil
+}
+
+func (p *EncryptionWithFooterKey) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("EncryptionWithFooterKey"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *EncryptionWithFooterKey) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("EncryptionWithFooterKey(%+v)", *p)
+}
+
+// Attributes:
+//  - PathInSchema: Column path in schema *
+//  - KeyMetadata: Retrieval metadata of column encryption key *
+type EncryptionWithColumnKey struct {
+  PathInSchema []string `thrift:"path_in_schema,1,required" db:"path_in_schema" json:"path_in_schema"`
+  KeyMetadata []byte `thrift:"key_metadata,2" db:"key_metadata" json:"key_metadata,omitempty"`
+}
+
+func NewEncryptionWithColumnKey() *EncryptionWithColumnKey {
+  return &EncryptionWithColumnKey{}
+}
+
+
+func (p *EncryptionWithColumnKey) GetPathInSchema() []string {
+  return p.PathInSchema
+}
+var EncryptionWithColumnKey_KeyMetadata_DEFAULT []byte
+
+func (p *EncryptionWithColumnKey) GetKeyMetadata() []byte {
+  return p.KeyMetadata
+}
+func (p *EncryptionWithColumnKey) IsSetKeyMetadata() bool {
+  return p.KeyMetadata != nil
+}
+
+func (p *EncryptionWithColumnKey) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+  var issetPathInSchema bool = false;
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.LIST {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+        issetPathInSchema = true
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  if !issetPathInSchema{
+    return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field PathInSchema is not set"));
+  }
+  return nil
+}
+
+func (p *EncryptionWithColumnKey)  ReadField1(iprot thrift.TProtocol) error {
+  _, size, err := iprot.ReadListBegin()
+  if err != nil {
+    return thrift.PrependError("error reading list begin: ", err)
+  }
+  tSlice := make([]string, 0, size)
+  p.PathInSchema =  tSlice
+  for i := 0; i < size; i ++ {
+var _elem4 string
+    if v, err := iprot.ReadString(); err != nil {
+    return thrift.PrependError("error reading field 0: ", err)
+} else {
+    _elem4 = v
+}
+    p.PathInSchema = append(p.PathInSchema, _elem4)
+  }
+  if err := iprot.ReadListEnd(); err != nil {
+    return thrift.PrependError("error reading list end: ", err)
+  }
+  return nil
+}
+
+func (p *EncryptionWithColumnKey)  ReadField2(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 2: ", err)
+} else {
+  p.KeyMetadata = v
+}
+  return nil
+}
+
+func (p *EncryptionWithColumnKey) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("EncryptionWithColumnKey"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *EncryptionWithColumnKey) writeField1(oprot thrift.TProtocol) (err error) {
+  if err := oprot.WriteFieldBegin("path_in_schema", thrift.LIST, 1); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:path_in_schema: ", p), err) }
+  if err := oprot.WriteListBegin(thrift.STRING, len(p.PathInSchema)); err != nil {
+    return thrift.PrependError("error writing list begin: ", err)
+  }
+  for _, v := range p.PathInSchema {
+    if err := oprot.WriteString(string(v)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T. (0) field write error: ", p), err) }
+  }
+  if err := oprot.WriteListEnd(); err != nil {
+    return thrift.PrependError("error writing list end: ", err)
+  }
+  if err := oprot.WriteFieldEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write field end error 1:path_in_schema: ", p), err) }
+  return err
+}
+
+func (p *EncryptionWithColumnKey) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetKeyMetadata() {
+    if err := oprot.WriteFieldBegin("key_metadata", thrift.STRING, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:key_metadata: ", p), err) }
+    if err := oprot.WriteBinary(p.KeyMetadata); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.key_metadata (2) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:key_metadata: ", p), err) }
+  }
+  return err
+}
+
+func (p *EncryptionWithColumnKey) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("EncryptionWithColumnKey(%+v)", *p)
+}
+
+// Attributes:
+//  - ENCRYPTION_WITH_FOOTER_KEY
+//  - ENCRYPTION_WITH_COLUMN_KEY
+type ColumnCryptoMetaData struct {
+  ENCRYPTION_WITH_FOOTER_KEY *EncryptionWithFooterKey `thrift:"ENCRYPTION_WITH_FOOTER_KEY,1" db:"ENCRYPTION_WITH_FOOTER_KEY" json:"ENCRYPTION_WITH_FOOTER_KEY,omitempty"`
+  ENCRYPTION_WITH_COLUMN_KEY *EncryptionWithColumnKey `thrift:"ENCRYPTION_WITH_COLUMN_KEY,2" db:"ENCRYPTION_WITH_COLUMN_KEY" json:"ENCRYPTION_WITH_COLUMN_KEY,omitempty"`
+}
+
+func NewColumnCryptoMetaData() *ColumnCryptoMetaData {
+  return &ColumnCryptoMetaData{}
+}
+
+var ColumnCryptoMetaData_ENCRYPTION_WITH_FOOTER_KEY_DEFAULT *EncryptionWithFooterKey
+func (p *ColumnCryptoMetaData) GetENCRYPTION_WITH_FOOTER_KEY() *EncryptionWithFooterKey {
+  if !p.IsSetENCRYPTION_WITH_FOOTER_KEY() {
+    return ColumnCryptoMetaData_ENCRYPTION_WITH_FOOTER_KEY_DEFAULT
+  }
+return p.ENCRYPTION_WITH_FOOTER_KEY
+}
+var ColumnCryptoMetaData_ENCRYPTION_WITH_COLUMN_KEY_DEFAULT *EncryptionWithColumnKey
+func (p *ColumnCryptoMetaData) GetENCRYPTION_WITH_COLUMN_KEY() *EncryptionWithColumnKey {
+  if !p.IsSetENCRYPTION_WITH_COLUMN_KEY() {
+    return ColumnCryptoMetaData_ENCRYPTION_WITH_COLUMN_KEY_DEFAULT
+  }
+return p.ENCRYPTION_WITH_COLUMN_KEY
+}
+func (p *ColumnCryptoMetaData) CountSetFieldsColumnCryptoMetaData() int {
+  count := 0
+  if (p.IsSetENCRYPTION_WITH_FOOTER_KEY()) {
+    count++
+  }
+  if (p.IsSetENCRYPTION_WITH_COLUMN_KEY()) {
+    count++
+  }
+  return count
+
+}
+
+func (p *ColumnCryptoMetaData) IsSetENCRYPTION_WITH_FOOTER_KEY() bool {
+  return p.ENCRYPTION_WITH_FOOTER_KEY != nil
+}
+
+func (p *ColumnCryptoMetaData) IsSetENCRYPTION_WITH_COLUMN_KEY() bool {
+  return p.ENCRYPTION_WITH_COLUMN_KEY != nil
+}
+
+func (p *ColumnCryptoMetaData) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  return nil
+}
+
+func (p *ColumnCryptoMetaData)  ReadField1(iprot thrift.TProtocol) error {
+  p.ENCRYPTION_WITH_FOOTER_KEY = &EncryptionWithFooterKey{}
+  if err := p.ENCRYPTION_WITH_FOOTER_KEY.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.ENCRYPTION_WITH_FOOTER_KEY), err)
+  }
+  return nil
+}
+
+func (p *ColumnCryptoMetaData)  ReadField2(iprot thrift.TProtocol) error {
+  p.ENCRYPTION_WITH_COLUMN_KEY = &EncryptionWithColumnKey{}
+  if err := p.ENCRYPTION_WITH_COLUMN_KEY.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.ENCRYPTION_WITH_COLUMN_KEY), err)
+  }
+  return nil
+}
+
+func (p *ColumnCryptoMetaData) Write(oprot thrift.TProtocol) error {
+  if c := p.CountSetFieldsColumnCryptoMetaData(); c != 1 {
+    return fmt.Errorf("%T write union: exactly one field must be set (%d set).", p, c)
+  }
+  if err := oprot.WriteStructBegin("ColumnCryptoMetaData"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *ColumnCryptoMetaData) writeField1(oprot thrift.TProtocol) (err error) {
+  if p.IsSetENCRYPTION_WITH_FOOTER_KEY() {
+    if err := oprot.WriteFieldBegin("ENCRYPTION_WITH_FOOTER_KEY", thrift.STRUCT, 1); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:ENCRYPTION_WITH_FOOTER_KEY: ", p), err) }
+    if err := p.ENCRYPTION_WITH_FOOTER_KEY.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.ENCRYPTION_WITH_FOOTER_KEY), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 1:ENCRYPTION_WITH_FOOTER_KEY: ", p), err) }
+  }
+  return err
+}
+
+func (p *ColumnCryptoMetaData) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetENCRYPTION_WITH_COLUMN_KEY() {
+    if err := oprot.WriteFieldBegin("ENCRYPTION_WITH_COLUMN_KEY", thrift.STRUCT, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:ENCRYPTION_WITH_COLUMN_KEY: ", p), err) }
+    if err := p.ENCRYPTION_WITH_COLUMN_KEY.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.ENCRYPTION_WITH_COLUMN_KEY), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:ENCRYPTION_WITH_COLUMN_KEY: ", p), err) }
+  }
+  return err
+}
+
+func (p *ColumnCryptoMetaData) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("ColumnCryptoMetaData(%+v)", *p)
+}
+
 // Attributes:
 //  - FilePath: File where column data is stored.  If not set, assumed to be same file as
 // metadata.  This path is relative to the current file.
@@ -6672,6 +6996,8 @@ func (p *ColumnMetaData) String() string {
 //  - OffsetIndexLength: Size of ColumnChunk's OffsetIndex, in bytes *
 //  - ColumnIndexOffset: File offset of ColumnChunk's ColumnIndex *
 //  - ColumnIndexLength: Size of ColumnChunk's ColumnIndex, in bytes *
+//  - CryptoMetadata: Crypto metadata of encrypted columns *
+//  - EncryptedColumnMetadata: Encrypted column metadata for this chunk *
 type ColumnChunk struct {
   FilePath *string `thrift:"file_path,1" db:"file_path" json:"file_path,omitempty"`
   FileOffset int64 `thrift:"file_offset,2,required" db:"file_offset" json:"file_offset"`
@@ -6680,6 +7006,8 @@ type ColumnChunk struct {
   OffsetIndexLength *int32 `thrift:"offset_index_length,5" db:"offset_index_length" json:"offset_index_length,omitempty"`
   ColumnIndexOffset *int64 `thrift:"column_index_offset,6" db:"column_index_offset" json:"column_index_offset,omitempty"`
   ColumnIndexLength *int32 `thrift:"column_index_length,7" db:"column_index_length" json:"column_index_length,omitempty"`
+  CryptoMetadata *ColumnCryptoMetaData `thrift:"crypto_metadata,8" db:"crypto_metadata" json:"crypto_metadata,omitempty"`
+  EncryptedColumnMetadata []byte `thrift:"encrypted_column_metadata,9" db:"encrypted_column_metadata" json:"encrypted_column_metadata,omitempty"`
 }
 
 func NewColumnChunk() *ColumnChunk {
@@ -6732,6 +7060,18 @@ func (p *ColumnChunk) GetColumnIndexLength() int32 {
   }
 return *p.ColumnIndexLength
 }
+var ColumnChunk_CryptoMetadata_DEFAULT *ColumnCryptoMetaData
+func (p *ColumnChunk) GetCryptoMetadata() *ColumnCryptoMetaData {
+  if !p.IsSetCryptoMetadata() {
+    return ColumnChunk_CryptoMetadata_DEFAULT
+  }
+return p.CryptoMetadata
+}
+var ColumnChunk_EncryptedColumnMetadata_DEFAULT []byte
+
+func (p *ColumnChunk) GetEncryptedColumnMetadata() []byte {
+  return p.EncryptedColumnMetadata
+}
 func (p *ColumnChunk) IsSetFilePath() bool {
   return p.FilePath != nil
 }
@@ -6754,6 +7094,14 @@ func (p *ColumnChunk) IsSetColumnIndexOffset() bool {
 
 func (p *ColumnChunk) IsSetColumnIndexLength() bool {
   return p.ColumnIndexLength != nil
+}
+
+func (p *ColumnChunk) IsSetCryptoMetadata() bool {
+  return p.CryptoMetadata != nil
+}
+
+func (p *ColumnChunk) IsSetEncryptedColumnMetadata() bool {
+  return p.EncryptedColumnMetadata != nil
 }
 
 func (p *ColumnChunk) Read(iprot thrift.TProtocol) error {
@@ -6841,6 +7189,26 @@ func (p *ColumnChunk) Read(iprot thrift.TProtocol) error {
           return err
         }
       }
+    case 8:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField8(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 9:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField9(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
     default:
       if err := iprot.Skip(fieldTypeId); err != nil {
         return err
@@ -6921,6 +7289,23 @@ func (p *ColumnChunk)  ReadField7(iprot thrift.TProtocol) error {
   return nil
 }
 
+func (p *ColumnChunk)  ReadField8(iprot thrift.TProtocol) error {
+  p.CryptoMetadata = &ColumnCryptoMetaData{}
+  if err := p.CryptoMetadata.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.CryptoMetadata), err)
+  }
+  return nil
+}
+
+func (p *ColumnChunk)  ReadField9(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 9: ", err)
+} else {
+  p.EncryptedColumnMetadata = v
+}
+  return nil
+}
+
 func (p *ColumnChunk) Write(oprot thrift.TProtocol) error {
   if err := oprot.WriteStructBegin("ColumnChunk"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
@@ -6932,6 +7317,8 @@ func (p *ColumnChunk) Write(oprot thrift.TProtocol) error {
     if err := p.writeField5(oprot); err != nil { return err }
     if err := p.writeField6(oprot); err != nil { return err }
     if err := p.writeField7(oprot); err != nil { return err }
+    if err := p.writeField8(oprot); err != nil { return err }
+    if err := p.writeField9(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
@@ -7023,6 +7410,31 @@ func (p *ColumnChunk) writeField7(oprot thrift.TProtocol) (err error) {
   return err
 }
 
+func (p *ColumnChunk) writeField8(oprot thrift.TProtocol) (err error) {
+  if p.IsSetCryptoMetadata() {
+    if err := oprot.WriteFieldBegin("crypto_metadata", thrift.STRUCT, 8); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:crypto_metadata: ", p), err) }
+    if err := p.CryptoMetadata.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.CryptoMetadata), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 8:crypto_metadata: ", p), err) }
+  }
+  return err
+}
+
+func (p *ColumnChunk) writeField9(oprot thrift.TProtocol) (err error) {
+  if p.IsSetEncryptedColumnMetadata() {
+    if err := oprot.WriteFieldBegin("encrypted_column_metadata", thrift.STRING, 9); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:encrypted_column_metadata: ", p), err) }
+    if err := oprot.WriteBinary(p.EncryptedColumnMetadata); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.encrypted_column_metadata (9) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 9:encrypted_column_metadata: ", p), err) }
+  }
+  return err
+}
+
 func (p *ColumnChunk) String() string {
   if p == nil {
     return "<nil>"
@@ -7038,11 +7450,19 @@ func (p *ColumnChunk) String() string {
 //  - NumRows: Number of rows in this row group *
 //  - SortingColumns: If set, specifies a sort ordering of the rows in this RowGroup.
 // The sorting columns can be a subset of all the columns.
+//  - FileOffset: Byte offset from beginning of file to first page (data or dictionary)
+// in this row group *
+//  - TotalCompressedSize: Total byte size of all compressed (and potentially encrypted) column data
+// in this row group *
+//  - Ordinal: Row group ordinal in the file *
 type RowGroup struct {
   Columns []*ColumnChunk `thrift:"columns,1,required" db:"columns" json:"columns"`
   TotalByteSize int64 `thrift:"total_byte_size,2,required" db:"total_byte_size" json:"total_byte_size"`
   NumRows int64 `thrift:"num_rows,3,required" db:"num_rows" json:"num_rows"`
   SortingColumns []*SortingColumn `thrift:"sorting_columns,4" db:"sorting_columns" json:"sorting_columns,omitempty"`
+  FileOffset *int64 `thrift:"file_offset,5" db:"file_offset" json:"file_offset,omitempty"`
+  TotalCompressedSize *int64 `thrift:"total_compressed_size,6" db:"total_compressed_size" json:"total_compressed_size,omitempty"`
+  Ordinal *int16 `thrift:"ordinal,7" db:"ordinal" json:"ordinal,omitempty"`
 }
 
 func NewRowGroup() *RowGroup {
@@ -7066,8 +7486,41 @@ var RowGroup_SortingColumns_DEFAULT []*SortingColumn
 func (p *RowGroup) GetSortingColumns() []*SortingColumn {
   return p.SortingColumns
 }
+var RowGroup_FileOffset_DEFAULT int64
+func (p *RowGroup) GetFileOffset() int64 {
+  if !p.IsSetFileOffset() {
+    return RowGroup_FileOffset_DEFAULT
+  }
+return *p.FileOffset
+}
+var RowGroup_TotalCompressedSize_DEFAULT int64
+func (p *RowGroup) GetTotalCompressedSize() int64 {
+  if !p.IsSetTotalCompressedSize() {
+    return RowGroup_TotalCompressedSize_DEFAULT
+  }
+return *p.TotalCompressedSize
+}
+var RowGroup_Ordinal_DEFAULT int16
+func (p *RowGroup) GetOrdinal() int16 {
+  if !p.IsSetOrdinal() {
+    return RowGroup_Ordinal_DEFAULT
+  }
+return *p.Ordinal
+}
 func (p *RowGroup) IsSetSortingColumns() bool {
   return p.SortingColumns != nil
+}
+
+func (p *RowGroup) IsSetFileOffset() bool {
+  return p.FileOffset != nil
+}
+
+func (p *RowGroup) IsSetTotalCompressedSize() bool {
+  return p.TotalCompressedSize != nil
+}
+
+func (p *RowGroup) IsSetOrdinal() bool {
+  return p.Ordinal != nil
 }
 
 func (p *RowGroup) Read(iprot thrift.TProtocol) error {
@@ -7129,6 +7582,36 @@ func (p *RowGroup) Read(iprot thrift.TProtocol) error {
           return err
         }
       }
+    case 5:
+      if fieldTypeId == thrift.I64 {
+        if err := p.ReadField5(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 6:
+      if fieldTypeId == thrift.I64 {
+        if err := p.ReadField6(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 7:
+      if fieldTypeId == thrift.I16 {
+        if err := p.ReadField7(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
     default:
       if err := iprot.Skip(fieldTypeId); err != nil {
         return err
@@ -7161,11 +7644,11 @@ func (p *RowGroup)  ReadField1(iprot thrift.TProtocol) error {
   tSlice := make([]*ColumnChunk, 0, size)
   p.Columns =  tSlice
   for i := 0; i < size; i ++ {
-    _elem4 := &ColumnChunk{}
-    if err := _elem4.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem4), err)
+    _elem5 := &ColumnChunk{}
+    if err := _elem5.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem5), err)
     }
-    p.Columns = append(p.Columns, _elem4)
+    p.Columns = append(p.Columns, _elem5)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -7199,15 +7682,42 @@ func (p *RowGroup)  ReadField4(iprot thrift.TProtocol) error {
   tSlice := make([]*SortingColumn, 0, size)
   p.SortingColumns =  tSlice
   for i := 0; i < size; i ++ {
-    _elem5 := &SortingColumn{}
-    if err := _elem5.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem5), err)
+    _elem6 := &SortingColumn{}
+    if err := _elem6.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem6), err)
     }
-    p.SortingColumns = append(p.SortingColumns, _elem5)
+    p.SortingColumns = append(p.SortingColumns, _elem6)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
   }
+  return nil
+}
+
+func (p *RowGroup)  ReadField5(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadI64(); err != nil {
+  return thrift.PrependError("error reading field 5: ", err)
+} else {
+  p.FileOffset = &v
+}
+  return nil
+}
+
+func (p *RowGroup)  ReadField6(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadI64(); err != nil {
+  return thrift.PrependError("error reading field 6: ", err)
+} else {
+  p.TotalCompressedSize = &v
+}
+  return nil
+}
+
+func (p *RowGroup)  ReadField7(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadI16(); err != nil {
+  return thrift.PrependError("error reading field 7: ", err)
+} else {
+  p.Ordinal = &v
+}
   return nil
 }
 
@@ -7219,6 +7729,9 @@ func (p *RowGroup) Write(oprot thrift.TProtocol) error {
     if err := p.writeField2(oprot); err != nil { return err }
     if err := p.writeField3(oprot); err != nil { return err }
     if err := p.writeField4(oprot); err != nil { return err }
+    if err := p.writeField5(oprot); err != nil { return err }
+    if err := p.writeField6(oprot); err != nil { return err }
+    if err := p.writeField7(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
@@ -7283,6 +7796,42 @@ func (p *RowGroup) writeField4(oprot thrift.TProtocol) (err error) {
     }
     if err := oprot.WriteFieldEnd(); err != nil {
       return thrift.PrependError(fmt.Sprintf("%T write field end error 4:sorting_columns: ", p), err) }
+  }
+  return err
+}
+
+func (p *RowGroup) writeField5(oprot thrift.TProtocol) (err error) {
+  if p.IsSetFileOffset() {
+    if err := oprot.WriteFieldBegin("file_offset", thrift.I64, 5); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:file_offset: ", p), err) }
+    if err := oprot.WriteI64(int64(*p.FileOffset)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.file_offset (5) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 5:file_offset: ", p), err) }
+  }
+  return err
+}
+
+func (p *RowGroup) writeField6(oprot thrift.TProtocol) (err error) {
+  if p.IsSetTotalCompressedSize() {
+    if err := oprot.WriteFieldBegin("total_compressed_size", thrift.I64, 6); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:total_compressed_size: ", p), err) }
+    if err := oprot.WriteI64(int64(*p.TotalCompressedSize)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.total_compressed_size (6) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 6:total_compressed_size: ", p), err) }
+  }
+  return err
+}
+
+func (p *RowGroup) writeField7(oprot thrift.TProtocol) (err error) {
+  if p.IsSetOrdinal() {
+    if err := oprot.WriteFieldBegin("ordinal", thrift.I16, 7); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:ordinal: ", p), err) }
+    if err := oprot.WriteI16(int16(*p.Ordinal)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.ordinal (7) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 7:ordinal: ", p), err) }
   }
   return err
 }
@@ -7755,11 +8304,11 @@ func (p *OffsetIndex)  ReadField1(iprot thrift.TProtocol) error {
   tSlice := make([]*PageLocation, 0, size)
   p.PageLocations =  tSlice
   for i := 0; i < size; i ++ {
-    _elem6 := &PageLocation{}
-    if err := _elem6.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem6), err)
+    _elem7 := &PageLocation{}
+    if err := _elem7.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem7), err)
     }
-    p.PageLocations = append(p.PageLocations, _elem6)
+    p.PageLocations = append(p.PageLocations, _elem7)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -7971,13 +8520,13 @@ func (p *ColumnIndex)  ReadField1(iprot thrift.TProtocol) error {
   tSlice := make([]bool, 0, size)
   p.NullPages =  tSlice
   for i := 0; i < size; i ++ {
-var _elem7 bool
+var _elem8 bool
     if v, err := iprot.ReadBool(); err != nil {
     return thrift.PrependError("error reading field 0: ", err)
 } else {
-    _elem7 = v
+    _elem8 = v
 }
-    p.NullPages = append(p.NullPages, _elem7)
+    p.NullPages = append(p.NullPages, _elem8)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -7993,13 +8542,13 @@ func (p *ColumnIndex)  ReadField2(iprot thrift.TProtocol) error {
   tSlice := make([][]byte, 0, size)
   p.MinValues =  tSlice
   for i := 0; i < size; i ++ {
-var _elem8 []byte
+var _elem9 []byte
     if v, err := iprot.ReadBinary(); err != nil {
     return thrift.PrependError("error reading field 0: ", err)
 } else {
-    _elem8 = v
+    _elem9 = v
 }
-    p.MinValues = append(p.MinValues, _elem8)
+    p.MinValues = append(p.MinValues, _elem9)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8015,13 +8564,13 @@ func (p *ColumnIndex)  ReadField3(iprot thrift.TProtocol) error {
   tSlice := make([][]byte, 0, size)
   p.MaxValues =  tSlice
   for i := 0; i < size; i ++ {
-var _elem9 []byte
+var _elem10 []byte
     if v, err := iprot.ReadBinary(); err != nil {
     return thrift.PrependError("error reading field 0: ", err)
 } else {
-    _elem9 = v
+    _elem10 = v
 }
-    p.MaxValues = append(p.MaxValues, _elem9)
+    p.MaxValues = append(p.MaxValues, _elem10)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8047,13 +8596,13 @@ func (p *ColumnIndex)  ReadField5(iprot thrift.TProtocol) error {
   tSlice := make([]int64, 0, size)
   p.NullCounts =  tSlice
   for i := 0; i < size; i ++ {
-var _elem10 int64
+var _elem11 int64
     if v, err := iprot.ReadI64(); err != nil {
     return thrift.PrependError("error reading field 0: ", err)
 } else {
-    _elem10 = v
+    _elem11 = v
 }
-    p.NullCounts = append(p.NullCounts, _elem10)
+    p.NullCounts = append(p.NullCounts, _elem11)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8169,6 +8718,540 @@ func (p *ColumnIndex) String() string {
   return fmt.Sprintf("ColumnIndex(%+v)", *p)
 }
 
+// Attributes:
+//  - AadPrefix: AAD prefix *
+//  - AadFileUnique: Unique file identifier part of AAD suffix *
+//  - SupplyAadPrefix: In files encrypted with AAD prefix without storing it,
+// readers must supply the prefix *
+type AesGcmV1 struct {
+  AadPrefix []byte `thrift:"aad_prefix,1" db:"aad_prefix" json:"aad_prefix,omitempty"`
+  AadFileUnique []byte `thrift:"aad_file_unique,2" db:"aad_file_unique" json:"aad_file_unique,omitempty"`
+  SupplyAadPrefix *bool `thrift:"supply_aad_prefix,3" db:"supply_aad_prefix" json:"supply_aad_prefix,omitempty"`
+}
+
+func NewAesGcmV1() *AesGcmV1 {
+  return &AesGcmV1{}
+}
+
+var AesGcmV1_AadPrefix_DEFAULT []byte
+
+func (p *AesGcmV1) GetAadPrefix() []byte {
+  return p.AadPrefix
+}
+var AesGcmV1_AadFileUnique_DEFAULT []byte
+
+func (p *AesGcmV1) GetAadFileUnique() []byte {
+  return p.AadFileUnique
+}
+var AesGcmV1_SupplyAadPrefix_DEFAULT bool
+func (p *AesGcmV1) GetSupplyAadPrefix() bool {
+  if !p.IsSetSupplyAadPrefix() {
+    return AesGcmV1_SupplyAadPrefix_DEFAULT
+  }
+return *p.SupplyAadPrefix
+}
+func (p *AesGcmV1) IsSetAadPrefix() bool {
+  return p.AadPrefix != nil
+}
+
+func (p *AesGcmV1) IsSetAadFileUnique() bool {
+  return p.AadFileUnique != nil
+}
+
+func (p *AesGcmV1) IsSetSupplyAadPrefix() bool {
+  return p.SupplyAadPrefix != nil
+}
+
+func (p *AesGcmV1) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 3:
+      if fieldTypeId == thrift.BOOL {
+        if err := p.ReadField3(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  return nil
+}
+
+func (p *AesGcmV1)  ReadField1(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 1: ", err)
+} else {
+  p.AadPrefix = v
+}
+  return nil
+}
+
+func (p *AesGcmV1)  ReadField2(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 2: ", err)
+} else {
+  p.AadFileUnique = v
+}
+  return nil
+}
+
+func (p *AesGcmV1)  ReadField3(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBool(); err != nil {
+  return thrift.PrependError("error reading field 3: ", err)
+} else {
+  p.SupplyAadPrefix = &v
+}
+  return nil
+}
+
+func (p *AesGcmV1) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("AesGcmV1"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+    if err := p.writeField3(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *AesGcmV1) writeField1(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAadPrefix() {
+    if err := oprot.WriteFieldBegin("aad_prefix", thrift.STRING, 1); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:aad_prefix: ", p), err) }
+    if err := oprot.WriteBinary(p.AadPrefix); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.aad_prefix (1) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 1:aad_prefix: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmV1) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAadFileUnique() {
+    if err := oprot.WriteFieldBegin("aad_file_unique", thrift.STRING, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:aad_file_unique: ", p), err) }
+    if err := oprot.WriteBinary(p.AadFileUnique); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.aad_file_unique (2) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:aad_file_unique: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmV1) writeField3(oprot thrift.TProtocol) (err error) {
+  if p.IsSetSupplyAadPrefix() {
+    if err := oprot.WriteFieldBegin("supply_aad_prefix", thrift.BOOL, 3); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:supply_aad_prefix: ", p), err) }
+    if err := oprot.WriteBool(bool(*p.SupplyAadPrefix)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.supply_aad_prefix (3) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 3:supply_aad_prefix: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmV1) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("AesGcmV1(%+v)", *p)
+}
+
+// Attributes:
+//  - AadPrefix: AAD prefix *
+//  - AadFileUnique: Unique file identifier part of AAD suffix *
+//  - SupplyAadPrefix: In files encrypted with AAD prefix without storing it,
+// readers must supply the prefix *
+type AesGcmCtrV1 struct {
+  AadPrefix []byte `thrift:"aad_prefix,1" db:"aad_prefix" json:"aad_prefix,omitempty"`
+  AadFileUnique []byte `thrift:"aad_file_unique,2" db:"aad_file_unique" json:"aad_file_unique,omitempty"`
+  SupplyAadPrefix *bool `thrift:"supply_aad_prefix,3" db:"supply_aad_prefix" json:"supply_aad_prefix,omitempty"`
+}
+
+func NewAesGcmCtrV1() *AesGcmCtrV1 {
+  return &AesGcmCtrV1{}
+}
+
+var AesGcmCtrV1_AadPrefix_DEFAULT []byte
+
+func (p *AesGcmCtrV1) GetAadPrefix() []byte {
+  return p.AadPrefix
+}
+var AesGcmCtrV1_AadFileUnique_DEFAULT []byte
+
+func (p *AesGcmCtrV1) GetAadFileUnique() []byte {
+  return p.AadFileUnique
+}
+var AesGcmCtrV1_SupplyAadPrefix_DEFAULT bool
+func (p *AesGcmCtrV1) GetSupplyAadPrefix() bool {
+  if !p.IsSetSupplyAadPrefix() {
+    return AesGcmCtrV1_SupplyAadPrefix_DEFAULT
+  }
+return *p.SupplyAadPrefix
+}
+func (p *AesGcmCtrV1) IsSetAadPrefix() bool {
+  return p.AadPrefix != nil
+}
+
+func (p *AesGcmCtrV1) IsSetAadFileUnique() bool {
+  return p.AadFileUnique != nil
+}
+
+func (p *AesGcmCtrV1) IsSetSupplyAadPrefix() bool {
+  return p.SupplyAadPrefix != nil
+}
+
+func (p *AesGcmCtrV1) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 3:
+      if fieldTypeId == thrift.BOOL {
+        if err := p.ReadField3(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  return nil
+}
+
+func (p *AesGcmCtrV1)  ReadField1(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 1: ", err)
+} else {
+  p.AadPrefix = v
+}
+  return nil
+}
+
+func (p *AesGcmCtrV1)  ReadField2(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 2: ", err)
+} else {
+  p.AadFileUnique = v
+}
+  return nil
+}
+
+func (p *AesGcmCtrV1)  ReadField3(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBool(); err != nil {
+  return thrift.PrependError("error reading field 3: ", err)
+} else {
+  p.SupplyAadPrefix = &v
+}
+  return nil
+}
+
+func (p *AesGcmCtrV1) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("AesGcmCtrV1"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+    if err := p.writeField3(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *AesGcmCtrV1) writeField1(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAadPrefix() {
+    if err := oprot.WriteFieldBegin("aad_prefix", thrift.STRING, 1); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:aad_prefix: ", p), err) }
+    if err := oprot.WriteBinary(p.AadPrefix); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.aad_prefix (1) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 1:aad_prefix: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmCtrV1) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAadFileUnique() {
+    if err := oprot.WriteFieldBegin("aad_file_unique", thrift.STRING, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:aad_file_unique: ", p), err) }
+    if err := oprot.WriteBinary(p.AadFileUnique); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.aad_file_unique (2) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:aad_file_unique: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmCtrV1) writeField3(oprot thrift.TProtocol) (err error) {
+  if p.IsSetSupplyAadPrefix() {
+    if err := oprot.WriteFieldBegin("supply_aad_prefix", thrift.BOOL, 3); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:supply_aad_prefix: ", p), err) }
+    if err := oprot.WriteBool(bool(*p.SupplyAadPrefix)); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.supply_aad_prefix (3) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 3:supply_aad_prefix: ", p), err) }
+  }
+  return err
+}
+
+func (p *AesGcmCtrV1) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("AesGcmCtrV1(%+v)", *p)
+}
+
+// Attributes:
+//  - AES_GCM_V1
+//  - AES_GCM_CTR_V1
+type EncryptionAlgorithm struct {
+  AES_GCM_V1 *AesGcmV1 `thrift:"AES_GCM_V1,1" db:"AES_GCM_V1" json:"AES_GCM_V1,omitempty"`
+  AES_GCM_CTR_V1 *AesGcmCtrV1 `thrift:"AES_GCM_CTR_V1,2" db:"AES_GCM_CTR_V1" json:"AES_GCM_CTR_V1,omitempty"`
+}
+
+func NewEncryptionAlgorithm() *EncryptionAlgorithm {
+  return &EncryptionAlgorithm{}
+}
+
+var EncryptionAlgorithm_AES_GCM_V1_DEFAULT *AesGcmV1
+func (p *EncryptionAlgorithm) GetAES_GCM_V1() *AesGcmV1 {
+  if !p.IsSetAES_GCM_V1() {
+    return EncryptionAlgorithm_AES_GCM_V1_DEFAULT
+  }
+return p.AES_GCM_V1
+}
+var EncryptionAlgorithm_AES_GCM_CTR_V1_DEFAULT *AesGcmCtrV1
+func (p *EncryptionAlgorithm) GetAES_GCM_CTR_V1() *AesGcmCtrV1 {
+  if !p.IsSetAES_GCM_CTR_V1() {
+    return EncryptionAlgorithm_AES_GCM_CTR_V1_DEFAULT
+  }
+return p.AES_GCM_CTR_V1
+}
+func (p *EncryptionAlgorithm) CountSetFieldsEncryptionAlgorithm() int {
+  count := 0
+  if (p.IsSetAES_GCM_V1()) {
+    count++
+  }
+  if (p.IsSetAES_GCM_CTR_V1()) {
+    count++
+  }
+  return count
+
+}
+
+func (p *EncryptionAlgorithm) IsSetAES_GCM_V1() bool {
+  return p.AES_GCM_V1 != nil
+}
+
+func (p *EncryptionAlgorithm) IsSetAES_GCM_CTR_V1() bool {
+  return p.AES_GCM_CTR_V1 != nil
+}
+
+func (p *EncryptionAlgorithm) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  return nil
+}
+
+func (p *EncryptionAlgorithm)  ReadField1(iprot thrift.TProtocol) error {
+  p.AES_GCM_V1 = &AesGcmV1{}
+  if err := p.AES_GCM_V1.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.AES_GCM_V1), err)
+  }
+  return nil
+}
+
+func (p *EncryptionAlgorithm)  ReadField2(iprot thrift.TProtocol) error {
+  p.AES_GCM_CTR_V1 = &AesGcmCtrV1{}
+  if err := p.AES_GCM_CTR_V1.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.AES_GCM_CTR_V1), err)
+  }
+  return nil
+}
+
+func (p *EncryptionAlgorithm) Write(oprot thrift.TProtocol) error {
+  if c := p.CountSetFieldsEncryptionAlgorithm(); c != 1 {
+    return fmt.Errorf("%T write union: exactly one field must be set (%d set).", p, c)
+  }
+  if err := oprot.WriteStructBegin("EncryptionAlgorithm"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *EncryptionAlgorithm) writeField1(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAES_GCM_V1() {
+    if err := oprot.WriteFieldBegin("AES_GCM_V1", thrift.STRUCT, 1); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:AES_GCM_V1: ", p), err) }
+    if err := p.AES_GCM_V1.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.AES_GCM_V1), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 1:AES_GCM_V1: ", p), err) }
+  }
+  return err
+}
+
+func (p *EncryptionAlgorithm) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetAES_GCM_CTR_V1() {
+    if err := oprot.WriteFieldBegin("AES_GCM_CTR_V1", thrift.STRUCT, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:AES_GCM_CTR_V1: ", p), err) }
+    if err := p.AES_GCM_CTR_V1.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.AES_GCM_CTR_V1), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:AES_GCM_CTR_V1: ", p), err) }
+  }
+  return err
+}
+
+func (p *EncryptionAlgorithm) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("EncryptionAlgorithm(%+v)", *p)
+}
+
 // Description for file metadata
 // 
 // Attributes:
@@ -8197,6 +9280,11 @@ func (p *ColumnIndex) String() string {
 // 
 // The obsolete min and max fields are always sorted by signed comparison
 // regardless of column_orders.
+//  - EncryptionAlgorithm: Encryption algorithm. This field is set only in encrypted files
+// with plaintext footer. Files with encrypted footer store algorithm id
+// in FileCryptoMetaData structure.
+//  - FooterSigningKeyMetadata: Retrieval metadata of key used for signing the footer.
+// Used only in encrypted files with plaintext footer.
 type FileMetaData struct {
   Version int32 `thrift:"version,1,required" db:"version" json:"version"`
   Schema []*SchemaElement `thrift:"schema,2,required" db:"schema" json:"schema"`
@@ -8205,6 +9293,8 @@ type FileMetaData struct {
   KeyValueMetadata []*KeyValue `thrift:"key_value_metadata,5" db:"key_value_metadata" json:"key_value_metadata,omitempty"`
   CreatedBy *string `thrift:"created_by,6" db:"created_by" json:"created_by,omitempty"`
   ColumnOrders []*ColumnOrder `thrift:"column_orders,7" db:"column_orders" json:"column_orders,omitempty"`
+  EncryptionAlgorithm *EncryptionAlgorithm `thrift:"encryption_algorithm,8" db:"encryption_algorithm" json:"encryption_algorithm,omitempty"`
+  FooterSigningKeyMetadata []byte `thrift:"footer_signing_key_metadata,9" db:"footer_signing_key_metadata" json:"footer_signing_key_metadata,omitempty"`
 }
 
 func NewFileMetaData() *FileMetaData {
@@ -8244,6 +9334,18 @@ var FileMetaData_ColumnOrders_DEFAULT []*ColumnOrder
 func (p *FileMetaData) GetColumnOrders() []*ColumnOrder {
   return p.ColumnOrders
 }
+var FileMetaData_EncryptionAlgorithm_DEFAULT *EncryptionAlgorithm
+func (p *FileMetaData) GetEncryptionAlgorithm() *EncryptionAlgorithm {
+  if !p.IsSetEncryptionAlgorithm() {
+    return FileMetaData_EncryptionAlgorithm_DEFAULT
+  }
+return p.EncryptionAlgorithm
+}
+var FileMetaData_FooterSigningKeyMetadata_DEFAULT []byte
+
+func (p *FileMetaData) GetFooterSigningKeyMetadata() []byte {
+  return p.FooterSigningKeyMetadata
+}
 func (p *FileMetaData) IsSetKeyValueMetadata() bool {
   return p.KeyValueMetadata != nil
 }
@@ -8254,6 +9356,14 @@ func (p *FileMetaData) IsSetCreatedBy() bool {
 
 func (p *FileMetaData) IsSetColumnOrders() bool {
   return p.ColumnOrders != nil
+}
+
+func (p *FileMetaData) IsSetEncryptionAlgorithm() bool {
+  return p.EncryptionAlgorithm != nil
+}
+
+func (p *FileMetaData) IsSetFooterSigningKeyMetadata() bool {
+  return p.FooterSigningKeyMetadata != nil
 }
 
 func (p *FileMetaData) Read(iprot thrift.TProtocol) error {
@@ -8347,6 +9457,26 @@ func (p *FileMetaData) Read(iprot thrift.TProtocol) error {
           return err
         }
       }
+    case 8:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField8(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 9:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField9(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
     default:
       if err := iprot.Skip(fieldTypeId); err != nil {
         return err
@@ -8391,11 +9521,11 @@ func (p *FileMetaData)  ReadField2(iprot thrift.TProtocol) error {
   tSlice := make([]*SchemaElement, 0, size)
   p.Schema =  tSlice
   for i := 0; i < size; i ++ {
-    _elem11 := &SchemaElement{}
-    if err := _elem11.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem11), err)
+    _elem12 := &SchemaElement{}
+    if err := _elem12.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem12), err)
     }
-    p.Schema = append(p.Schema, _elem11)
+    p.Schema = append(p.Schema, _elem12)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8420,11 +9550,11 @@ func (p *FileMetaData)  ReadField4(iprot thrift.TProtocol) error {
   tSlice := make([]*RowGroup, 0, size)
   p.RowGroups =  tSlice
   for i := 0; i < size; i ++ {
-    _elem12 := &RowGroup{}
-    if err := _elem12.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem12), err)
+    _elem13 := &RowGroup{}
+    if err := _elem13.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem13), err)
     }
-    p.RowGroups = append(p.RowGroups, _elem12)
+    p.RowGroups = append(p.RowGroups, _elem13)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8440,11 +9570,11 @@ func (p *FileMetaData)  ReadField5(iprot thrift.TProtocol) error {
   tSlice := make([]*KeyValue, 0, size)
   p.KeyValueMetadata =  tSlice
   for i := 0; i < size; i ++ {
-    _elem13 := &KeyValue{}
-    if err := _elem13.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem13), err)
+    _elem14 := &KeyValue{}
+    if err := _elem14.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem14), err)
     }
-    p.KeyValueMetadata = append(p.KeyValueMetadata, _elem13)
+    p.KeyValueMetadata = append(p.KeyValueMetadata, _elem14)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
@@ -8469,15 +9599,32 @@ func (p *FileMetaData)  ReadField7(iprot thrift.TProtocol) error {
   tSlice := make([]*ColumnOrder, 0, size)
   p.ColumnOrders =  tSlice
   for i := 0; i < size; i ++ {
-    _elem14 := &ColumnOrder{}
-    if err := _elem14.Read(iprot); err != nil {
-      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem14), err)
+    _elem15 := &ColumnOrder{}
+    if err := _elem15.Read(iprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem15), err)
     }
-    p.ColumnOrders = append(p.ColumnOrders, _elem14)
+    p.ColumnOrders = append(p.ColumnOrders, _elem15)
   }
   if err := iprot.ReadListEnd(); err != nil {
     return thrift.PrependError("error reading list end: ", err)
   }
+  return nil
+}
+
+func (p *FileMetaData)  ReadField8(iprot thrift.TProtocol) error {
+  p.EncryptionAlgorithm = &EncryptionAlgorithm{}
+  if err := p.EncryptionAlgorithm.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.EncryptionAlgorithm), err)
+  }
+  return nil
+}
+
+func (p *FileMetaData)  ReadField9(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 9: ", err)
+} else {
+  p.FooterSigningKeyMetadata = v
+}
   return nil
 }
 
@@ -8492,6 +9639,8 @@ func (p *FileMetaData) Write(oprot thrift.TProtocol) error {
     if err := p.writeField5(oprot); err != nil { return err }
     if err := p.writeField6(oprot); err != nil { return err }
     if err := p.writeField7(oprot); err != nil { return err }
+    if err := p.writeField8(oprot); err != nil { return err }
+    if err := p.writeField9(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
@@ -8612,10 +9761,186 @@ func (p *FileMetaData) writeField7(oprot thrift.TProtocol) (err error) {
   return err
 }
 
+func (p *FileMetaData) writeField8(oprot thrift.TProtocol) (err error) {
+  if p.IsSetEncryptionAlgorithm() {
+    if err := oprot.WriteFieldBegin("encryption_algorithm", thrift.STRUCT, 8); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:encryption_algorithm: ", p), err) }
+    if err := p.EncryptionAlgorithm.Write(oprot); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.EncryptionAlgorithm), err)
+    }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 8:encryption_algorithm: ", p), err) }
+  }
+  return err
+}
+
+func (p *FileMetaData) writeField9(oprot thrift.TProtocol) (err error) {
+  if p.IsSetFooterSigningKeyMetadata() {
+    if err := oprot.WriteFieldBegin("footer_signing_key_metadata", thrift.STRING, 9); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:footer_signing_key_metadata: ", p), err) }
+    if err := oprot.WriteBinary(p.FooterSigningKeyMetadata); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.footer_signing_key_metadata (9) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 9:footer_signing_key_metadata: ", p), err) }
+  }
+  return err
+}
+
 func (p *FileMetaData) String() string {
   if p == nil {
     return "<nil>"
   }
   return fmt.Sprintf("FileMetaData(%+v)", *p)
+}
+
+// Crypto metadata for files with encrypted footer *
+// 
+// Attributes:
+//  - EncryptionAlgorithm: Encryption algorithm. This field is only used for files
+// with encrypted footer. Files with plaintext footer store algorithm id
+// inside footer (FileMetaData structure).
+//  - KeyMetadata: Retrieval metadata of key used for encryption of footer,
+// and (possibly) columns *
+type FileCryptoMetaData struct {
+  EncryptionAlgorithm *EncryptionAlgorithm `thrift:"encryption_algorithm,1,required" db:"encryption_algorithm" json:"encryption_algorithm"`
+  KeyMetadata []byte `thrift:"key_metadata,2" db:"key_metadata" json:"key_metadata,omitempty"`
+}
+
+func NewFileCryptoMetaData() *FileCryptoMetaData {
+  return &FileCryptoMetaData{}
+}
+
+var FileCryptoMetaData_EncryptionAlgorithm_DEFAULT *EncryptionAlgorithm
+func (p *FileCryptoMetaData) GetEncryptionAlgorithm() *EncryptionAlgorithm {
+  if !p.IsSetEncryptionAlgorithm() {
+    return FileCryptoMetaData_EncryptionAlgorithm_DEFAULT
+  }
+return p.EncryptionAlgorithm
+}
+var FileCryptoMetaData_KeyMetadata_DEFAULT []byte
+
+func (p *FileCryptoMetaData) GetKeyMetadata() []byte {
+  return p.KeyMetadata
+}
+func (p *FileCryptoMetaData) IsSetEncryptionAlgorithm() bool {
+  return p.EncryptionAlgorithm != nil
+}
+
+func (p *FileCryptoMetaData) IsSetKeyMetadata() bool {
+  return p.KeyMetadata != nil
+}
+
+func (p *FileCryptoMetaData) Read(iprot thrift.TProtocol) error {
+  if _, err := iprot.ReadStructBegin(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+  }
+
+  var issetEncryptionAlgorithm bool = false;
+
+  for {
+    _, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+    if err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+    }
+    if fieldTypeId == thrift.STOP { break; }
+    switch fieldId {
+    case 1:
+      if fieldTypeId == thrift.STRUCT {
+        if err := p.ReadField1(iprot); err != nil {
+          return err
+        }
+        issetEncryptionAlgorithm = true
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    case 2:
+      if fieldTypeId == thrift.STRING {
+        if err := p.ReadField2(iprot); err != nil {
+          return err
+        }
+      } else {
+        if err := iprot.Skip(fieldTypeId); err != nil {
+          return err
+        }
+      }
+    default:
+      if err := iprot.Skip(fieldTypeId); err != nil {
+        return err
+      }
+    }
+    if err := iprot.ReadFieldEnd(); err != nil {
+      return err
+    }
+  }
+  if err := iprot.ReadStructEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+  }
+  if !issetEncryptionAlgorithm{
+    return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field EncryptionAlgorithm is not set"));
+  }
+  return nil
+}
+
+func (p *FileCryptoMetaData)  ReadField1(iprot thrift.TProtocol) error {
+  p.EncryptionAlgorithm = &EncryptionAlgorithm{}
+  if err := p.EncryptionAlgorithm.Read(iprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.EncryptionAlgorithm), err)
+  }
+  return nil
+}
+
+func (p *FileCryptoMetaData)  ReadField2(iprot thrift.TProtocol) error {
+  if v, err := iprot.ReadBinary(); err != nil {
+  return thrift.PrependError("error reading field 2: ", err)
+} else {
+  p.KeyMetadata = v
+}
+  return nil
+}
+
+func (p *FileCryptoMetaData) Write(oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin("FileCryptoMetaData"); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
+  if p != nil {
+    if err := p.writeField1(oprot); err != nil { return err }
+    if err := p.writeField2(oprot); err != nil { return err }
+  }
+  if err := oprot.WriteFieldStop(); err != nil {
+    return thrift.PrependError("write field stop error: ", err) }
+  if err := oprot.WriteStructEnd(); err != nil {
+    return thrift.PrependError("write struct stop error: ", err) }
+  return nil
+}
+
+func (p *FileCryptoMetaData) writeField1(oprot thrift.TProtocol) (err error) {
+  if err := oprot.WriteFieldBegin("encryption_algorithm", thrift.STRUCT, 1); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:encryption_algorithm: ", p), err) }
+  if err := p.EncryptionAlgorithm.Write(oprot); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.EncryptionAlgorithm), err)
+  }
+  if err := oprot.WriteFieldEnd(); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T write field end error 1:encryption_algorithm: ", p), err) }
+  return err
+}
+
+func (p *FileCryptoMetaData) writeField2(oprot thrift.TProtocol) (err error) {
+  if p.IsSetKeyMetadata() {
+    if err := oprot.WriteFieldBegin("key_metadata", thrift.STRING, 2); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:key_metadata: ", p), err) }
+    if err := oprot.WriteBinary(p.KeyMetadata); err != nil {
+    return thrift.PrependError(fmt.Sprintf("%T.key_metadata (2) field write error: ", p), err) }
+    if err := oprot.WriteFieldEnd(); err != nil {
+      return thrift.PrependError(fmt.Sprintf("%T write field end error 2:key_metadata: ", p), err) }
+  }
+  return err
+}
+
+func (p *FileCryptoMetaData) String() string {
+  if p == nil {
+    return "<nil>"
+  }
+  return fmt.Sprintf("FileCryptoMetaData(%+v)", *p)
 }
 
