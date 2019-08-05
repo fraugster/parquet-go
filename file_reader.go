@@ -43,7 +43,8 @@ func (f *FileReader) ReadRowGroup() error {
 	if len(f.meta.RowGroups) <= f.rowGroupPosition {
 		return io.EOF
 	}
-	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition])
+	f.rowGroupPosition++
+	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
 // RawGroupCount return the number of row groups in file

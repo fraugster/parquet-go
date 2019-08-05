@@ -86,6 +86,11 @@ func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 	if dp.valuesCount = ph.DataPageHeader.NumValues; dp.valuesCount < 0 {
 		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
+	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+	if err != nil {
+		return err
+	}
+
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
 
@@ -93,16 +98,11 @@ func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		return err
 	}
 
-	if err := dp.dDecoder.initSize(r); err != nil {
+	if err := dp.dDecoder.initSize(reader); err != nil {
 		return err
 	}
 
-	if err := dp.rDecoder.initSize(r); err != nil {
-		return err
-	}
-
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
-	if err != nil {
+	if err := dp.rDecoder.initSize(reader); err != nil {
 		return err
 	}
 
