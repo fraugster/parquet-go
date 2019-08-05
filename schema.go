@@ -587,6 +587,7 @@ func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	}
 	c.data = data
 	c.flatName = name + "." + s.Name
+	c.name = s.Name
 	if name == "" {
 		c.flatName = s.Name
 	}
