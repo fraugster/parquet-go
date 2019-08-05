@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Int96 is a 96 bit integer from parquet spec
 type Int96 [12]byte
 
 type int96PlainDecoder struct {

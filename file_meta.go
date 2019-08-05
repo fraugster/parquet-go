@@ -11,7 +11,7 @@ import (
 
 var magic = []byte{'P', 'A', 'R', '1'}
 
-func ReadFileMetaData(r io.ReadSeeker) (*parquet.FileMetaData, error) {
+func readFileMetaData(r io.ReadSeeker) (*parquet.FileMetaData, error) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
 		return nil, errors.Wrap(err, "seek for the file magic header failed")
 	}

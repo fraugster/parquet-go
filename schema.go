@@ -698,13 +698,14 @@ type schemaCommon interface {
 	getSchemaArray() []*parquet.SchemaElement
 }
 
-// SchemaReader is a reader for the schema file
+// SchemaReader is a reader for the schema in file
 type SchemaReader interface {
 	schemaCommon
 	setNumRecords(int64)
 	GetData() (map[string]interface{}, error)
 }
 
+// SchemaWriter is a writer and generator for the schema
 type SchemaWriter interface {
 	schemaCommon
 

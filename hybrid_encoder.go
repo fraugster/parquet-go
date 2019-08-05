@@ -121,7 +121,7 @@ func (he *hybridEncoder) Close() error {
 
 	if he.original != nil {
 		data := he.w.(*bytes.Buffer).Bytes()
-		var size uint32 = uint32(len(data))
+		var size = uint32(len(data))
 		if err := binary.Write(he.original, binary.LittleEndian, size); err != nil {
 			return err
 		}

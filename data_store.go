@@ -7,7 +7,8 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// In memory (or maybe other type) of column store to buffer the column value before writing into a page
+// ColumnStore is in memory of column store to buffer the column value before writing into a page and read the values
+// in the reader mode
 type ColumnStore struct {
 	repTyp parquet.FieldRepetitionType
 
@@ -249,6 +250,7 @@ func NewInt32Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	return newStore(&int32Store{}, enc, allowDict), nil
 }
 
+// NewInt64Store creates a new int64 store
 func NewInt64Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
@@ -258,6 +260,7 @@ func NewInt64Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	return newStore(&int64Store{}, enc, allowDict), nil
 }
 
+// NewInt96Store creates a new int96 store
 func NewInt96Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -267,6 +270,7 @@ func NewInt96Store(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	return newStore(&int96Store{}, enc, allowDict), nil
 }
 
+// NewFloatStore creates a float (float32) store
 func NewFloatStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -276,6 +280,7 @@ func NewFloatStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	return newStore(&floatStore{}, enc, allowDict), nil
 }
 
+// NewDoubleStore creates a double (float64) store
 func NewDoubleStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -285,6 +290,7 @@ func NewDoubleStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) 
 	return newStore(&doubleStore{}, enc, allowDict), nil
 }
 
+// NewByteArrayStore creates a byte array storage
 func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
@@ -294,6 +300,7 @@ func NewByteArrayStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, erro
 	return newStore(&byteArrayStore{}, enc, allowDict), nil
 }
 
+// NewFixedByteArrayStore creates a fixed size byte array storage, all element in this storage should be the same size
 func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
@@ -309,6 +316,7 @@ func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (*Colum
 	}, enc, allowDict), nil
 }
 
+// NewStringStore creates a new string storage
 func NewStringStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
@@ -318,6 +326,7 @@ func NewStringStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) 
 	return newStore(&stringStore{}, enc, allowDict), nil
 }
 
+// NewUUIDStore create a new UUID store, the allowDict the allowDict is a hint for using dictionary
 func NewUUIDStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:

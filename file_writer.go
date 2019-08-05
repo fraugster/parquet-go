@@ -8,6 +8,7 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
+// FileWriter is a parquet file writer
 type FileWriter struct {
 	w writePos
 
@@ -21,6 +22,7 @@ type FileWriter struct {
 	rowGroups []*parquet.RowGroup
 }
 
+// NewFileWriter create a new writer. the version is the version of file itself
 func NewFileWriter(w io.Writer, version int32) *FileWriter {
 	return &FileWriter{
 		w: &writePosStruct{
@@ -35,10 +37,12 @@ func NewFileWriter(w io.Writer, version int32) *FileWriter {
 	}
 }
 
+// AddMeteData is for adding meta key value to the file
 func (fw *FileWriter) AddMeteData(key string, value string) {
 	fw.kvStore[key] = value
 }
 
+// FlushRowGroup is to write the row group into the file
 func (fw *FileWriter) FlushRowGroup(codec parquet.CompressionCodec) error {
 	// Write the entire row group
 	if fw.NumRecords() == 0 {
@@ -70,6 +74,7 @@ func (fw *FileWriter) FlushRowGroup(codec parquet.CompressionCodec) error {
 	return nil
 }
 
+// Close is the finalizer for the parquet file, you SHOULD call it to finalize the write
 func (fw *FileWriter) Close() error {
 	kv := make([]*parquet.KeyValue, 0, len(fw.kvStore))
 	for i := range fw.kvStore {

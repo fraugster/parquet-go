@@ -136,7 +136,7 @@ func (b *booleanRLEDecoder) init(r io.Reader) error {
 
 func (b *booleanRLEDecoder) decodeValues(dst []interface{}) (int, error) {
 	total := len(dst)
-	for i := 0; i < total; i += 1 {
+	for i := 0; i < total; i++ {
 		n, err := b.decoder.next()
 		if err != nil {
 			return i, err

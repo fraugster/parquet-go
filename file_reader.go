@@ -7,7 +7,7 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// File is the parquet file
+// FileReader is the parquet file reader
 type FileReader struct {
 	meta *parquet.FileMetaData
 	SchemaReader
@@ -18,7 +18,7 @@ type FileReader struct {
 
 // NewFileReader try to create a reader from a stream
 func NewFileReader(r io.ReadSeeker) (*FileReader, error) {
-	meta, err := ReadFileMetaData(r)
+	meta, err := readFileMetaData(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading file meta data failed")
 	}
@@ -46,6 +46,7 @@ func (f *FileReader) ReadRowGroup() error {
 	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition])
 }
 
+// RawGroupCount return the number of row groups in file
 func (f *FileReader) RawGroupCount() int {
 	return len(f.meta.RowGroups)
 }
