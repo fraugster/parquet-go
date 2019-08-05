@@ -68,32 +68,33 @@ func decodeRLEValue(bytes []byte) int32 {
 	}
 }
 
-func encodeRLEValue(in int32, size int) []byte {
-	switch size {
-	case 1:
-		return []byte{byte(in & 255)}
-	case 2:
-		return []byte{
-			byte(in & 255),
-			byte((in >> 8) & 255),
-		}
-	case 3:
-		return []byte{
-			byte(in & 255),
-			byte((in >> 8) & 255),
-			byte((in >> 16) & 255),
-		}
-	case 4:
-		return []byte{
-			byte(in & 255),
-			byte((in >> 8) & 255),
-			byte((in >> 16) & 255),
-			byte((in >> 24) & 255),
-		}
-	default:
-		panic("invalid argument")
-	}
-}
+// TODO: this is required for rleEncoder, since its used only in bitpack mode, its unused now.
+//func encodeRLEValue(in int32, size int) []byte {
+//	switch size {
+//	case 1:
+//		return []byte{byte(in & 255)}
+//	case 2:
+//		return []byte{
+//			byte(in & 255),
+//			byte((in >> 8) & 255),
+//		}
+//	case 3:
+//		return []byte{
+//			byte(in & 255),
+//			byte((in >> 8) & 255),
+//			byte((in >> 16) & 255),
+//		}
+//	case 4:
+//		return []byte{
+//			byte(in & 255),
+//			byte((in >> 8) & 255),
+//			byte((in >> 16) & 255),
+//			byte((in >> 24) & 255),
+//		}
+//	default:
+//		panic("invalid argument")
+//	}
+//}
 
 func writeFull(w io.Writer, buf []byte) error {
 	if len(buf) == 0 {
@@ -131,18 +132,6 @@ func writeThrift(tr thriftWriter, w io.Writer) error {
 	transport := &thrift.StreamTransport{Writer: w}
 	proto := thrift.NewTCompactProtocol(transport)
 	return tr.Write(proto)
-}
-
-func decodeUint16(d decoder, data []uint16) error {
-	for i := range data {
-		u, err := d.next()
-		if err != nil {
-			return err
-		}
-		data[i] = uint16(u)
-	}
-
-	return nil
 }
 
 func decodeInt32(d decoder, data []int32) error {
@@ -278,7 +267,7 @@ func encodeLevels(w io.Writer, max uint16, values []int32) error {
 	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
-func compare(a, b interface{}) bool {
+func equal(a, b interface{}) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
@@ -286,11 +275,11 @@ func compare(a, b interface{}) bool {
 	case int, int32, int64, string, bool, float64, float32:
 		return a == b
 	case []byte:
-		return bytes.Compare(a.([]byte), b.([]byte)) == 0
+		return bytes.Equal(a.([]byte), b.([]byte))
 	case Int96:
 		a1 := a.(Int96)
 		b1 := b.(Int96)
-		return bytes.Compare(a1[:], b1[:]) == 0
+		return bytes.Equal(a1[:], b1[:])
 	default:
 		panic("not supported type")
 	}

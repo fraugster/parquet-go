@@ -102,7 +102,7 @@ func (d *dictStore) assemble(null bool) []interface{} {
 func (d *dictStore) getIndex(in interface{}, size int) int32 {
 	for i := range d.values {
 		// TODO: Better compare?
-		if compare(d.values[i], in) {
+		if equal(d.values[i], in) {
 			return int32(i)
 		}
 	}
@@ -148,10 +148,6 @@ func (d *dictStore) numValues() int32 {
 
 func (d *dictStore) numDistinctValues() int32 {
 	return int32(len(d.values))
-}
-
-func (d *dictStore) numNullValue() int32 {
-	return d.nullCount
 }
 
 // sizes is an experimental guess for the dictionary size and real value size (when there is no dictionary)

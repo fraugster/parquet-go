@@ -12,6 +12,8 @@ type FileReader struct {
 	meta *parquet.FileMetaData
 	SchemaReader
 	reader io.ReadSeeker
+
+	rowGroupPosition int
 }
 
 // NewFileReader try to create a reader from a stream
@@ -36,7 +38,14 @@ func NewFileReader(r io.ReadSeeker) (*FileReader, error) {
 	}, nil
 }
 
+// ReadRowGroup read the next row group into memory
+func (f *FileReader) ReadRowGroup() error {
+	if len(f.meta.RowGroups) <= f.rowGroupPosition {
+		return io.EOF
+	}
+	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition])
+}
+
 func (f *FileReader) RawGroupCount() int {
 	return len(f.meta.RowGroups)
 }
-

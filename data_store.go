@@ -170,10 +170,6 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
 	}
 }
 
-func (cs *ColumnStore) repetitionLevels() []int32 {
-	return cs.rLevels
-}
-
 func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) *ColumnStore {
 	return &ColumnStore{
 		enc:              enc,

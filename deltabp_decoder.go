@@ -96,7 +96,7 @@ func (d *deltaBitPackDecoder32) readMiniBlockHeader() error {
 	}
 
 	for i := range d.miniBlockBitWidth {
-		if d.miniBlockBitWidth[i] < 0 || d.miniBlockBitWidth[i] > 32 {
+		if d.miniBlockBitWidth[i] > 32 {
 			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
 		}
 	}
@@ -186,10 +186,6 @@ type deltaBitPackDecoder64 struct {
 	miniBlockInt64           [8]int64
 }
 
-func (d *deltaBitPackDecoder64) initSize(r io.Reader) error {
-	return d.init(r)
-}
-
 func (d *deltaBitPackDecoder64) init(r io.Reader) error {
 	d.r = r
 
@@ -252,7 +248,7 @@ func (d *deltaBitPackDecoder64) readMiniBlockHeader() error {
 	}
 
 	for i := range d.miniBlockBitWidth {
-		if d.miniBlockBitWidth[i] < 0 || d.miniBlockBitWidth[i] > 64 {
+		if d.miniBlockBitWidth[i] > 64 {
 			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
 		}
 	}
