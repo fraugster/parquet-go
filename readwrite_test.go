@@ -18,7 +18,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, 0)
+	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create fooStore")
@@ -36,13 +36,11 @@ func TestWriteThenReadFile(t *testing.T) {
 
 	for idx := 0; idx < numRecords; idx++ {
 		if idx > 0 && idx%flushLimit == 0 {
-			require.NoError(t, w.FlushRowGroup(parquet.CompressionCodec_SNAPPY), "%d. AddData failed", idx)
+			require.NoError(t, w.FlushRowGroup(), "%d. AddData failed", idx)
 		}
 
 		require.NoError(t, w.AddData(map[string]interface{}{"foo": int64(idx), "bar": "value" + fmt.Sprint(idx)}), "%d. AddData failed", idx)
 	}
-
-	require.NoError(t, w.FlushRowGroup(parquet.CompressionCodec_SNAPPY), "Flushing row group failed")
 
 	assert.NoError(t, w.Close(), "Close failed")
 
