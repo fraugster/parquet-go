@@ -201,7 +201,7 @@ func (r *schema) ensureRoot() {
 	if r.root == nil {
 		r.root = &column{
 			index:    0,
-			name:     "go_parquet_root", // TODO: Make it configurable
+			name:     "",
 			flatName: "",
 			data:     nil,
 			children: []*column{},
@@ -215,7 +215,10 @@ func (r *schema) ensureRoot() {
 
 func (r *schema) getSchemaArray() []*parquet.SchemaElement {
 	r.ensureRoot()
-	return r.root.getSchemaArray()
+	elem := r.root.getSchemaArray()
+	// the root doesn't have repetition type
+	elem[0].RepetitionType = nil
+	return elem
 }
 
 func (r *schema) Columns() Columns {
@@ -369,6 +372,9 @@ func recursiveFix(col *column, path string, maxR, maxD uint16) {
 	col.maxR = maxR
 	col.maxD = maxD
 	col.flatName = path + "." + col.name
+	if path == "" {
+		col.flatName = col.name
+	}
 	if col.data != nil {
 		return
 	}

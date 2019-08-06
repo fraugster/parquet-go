@@ -5,31 +5,29 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/fraugster/parquet-go/parquet"
 )
 
 func TestWriteThenReadFile(t *testing.T) {
-	os.Mkdir("files", 0755)
+	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatalf("creating file failed: %v", err)
-	}
+	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, 0)
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
-	if err != nil {
-		t.Fatalf("failed to create fooStore: %v", err)
-	}
+	require.NoError(t, err, "failed to create fooStore")
 
-	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true)
-	if err != nil {
-		t.Fatalf("failed to create barStore: %v", err)
-	}
+	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create barStore")
 
-	w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED))
-	w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
 
 	const (
 		numRecords = 10000
@@ -38,26 +36,17 @@ func TestWriteThenReadFile(t *testing.T) {
 
 	for idx := 0; idx < numRecords; idx++ {
 		if idx > 0 && idx%flushLimit == 0 {
-			if err := w.FlushRowGroup(parquet.CompressionCodec_SNAPPY); err != nil {
-				t.Fatalf("Flushing row group failed: %v", err)
-			}
+			require.NoError(t, w.FlushRowGroup(parquet.CompressionCodec_SNAPPY), "%d. AddData failed", idx)
 		}
 
-		if err := w.AddData(map[string]interface{}{"foo": int64(idx), "bar": []byte(fmt.Sprint(idx))}); err != nil {
-			t.Fatalf("%d. AddData failed: %v", idx, err)
-		}
-
+		require.NoError(t, w.AddData(map[string]interface{}{"foo": int64(idx), "bar": "value" + fmt.Sprint(idx)}), "%d. AddData failed", idx)
 	}
 
-	if err := w.FlushRowGroup(parquet.CompressionCodec_SNAPPY); err != nil {
-		t.Fatalf("Flushing row group failed: %v", err)
-	}
+	require.NoError(t, w.FlushRowGroup(parquet.CompressionCodec_SNAPPY), "Flushing row group failed")
 
-	if err := w.Close(); err != nil {
-		t.Logf("Close failed: %v", err)
-	}
+	assert.NoError(t, w.Close(), "Close failed")
 
-	wf.Close()
+	require.NoError(t, wf.Close())
 
 	rf, err := os.Open("files/test.parquet")
 	if err != nil {

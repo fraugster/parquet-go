@@ -397,6 +397,7 @@ func readPageData(col Column, dict *dictPageReader, pages []pageReader) error {
 		s.values.values = dict.values
 	}
 	for i := range pages {
+		// TODO: reuse data
 		data := make([]interface{}, pages[i].numValues())
 		n, dl, rl, err := pages[i].readValues(data)
 		if err != nil {

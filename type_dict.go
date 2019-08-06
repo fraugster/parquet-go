@@ -79,6 +79,7 @@ func (d *dictStore) init() {
 	d.values = d.values[:0]
 	d.data = d.data[:0]
 	d.nullCount = 0
+	d.readPos = 0
 }
 
 func (d *dictStore) assemble(null bool) []interface{} {

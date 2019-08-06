@@ -61,6 +61,7 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType) {
 	cs.dLevels = cs.dLevels[:0]
 	cs.rLevels = cs.rLevels[:0]
 	cs.rep = cs.rep[:0]
+	cs.readPos = 0
 
 	cs.typedColumnStore.reset(rep)
 }
