@@ -73,7 +73,7 @@ func customerMapTest(parquet, csvFl string) func(t *testing.T) {
 	}
 }
 
-func TestByteReader(t *testing.T) {
+func TestCompatibility(t *testing.T) {
 	root := os.Getenv("PARQUET_COMPATIBILITY_REPO_ROOT")
 	if root == "" {
 		t.Skip("The PARQUET_COMPATIBILITY_REPO_ROOT is missing, skip the tests")

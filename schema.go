@@ -7,11 +7,17 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// TODO: Add MAP support
+// TODO: Add MAP and LIST support
 
 // TODO: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple
 // reader but its better to add concurrency support to the file reader itself
 // TODO: add validation so every parent at least have one child.
+
+const (
+	_ int = iota
+	listParent
+	mapParent
+)
 
 type column struct {
 	index          int
@@ -24,7 +30,7 @@ type column struct {
 
 	maxR, maxD uint16
 
-	listParent bool // TODO: adding a boolean is always a problem on alignment of the struct, but let it be
+	parent int // one of noParent, listParent, mapParent
 	// for the reader we should read this element from the meta, for the writer we need to build this element
 	element *parquet.SchemaElement
 }
@@ -93,13 +99,21 @@ func (c *column) buildElement() *parquet.SchemaElement {
 		elem.LogicalType = c.data.logicalType()
 	} else {
 		nc := int32(len(c.children))
-		if c.listParent {
+		switch c.parent {
+		case listParent:
 			ct := parquet.ConvertedType_LIST
 			elem.ConvertedType = &ct
 			elem.LogicalType = &parquet.LogicalType{
 				LIST: &parquet.ListType{},
 			}
+		case mapParent:
+			ct := parquet.ConvertedType_MAP
+			elem.ConvertedType = &ct
+			elem.LogicalType = &parquet.LogicalType{
+				MAP: &parquet.MapType{},
+			}
 		}
+
 		elem.NumChildren = &nc
 	}
 
@@ -326,15 +340,52 @@ func NewListColumn(element Column, rep parquet.FieldRepetitionType) (Column, err
 
 	c.name = "element"
 	return &column{
-		data:       nil,
-		rep:        rep,
-		listParent: true,
+		data:   nil,
+		rep:    rep,
+		parent: listParent,
 		children: []*column{
 			{
 				name:     "list",
 				data:     nil,
 				rep:      parquet.FieldRepetitionType_REPEATED,
 				children: []*column{c},
+			},
+		},
+	}, nil
+}
+
+// NewListColumn return a new LIST in parquet file
+func NewMapColumn(key, value Column, rep parquet.FieldRepetitionType) (Column, error) {
+	// the higher level element doesn't need name, but all lower level does.
+	k, ok := key.(*column)
+	if !ok {
+		return nil, errors.Errorf("type %T is not supported, use the NewDataColumn or NewListColumn to create the column", key)
+	}
+
+	v, ok := value.(*column)
+	if !ok {
+		return nil, errors.Errorf("type %T is not supported, use the NewDataColumn or NewListColumn to create the column", value)
+	}
+
+	if k.rep != parquet.FieldRepetitionType_REQUIRED {
+		return nil, errors.New("the key repetition type should be REQUIRED")
+	}
+
+	k.name = "key"
+	v.name = "value"
+	return &column{
+		data:   nil,
+		rep:    rep,
+		parent: mapParent,
+		children: []*column{
+			{
+				name: "key_value",
+				data: nil,
+				rep:  parquet.FieldRepetitionType_REPEATED,
+				children: []*column{
+					k,
+					v,
+				},
 			},
 		},
 	}, nil
@@ -411,9 +462,15 @@ func (r *schema) addColumnOrGroup(path string, col *column) error {
 				break
 			}
 		}
+
 		if !found {
 			return errors.Errorf("path %s failed on %q", path, pa[i])
 		}
+
+		if c.parent != 0 {
+			return errors.New("can not add a new column to a list or map logical type")
+		}
+
 		if c.children == nil && i < len(pa)-1 {
 			return errors.Errorf("path %s is not parent at %q", path, pa[i])
 		}
@@ -524,6 +581,8 @@ func recursiveAddColumnData(c []*column, m interface{}, defLvl uint16, maxRepLvl
 			if c[i].rep != parquet.FieldRepetitionType_REQUIRED && d != nil {
 				l++
 			}
+
+			// TODO: Transform data  into acceptable type if this is a LIST or MAP
 
 			switch v := d.(type) {
 			case nil:

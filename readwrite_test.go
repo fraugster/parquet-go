@@ -49,52 +49,25 @@ func TestWriteThenReadFile(t *testing.T) {
 	require.NoError(t, wf.Close())
 
 	rf, err := os.Open("files/test.parquet")
-	if err != nil {
-		t.Fatalf("opening file failed: %v", err)
-	}
+	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
 	r, err := NewFileReader(rf)
-	if err != nil {
-		t.Fatalf("creating file reader failed: %v", err)
-	}
+	require.NoError(t, err, "creating file reader failed")
 
 	cols := r.Columns()
-
-	if len(cols) != 2 {
-		t.Fatalf("expected 2 columns, got %d instead", len(cols))
-	}
-
-	if cols[0].Name() != "foo" {
-		t.Errorf("column 0 doesn't have the name foo")
-	}
-	if cols[0].FlatName() != "foo" {
-		t.Errorf("column 0 doesn't have the flat name foo")
-	}
-	if cols[1].Name() != "bar" {
-		t.Errorf("column 0 doesn't have the name bar")
-	}
-	if cols[1].FlatName() != "bar" {
-		t.Errorf("column 0 doesn't have the flat name bar")
-	}
-
-	t.Logf("raw group count: %d", r.RawGroupCount())
-
+	require.Len(t, cols, 2, fmt.Sprintf("expected 2 columns, got %d instead", len(cols)))
+	require.Equal(t, "foo", cols[0].Name())
+	require.Equal(t, "foo", cols[0].FlatName())
+	require.Equal(t, "bar", cols[1].Name())
+	require.Equal(t, "bar", cols[1].FlatName())
 	for g := 0; g < r.RawGroupCount(); g++ {
-		if err := r.ReadRowGroup(); err != nil {
-			t.Fatalf("Reading row group failed: %v", err)
-		}
-
-		t.Logf("row group %d, got %d records", g, r.NumRecords())
-
+		require.NoError(t, r.ReadRowGroup(), "Reading row group failed")
 		for i := 0; i < int(r.NumRecords()); i++ {
 			data, err := r.GetData()
-			if err != nil {
-				t.Fatalf("getting record %d failed: %v", i, err)
-			}
-			if _, ok := data["foo"]; !ok {
-				t.Errorf("record doesn't contain expected field foo: %#v", data)
-			}
+			require.NoError(t, err)
+			_, ok := data["foo"]
+			require.True(t, ok)
 		}
 	}
 }
