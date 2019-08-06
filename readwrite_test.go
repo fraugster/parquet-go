@@ -12,6 +12,7 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
+/*
 func TestReadFile(t *testing.T) {
 	rf, err := os.Open("files/pilot_random.parquet")
 	if err != nil {
@@ -26,6 +27,7 @@ func TestReadFile(t *testing.T) {
 
 	fmt.Printf("%s", r.SchemaReader.String())
 }
+*/
 
 func TestWriteThenReadFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
