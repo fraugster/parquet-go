@@ -232,7 +232,7 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (*dictPageReader, []pageReader, error) {
+func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
 	var (
 		dictPage *dictPageReader
 		pages    []pageReader
@@ -244,26 +244,26 @@ func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, d
 		}
 		ph := &parquet.PageHeader{}
 		if err := readThrift(ph, r); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if ph.Type == parquet.PageType_DICTIONARY_PAGE {
 			if dictPage != nil {
-				return nil, nil, errors.New("there should be only one dictionary")
+				return nil, errors.New("there should be only one dictionary")
 			}
 			p := &dictPageReader{}
 			de, err := getDictValuesDecoder(col.Element())
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			if err := p.init(de); err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 
 			// re-use the value dictionary store
 			p.values = col.getColumnStore().values.values
 			if err := p.read(r, ph, chunkMeta.Codec); err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 
 			dictPage = p
@@ -272,7 +272,7 @@ func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, d
 			if chunkMeta.DictionaryPageOffset != nil {
 				if *chunkMeta.DictionaryPageOffset != r.offset {
 					if _, err := r.Seek(chunkMeta.DataPageOffset, io.SeekStart); err != nil {
-						return nil, nil, err
+						return nil, err
 					}
 				}
 			}
@@ -290,7 +290,7 @@ func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, d
 				ph: ph,
 			}
 		default:
-			return nil, nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
+			return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
 		}
 		var dictValue []interface{}
 		if dictPage != nil {
@@ -300,21 +300,21 @@ func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, d
 			return getValuesDecoder(typ, col.Element(), dictValue)
 		}
 		if err := p.init(dDecoder, rDecoder, fn); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if err := p.read(r, ph, chunkMeta.Codec); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		pages = append(pages, p)
 	}
 
-	return dictPage, pages, nil
+	return pages, nil
 }
 
-func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) (*dictPageReader, []pageReader, error) {
+func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
 	if chunk.FilePath != nil {
-		return nil, nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
+		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
 
 	c := col.Index()
@@ -322,11 +322,11 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) (*dictPa
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return nil, nil, errors.Errorf("missing meta data for column %c", c)
+		return nil, errors.Errorf("missing meta data for column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return nil, nil, errors.Errorf("wrong type in column chunk metadata, expected %s was %s",
+		return nil, errors.Errorf("wrong type in column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -337,7 +337,7 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) (*dictPa
 	// Seek to the beginning of the first Page
 	_, err := r.Seek(offset, io.SeekStart)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	reader := &offsetReader{
@@ -391,11 +391,8 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) (*dictPa
 	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
-func readPageData(col Column, dict *dictPageReader, pages []pageReader) error {
+func readPageData(col Column, pages []pageReader) error {
 	s := col.getColumnStore()
-	if dict != nil {
-		s.values.values = dict.values
-	}
 	for i := range pages {
 		// TODO: reuse data
 		data := make([]interface{}, pages[i].numValues())
@@ -427,11 +424,11 @@ func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGr
 	for _, c := range dataCols {
 		chunk := rowGroups.Columns[c.Index()]
 		// TODO : Safe cast
-		dict, pages, err := readChunk(r, c, chunk)
+		pages, err := readChunk(r, c, chunk)
 		if err != nil {
 			return err
 		}
-		if err := readPageData(c, dict, pages); err != nil {
+		if err := readPageData(c, pages); err != nil {
 			return err
 		}
 	}

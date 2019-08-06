@@ -3,7 +3,11 @@ stages:
   - build
   - test
 
+variables:
+  PARQUET_COMPATIBILITY_REPO_ROOT: /tmp/parquet-compatibility
+
 before_script:
+  - git clone https://github.com/Parquet/parquet-compatibility.git ${PARQUET_COMPATIBILITY_REPO_ROOT}
   - cd /builds/core-pod/parquet-go
 
 test-parquet-go:
