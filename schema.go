@@ -1,6 +1,9 @@
 package go_parquet
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -729,14 +732,15 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	r.readOnly = 1
 	var err error
 	for idx := 0; idx < len(schema); {
-		c := &column{}
 		if schema[idx].Type == nil {
+			c := &column{}
 			idx, err = c.readGroupSchema(schema, "", idx, 0, 0)
 			if err != nil {
 				return err
 			}
 			r.root.children = append(r.root.children, c)
 		} else {
+			c := &column{}
 			idx, err = c.readColumnSchema(schema, "", idx, 0, 0)
 			if err != nil {
 				return err
@@ -748,6 +752,101 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	return nil
 }
 
+func printIndent(w io.Writer, indent int) {
+	for i := 0; i < indent; i++ {
+		fmt.Fprintf(w, " ")
+	}
+}
+
+func printCols(w io.Writer, cols []*column, indent int) {
+	for _, col := range cols {
+		printIndent(w, indent)
+
+		switch col.element.GetRepetitionType() {
+		case parquet.FieldRepetitionType_REPEATED:
+			fmt.Fprintf(w, "repeated")
+		case parquet.FieldRepetitionType_OPTIONAL:
+			fmt.Fprintf(w, "optional")
+		case parquet.FieldRepetitionType_REQUIRED:
+			fmt.Fprintf(w, "required")
+		}
+		fmt.Fprintf(w, " ")
+
+		if col.element.Type == nil {
+			fmt.Fprintf(w, "group %s", col.element.GetName())
+			if col.element.ConvertedType != nil {
+				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(col.element.GetConvertedType()))
+			}
+			fmt.Fprintf(w, " {\n")
+			printCols(w, col.children, indent+2)
+
+			printIndent(w, indent)
+			fmt.Fprintf(w, "}\n")
+		} else {
+			typ := getSchemaType(col.element.GetType())
+			fmt.Fprintf(w, "%s %s", typ, col.element.GetName())
+			if col.element.ConvertedType != nil {
+				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(col.element.GetConvertedType()))
+			}
+			if col.element.FieldID != nil {
+				fmt.Fprintf(w, " = %d", col.element.GetFieldID())
+			}
+			fmt.Fprintf(w, ";\n")
+		}
+	}
+}
+
+func getSchemaType(t parquet.Type) string {
+	switch t {
+
+	case parquet.Type_BYTE_ARRAY:
+		return "binary"
+	case parquet.Type_FLOAT:
+		return "float"
+	case parquet.Type_DOUBLE:
+		return "double"
+	case parquet.Type_BOOLEAN:
+		return "boolean"
+	case parquet.Type_INT32:
+		return "int32"
+	case parquet.Type_INT64:
+		return "int64"
+	case parquet.Type_INT96:
+		return "int96"
+	}
+	return fmt.Sprintf("UT:%s", t)
+}
+
+func getSchemaConvertedType(t parquet.ConvertedType) string {
+	switch t {
+	case parquet.ConvertedType_UTF8:
+		return "STRING"
+	case parquet.ConvertedType_LIST:
+		return "LIST"
+	case parquet.ConvertedType_MAP:
+		return "MAP"
+	case parquet.ConvertedType_MAP_KEY_VALUE:
+		return "MAP_KEY_VALUE"
+	}
+	return fmt.Sprintf("UC:%s", t)
+}
+
+func (r *schema) String() string {
+	if r.root == nil {
+		return "<nil>"
+	}
+
+	buf := new(bytes.Buffer)
+
+	fmt.Fprintf(buf, "message %s {\n", r.root.Name())
+
+	printCols(buf, r.root.children, 2)
+
+	fmt.Fprintf(buf, "}\n")
+
+	return buf.String()
+}
+
 func (r *schema) NumRecords() int64 {
 	return r.numRecords
 }
@@ -757,6 +856,9 @@ type schemaCommon interface {
 	Columns() Columns
 	// Return a column by its name
 	GetColumnByName(path string) Column
+
+	// String returns the string representation of the schema
+	String() string
 
 	NumRecords() int64
 	// Internal functions
