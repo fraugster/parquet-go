@@ -142,7 +142,6 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 }
 
 func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
-	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
 	// if it is nested or it is not repeated we need the dLevel data

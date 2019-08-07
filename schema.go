@@ -22,7 +22,7 @@ const (
 type column struct {
 	index          int
 	name, flatName string
-	// one of the following could be not null. data or children
+	// one of the following should be not null. data or children
 	data     *ColumnStore
 	children []*column
 

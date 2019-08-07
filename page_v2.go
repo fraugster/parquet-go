@@ -3,6 +3,7 @@ package go_parquet
 import (
 	"bytes"
 	"io"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
@@ -110,14 +111,18 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		if err != nil {
 			return errors.Wrapf(err, "need to read %d byte but there was only %d byte", levelsSize, n)
 		}
-		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
-				return errors.Wrapf(err, "read repetition level failed")
-			}
-		}
+
+		// In this image https://camo.githubusercontent.com/0f0b52f7405720585ed7303c9ff317f272ebba19/68747470733a2f2f7261772e6769746875622e636f6d2f6170616368652f706172717565742d666f726d61742f6d61737465722f646f632f696d616765732f46696c654c61796f75742e676966
+		// the repetition is before definition, but page v1 is different TODO: verify this
 		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
 			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
 				return errors.Wrapf(err, "read definition level failed")
+			}
+		}
+
+		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
+			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
+				return errors.Wrapf(err, "read repetition level failed")
 			}
 		}
 	}
@@ -129,4 +134,96 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 	}
 
 	return dp.valuesDecoder.init(reader)
+}
+
+type dataPageWriterV2 struct {
+	col    *column
+	schema SchemaWriter
+
+	codec      parquet.CompressionCodec
+	dictionary bool
+}
+
+func (dp *dataPageWriterV2) init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error {
+	dp.col = col
+	dp.codec = codec
+	dp.schema = schema
+	return nil
+}
+
+func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool) *parquet.PageHeader {
+	ph := &parquet.PageHeader{
+		Type:                 parquet.PageType_DATA_PAGE,
+		UncompressedPageSize: int32(unComp),
+		CompressedPageSize:   int32(comp),
+		Crc:                  nil, // TODO: add crc?
+		DataPageHeaderV2: &parquet.DataPageHeaderV2{
+			NumValues:                  dp.col.data.values.numValues(),
+			NumNulls:                   dp.col.data.values.nullValueCount(),
+			NumRows:                    int32(dp.schema.NumRecords()),
+			Encoding:                   dp.col.data.encoding(),
+			DefinitionLevelsByteLength: int32(defSize),
+			RepetitionLevelsByteLength: int32(repSize),
+			IsCompressed:               isCompressed,
+			Statistics:                 nil,
+		},
+	}
+	return ph
+}
+
+func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
+	// In V2 data page is compressed separately
+	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
+
+	def := &bytes.Buffer{}
+	// if it is nested or it is not repeated we need the dLevel data
+	if nested || dp.col.data.repetitionType() != parquet.FieldRepetitionType_REQUIRED {
+		if err := encodeLevels(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	rep := &bytes.Buffer{}
+	// if this is nested or if the data is repeated
+	if nested || dp.col.data.repetitionType() == parquet.FieldRepetitionType_REPEATED {
+		if err := encodeLevels(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	dataBuf := &bytes.Buffer{}
+	enc := dp.col.data.encoding()
+	if dp.dictionary {
+		enc = parquet.Encoding_RLE_DICTIONARY
+	}
+
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble(false)); err != nil {
+		return 0, 0, err
+	}
+
+	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)
+	if err != nil {
+		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
+	}
+	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
+	defLen, repLen := def.Len(), rep.Len()
+	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED)
+	if err := writeThrift(header, w); err != nil {
+		return 0, 0, err
+	}
+
+	if err := writeFull(w, def.Bytes()); err != nil {
+		return 0, 0, err
+	}
+
+	if err := writeFull(w, rep.Bytes()); err != nil {
+		return 0, 0, err
+	}
+
+	return compSize + defLen + repLen, unCompSize + defLen + repLen, writeFull(w, comp)
 }

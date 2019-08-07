@@ -147,6 +147,10 @@ func (d *dictStore) numValues() int32 {
 	return int32(len(d.data))
 }
 
+func (d *dictStore) nullValueCount() int32 {
+	return d.nullCount
+}
+
 func (d *dictStore) numDistinctValues() int32 {
 	return int32(len(d.values))
 }
