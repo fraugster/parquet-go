@@ -22,6 +22,8 @@ type Column interface {
 	Element() *parquet.SchemaElement
 
 	getColumnStore() *ColumnStore
+
+	getDataSize() int64
 }
 
 // Columns array of the column

@@ -13,11 +13,14 @@ type FileWriter struct {
 	w writePos
 
 	version int32
+	// TODO: make it internal, its not good to expose the schema here
 	SchemaWriter
 
 	totalNumRecords int64
 	kvStore         map[string]string
 	createdBy       string
+
+	rowGroupFlushSize int64
 
 	rowGroups []*parquet.RowGroup
 
@@ -69,9 +72,23 @@ func CompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
 	}
 }
 
-// AddMetaData is for adding meta key value to the file
-func (fw *FileWriter) AddMetaData(key string, value string) {
-	fw.kvStore[key] = value
+// MetaData set the meta data on the file
+func MetaData(data map[string]string) FileWriterOption {
+	return func(fw *FileWriter) {
+		if data != nil {
+			fw.kvStore = data
+			return
+		}
+		fw.kvStore = make(map[string]string)
+	}
+}
+
+// MaxRowGroupSize sets the rough maximum size of a row group before it shall
+// be flushed automatically.
+func MaxRowGroupSize(size int64) FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.rowGroupFlushSize = size
+	}
 }
 
 // FlushRowGroup is to write the row group into the file
@@ -102,6 +119,20 @@ func (fw *FileWriter) FlushRowGroup() error {
 	fw.totalNumRecords += fw.NumRecords()
 	// flush the schema
 	fw.SchemaWriter.resetData()
+
+	return nil
+}
+
+// AddData add a new record to the current row group and flush it if the auto flush is enabled and the size
+// is more than the auto flush size
+func (fw *FileWriter) AddData(m map[string]interface{}) error {
+	if err := fw.SchemaWriter.AddData(m); err != nil {
+		return err
+	}
+
+	if fw.rowGroupFlushSize > 0 && fw.SchemaWriter.DataSize() >= fw.rowGroupFlushSize {
+		return fw.FlushRowGroup()
+	}
 
 	return nil
 }
@@ -143,4 +174,11 @@ func (fw *FileWriter) Close() error {
 	}
 
 	return writeFull(fw.w, magic)
+}
+
+// CurrentRowGroupSize is the size of current row group data (not including definition/repetition levels and parquet headers
+// just a rough estimation of data size in plain format, uncompressed. if the encoding is different than plain, the finall
+// size depends on the data
+func (fw *FileWriter) CurrentRowGroupSize() int64 {
+	return fw.SchemaWriter.DataSize()
 }

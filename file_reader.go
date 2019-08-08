@@ -10,6 +10,7 @@ import (
 // FileReader is the parquet file reader
 type FileReader struct {
 	meta *parquet.FileMetaData
+	// TODO: make it internal, its not good to expose the schema here
 	SchemaReader
 	reader io.ReadSeeker
 

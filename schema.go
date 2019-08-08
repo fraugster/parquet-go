@@ -123,6 +123,14 @@ func (c *column) buildElement() *parquet.SchemaElement {
 	return elem
 }
 
+func (c *column) getDataSize() int64 {
+	if _, ok := c.data.typedColumnStore.(*booleanStore); ok {
+		// Booleans are stored in one bit, so the result is the number of items / 8
+		return int64(c.data.values.numValues())/8 + 1
+	}
+	return c.data.values.size
+}
+
 func (c *column) getNextData() (map[string]interface{}, error) {
 	if c.children == nil {
 		return nil, errors.New("bug: call getNextData on non group node")
@@ -847,6 +855,17 @@ func (r *schema) String() string {
 	return buf.String()
 }
 
+// DataSize return the size of data stored in the schema right now
+func (r *schema) DataSize() int64 {
+	cols := r.Columns()
+	var size int64
+	for i := range cols {
+		size += cols[i].getDataSize()
+	}
+
+	return size
+}
+
 func (r *schema) NumRecords() int64 {
 	return r.numRecords
 }
@@ -880,6 +899,7 @@ type SchemaWriter interface {
 	AddData(m map[string]interface{}) error
 	AddGroup(path string, rep parquet.FieldRepetitionType) error
 	AddColumn(path string, col Column) error
+	DataSize() int64
 }
 
 func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
