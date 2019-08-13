@@ -241,27 +241,13 @@ loop:
 type schemaParser struct {
 	l     *schemaLexer
 	token item
-	msg   schemaMessage
-}
-
-type schemaMessage struct {
-	name string
-	cols []*schemaColumn
-}
-
-type schemaColumn struct {
-	name          string
-	repType       parquet.FieldRepetitionType
-	isGroup       bool
-	typ           string
-	convertedType string
-	fieldID       *int
-	children      []*schemaColumn
+	root  *column
 }
 
 func newSchemaParser(text string) *schemaParser {
 	return &schemaParser{
-		l: lex(text),
+		l:    lex(text),
+		root: &column{},
 	}
 }
 
@@ -272,6 +258,10 @@ func (p *schemaParser) parse() (err error) {
 
 	p.next()
 	p.expect(itemEOF)
+
+	for _, c := range p.root.children {
+		fixFlatName("", c)
+	}
 
 	return nil
 }
@@ -309,18 +299,21 @@ func (p *schemaParser) parseMessage() {
 	p.next()
 	p.expect(itemIdentifier)
 
-	p.msg.name = p.token.val
+	p.root.name = p.token.val
+
+	// TODO: add support for logical type annotations as mentioned here:
+	// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/schema/MessageType.java#L65
 
 	p.next()
 	p.expect(itemLeftBrace)
 
-	p.msg.cols = p.parseMessageBody()
+	p.root.children = p.parseMessageBody()
 
 	p.expect(itemRightBrace)
 }
 
-func (p *schemaParser) parseMessageBody() []*schemaColumn {
-	var cols []*schemaColumn
+func (p *schemaParser) parseMessageBody() []*column {
+	var cols []*column
 	for {
 		p.next()
 		if p.token.typ == itemRightBrace {
@@ -331,23 +324,24 @@ func (p *schemaParser) parseMessageBody() []*schemaColumn {
 	}
 }
 
-func (p *schemaParser) parseColumnDefinition() *schemaColumn {
-	col := &schemaColumn{}
+func (p *schemaParser) parseColumnDefinition() *column {
+	col := &column{
+		element: &parquet.SchemaElement{},
+	}
 
 	switch p.token.typ {
 	case itemRepeated:
-		col.repType = parquet.FieldRepetitionType_REPEATED
+		col.rep = parquet.FieldRepetitionType_REPEATED
 	case itemOptional:
-		col.repType = parquet.FieldRepetitionType_OPTIONAL
+		col.rep = parquet.FieldRepetitionType_OPTIONAL
 	case itemRequired:
-		col.repType = parquet.FieldRepetitionType_REQUIRED
+		col.rep = parquet.FieldRepetitionType_REQUIRED
 	default:
 		p.errorf("invalid field repetition type %q", p.token.val)
 	}
 
 	p.next()
 	if p.token.typ == itemGroup {
-		col.isGroup = true
 
 		p.next()
 		p.expect(itemIdentifier)
@@ -355,7 +349,7 @@ func (p *schemaParser) parseColumnDefinition() *schemaColumn {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.convertedType = p.parseConvertedType()
+			col.element.ConvertedType = p.parseConvertedType()
 		}
 
 		p.next()
@@ -365,8 +359,8 @@ func (p *schemaParser) parseColumnDefinition() *schemaColumn {
 
 		p.expect(itemRightBrace)
 	} else {
-		col.typ = p.token.val
-		p.isValidType(col.typ)
+		col.element.Type = p.getTokenType()
+		col.data = p.getColumnStore(col.element)
 
 		p.next()
 		p.expect(itemIdentifier)
@@ -374,17 +368,20 @@ func (p *schemaParser) parseColumnDefinition() *schemaColumn {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.convertedType = p.parseConvertedType()
+			col.element.ConvertedType = p.parseConvertedType()
 			p.next()
 		}
 
 		if p.token.typ == itemEqual {
-			col.fieldID = p.parseFieldID()
+			col.element.FieldID = p.parseFieldID()
 			p.next()
 		}
 
 		p.expect(itemSemicolon)
 	}
+
+	col.element.Name = col.name
+	col.element.RepetitionType = parquet.FieldRepetitionTypePtr(col.rep)
 
 	return col
 }
@@ -399,37 +396,110 @@ func (p *schemaParser) isValidType(typ string) {
 	p.errorf("invalid type %q", typ)
 }
 
-func (p *schemaParser) isValidConvertedType(typ string) {
-	validConvertedTypes := []string{"STRING", "LIST", "MAP", "MAP_KEY_VALUE"} // TODO: add more.
-	for _, vt := range validConvertedTypes {
-		if vt == typ {
-			return
-		}
-	}
+func (p *schemaParser) getTokenType() *parquet.Type {
+	p.isValidType(p.token.val)
 
-	p.errorf("invalid converted type %q", typ)
+	// TODO: add support for fixed_len_byte_array; length is kept in logical type annotation
+	switch p.token.val {
+	case "binary":
+		return parquet.TypePtr(parquet.Type_BYTE_ARRAY)
+	case "float":
+		return parquet.TypePtr(parquet.Type_FLOAT)
+	case "double":
+		return parquet.TypePtr(parquet.Type_DOUBLE)
+	case "boolean":
+		return parquet.TypePtr(parquet.Type_BOOLEAN)
+	case "int32":
+		return parquet.TypePtr(parquet.Type_INT32)
+	case "int64":
+		return parquet.TypePtr(parquet.Type_INT64)
+	case "int96":
+		return parquet.TypePtr(parquet.Type_INT96)
+	default:
+		p.errorf("unsupported type %q", p.token.val)
+		return nil
+	}
 }
 
-func (p *schemaParser) parseConvertedType() string {
+func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore {
+	if elem.Type == nil {
+		return nil
+	}
+
+	var (
+		colStore *ColumnStore
+		err      error
+	)
+
+	// TODO: add support for FIXED_LEN_BYTE_ARRAY
+	switch *elem.Type {
+	case parquet.Type_BYTE_ARRAY:
+		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
+	case parquet.Type_FLOAT:
+		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true)
+	case parquet.Type_DOUBLE:
+		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true)
+	case parquet.Type_BOOLEAN:
+		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN)
+	case parquet.Type_INT32:
+		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true)
+	case parquet.Type_INT64:
+		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true)
+	case parquet.Type_INT96:
+		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true)
+	default:
+		p.errorf("unsupported type %q", elem.Type.String())
+	}
+	if err != nil {
+		p.errorf("creating column store for type %q failed: %v", elem.Type.String(), err)
+	}
+
+	return colStore
+}
+
+func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
 	p.expect(itemLeftParen)
 	p.next()
 	p.expect(itemIdentifier)
 
-	convertedType := p.token.val
-	p.isValidConvertedType(convertedType)
+	typStr := p.token.val
+
+	// TODO: is this correct? compare with Java implementation.
+	convertedType, err := parquet.ConvertedTypeFromString(typStr)
+	if err != nil {
+		p.errorf("invalid converted type %q", typStr)
+	}
 
 	p.next()
 	p.expect(itemRightParen)
 
-	return convertedType
+	return parquet.ConvertedTypePtr(convertedType)
 }
 
-func (p *schemaParser) parseFieldID() *int {
+func (p *schemaParser) parseFieldID() *int32 {
 	p.expect(itemEqual)
 	p.next()
 	p.expect(itemNumber)
 
-	i, _ := strconv.Atoi(p.token.val)
+	i, err := strconv.ParseInt(p.token.val, 10, 32)
+	if err != nil {
+		p.errorf("couldn't parse field ID %q: %v", p.token.val, err)
+	}
 
-	return &i
+	i32 := int32(i)
+
+	return &i32
+}
+
+func fixFlatName(prefix string, col *column) {
+	flatName := col.name
+	if prefix != "" {
+		flatName = prefix + "." + flatName
+	}
+
+	col.flatName = flatName
+
+	for _, c := range col.children {
+		fixFlatName(flatName, c)
+	}
 }
