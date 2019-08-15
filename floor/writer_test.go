@@ -1,10 +1,15 @@
 package floor
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 func TestDecodeStruct(t *testing.T) {
@@ -156,4 +161,46 @@ func TestDecodeStruct(t *testing.T) {
 			assert.Equal(t, tt.ExpectedOutput, output, "%d. output mismatch", idx)
 		}
 	}
+}
+
+func TestWriteFile(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required int64 foo;
+			optional binary bar (STRING);
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	w.SetSchemaDefinition(sd)
+
+	hlWriter := NewWriter(w)
+
+	data := []struct {
+		Foo int64
+		Bar *string
+	}{
+		{23, strPtr("hello!")},
+		{42, strPtr("world!")},
+		{500, nil},
+		{1000, strPtr("bye!")},
+	}
+
+	for idx, d := range data {
+		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
+	}
+
+	require.NoError(t, hlWriter.Close())
+}
+
+func strPtr(s string) *string {
+	return &s
 }

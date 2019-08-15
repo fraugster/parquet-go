@@ -331,6 +331,14 @@ func (r *schema) sortIndex() {
 	fn(&r.root.children)
 }
 
+func (r *schema) SetSchemaDefinition(sd *SchemaDefinition) {
+	r.root = sd.col
+
+	for _, c := range r.root.children {
+		recursiveFix(c, "", 0, 0)
+	}
+}
+
 // NewDataColumn create new column, not a group
 func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) Column {
 	store.reset(rep)
@@ -883,6 +891,7 @@ type schemaCommon interface {
 	// Internal functions
 	resetData()
 	getSchemaArray() []*parquet.SchemaElement
+	SetSchemaDefinition(*SchemaDefinition)
 }
 
 // SchemaReader is a reader for the schema in file

@@ -22,8 +22,8 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo { required binary the_id = 1; required binary client = 2; }`, false},
 		{`message foo { optional boolean is_fraud; }`, false},
 		{`message foo {
-			required binary the_id (UTF8) = 1;
-			required binary client (UTF8) = 2;
+			required binary the_id (STRING) = 1;
+			required binary client (STRING) = 2;
 			required binary request_body = 3;
 			required int64 ts = 4;
 			required group data_enriched (MAP) {
@@ -36,7 +36,7 @@ func TestSchemaParser(t *testing.T) {
 		}`, false},
 		{`message $ { }`, true},                              // $ is not the start of a valid token.
 		{`message foo { optional int128 bar; }`, true},       // invalid type
-		{`message foo { optional int64 bar (BLUB); }`, true}, // invalid converted type
+		{`message foo { optional int64 bar (BLUB); }`, true}, // invalid logical type
 		{`message foo { optional int32 bar; }`, false},
 		{`message foo { optional double bar; }`, false},
 		{`message foo { optional float bar; }`, false},

@@ -74,7 +74,13 @@ func decodeStruct(value reflect.Value) (map[string]interface{}, error) {
 }
 
 func decodeValue(value reflect.Value) (interface{}, error) {
-typeCheck:
+	if value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, nil
+		}
+		value = value.Elem()
+	}
+
 	switch value.Kind() {
 	case reflect.Bool:
 		return value.Bool(), nil
@@ -114,14 +120,8 @@ typeCheck:
 		return values, nil
 	case reflect.Map:
 		return nil, errors.New("map support not implemented yet")
-	case reflect.Ptr:
-		if value.IsNil() {
-			return nil, nil
-		}
-		value = value.Elem()
-		goto typeCheck
 	case reflect.String:
-		return string(value.String()), nil
+		return value.String(), nil
 	case reflect.Struct:
 		structData, err := decodeStruct(value)
 		if err != nil {

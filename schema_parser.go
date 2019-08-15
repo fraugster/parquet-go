@@ -11,15 +11,32 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
+// SchemaDefinition represents a valid textual schema definition.
+type SchemaDefinition struct {
+	col *column
+}
+
+// ParseSchemaDefinition parses a textual schema definition and returns
+// an object, or an error if parsing has failed.
+func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
+	p := newSchemaParser(schemaText)
+	if err := p.parse(); err != nil {
+		return nil, err
+	}
+
+	return &SchemaDefinition{
+		col: p.root,
+	}, nil
+}
+
 type item struct {
 	typ  itemType
-	pos  Pos
+	pos  pos
 	val  string
 	line int
 }
 
-// Pos describes a position
-type Pos int
+type pos int
 
 func (i item) String() string {
 	switch {
@@ -45,6 +62,7 @@ const (
 	itemRightBrace
 	itemEqual
 	itemSemicolon
+	itemComma
 	itemNumber
 	itemIdentifier
 	itemKeyword
@@ -69,9 +87,9 @@ type stateFn func(*schemaLexer) stateFn
 
 type schemaLexer struct {
 	input     string
-	pos       Pos
-	start     Pos
-	width     Pos
+	pos       pos
+	start     pos
+	width     pos
 	items     chan item
 	line      int
 	startLine int
@@ -84,7 +102,7 @@ func (l *schemaLexer) next() rune {
 	}
 
 	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.width = Pos(w)
+	l.width = pos(w)
 	l.pos += l.width
 	if r == '\n' {
 		l.line++
@@ -177,6 +195,8 @@ func lexText(l *schemaLexer) stateFn {
 		l.emit(itemEqual)
 	case r == ';':
 		l.emit(itemSemicolon)
+	case r == ',':
+		l.emit(itemComma)
 	case isAlpha(r):
 		return lexIdentifier
 	case r == '\n': // ignore newlines
@@ -360,7 +380,6 @@ func (p *schemaParser) parseColumnDefinition() *column {
 		p.expect(itemRightBrace)
 	} else {
 		col.element.Type = p.getTokenType()
-		col.data = p.getColumnStore(col.element)
 
 		p.next()
 		p.expect(itemIdentifier)
@@ -368,7 +387,7 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.element.ConvertedType = p.parseConvertedType()
+			col.element.LogicalType = p.parseLogicalType()
 			p.next()
 		}
 
@@ -376,6 +395,9 @@ func (p *schemaParser) parseColumnDefinition() *column {
 			col.element.FieldID = p.parseFieldID()
 			p.next()
 		}
+
+		col.data = p.getColumnStore(col.element)
+		col.data.reset(col.rep)
 
 		p.expect(itemSemicolon)
 	}
@@ -434,7 +456,11 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 	// TODO: add support for FIXED_LEN_BYTE_ARRAY
 	switch *elem.Type {
 	case parquet.Type_BYTE_ARRAY:
-		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
+		if lt := elem.GetLogicalType(); lt != nil && lt.IsSetSTRING() {
+			colStore, err = NewStringStore(parquet.Encoding_PLAIN, true)
+		} else {
+			colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
+		}
 	case parquet.Type_FLOAT:
 		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true)
 	case parquet.Type_DOUBLE:
@@ -455,6 +481,31 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 	}
 
 	return colStore
+}
+
+func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
+	p.expect(itemLeftParen)
+	p.next()
+	p.expect(itemIdentifier)
+
+	typStr := p.token.val
+
+	lt := parquet.NewLogicalType()
+
+	switch strings.ToUpper(typStr) {
+	case "STRING":
+		lt.STRING = parquet.NewStringType()
+	// TODO: add support for more logical types.
+	default:
+		p.errorf("unsupported logical type %q", typStr)
+	}
+
+	p.next()
+	// TODO: parse full syntax as found here:
+	// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/schema/MessageTypeParser.java#L169
+	p.expect(itemRightParen)
+
+	return lt
 }
 
 func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
