@@ -22,18 +22,18 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo { required binary the_id = 1; required binary client = 2; }`, false},
 		{`message foo { optional boolean is_fraud; }`, false},
 		{`message foo {
-			required binary the_id (STRING) = 1;
-			required binary client (STRING) = 2;
-			required binary request_body = 3;
-			required int64 ts = 4;
-			required group data_enriched (MAP) {
-				repeated group key_value (MAP_KEY_VALUE) {
-					required binary key = 5;
-					required binary value = 6;
+				required binary the_id (STRING) = 1;
+				required binary client (STRING) = 2;
+				required binary request_body = 3;
+				required int64 ts = 4;
+				required group data_enriched (MAP) {
+					repeated group key_value (MAP_KEY_VALUE) {
+						required binary key = 5;
+						required binary value = 6;
+					}
 				}
-			}
-			optional boolean is_fraud = 7;
-		}`, false},
+				optional boolean is_fraud = 7;
+			}`, false},
 		{`message $ { }`, true},                              // $ is not the start of a valid token.
 		{`message foo { optional int128 bar; }`, true},       // invalid type
 		{`message foo { optional int64 bar (BLUB); }`, true}, // invalid logical type
@@ -41,6 +41,32 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo { optional double bar; }`, false},
 		{`message foo { optional float bar; }`, false},
 		{`message foo { optional int96 bar; }`, false},
+		{`message foo {
+			required group ids (LIST) {
+				repeated group list {
+					required int64 id;
+				}
+			}
+		}`, false},
+		{`message foo {
+			optional group array_of_arrays (LIST) {
+				repeated group list {
+					required group element (LIST) {
+						repeated group list {
+							required int32 element;
+						}
+					}
+				}
+			}
+		}`, false},
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int32 key;
+					required int32 value;
+				}
+			}
+		}`, false},
 	}
 
 	for idx, tt := range testData {

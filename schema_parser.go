@@ -73,6 +73,34 @@ const (
 	itemGroup
 )
 
+func (i itemType) String() string {
+	typeNames := map[itemType]string{
+		itemError:      "error",
+		itemEOF:        "EOF",
+		itemLeftParen:  "(",
+		itemRightParen: ")",
+		itemLeftBrace:  "{",
+		itemRightBrace: "}",
+		itemEqual:      "=",
+		itemSemicolon:  ";",
+		itemComma:      ",",
+		itemNumber:     "number",
+		itemIdentifier: "identifier",
+		itemKeyword:    "<keyword>",
+		itemMessage:    "message",
+		itemRepeated:   "repeated",
+		itemOptional:   "optional",
+		itemRequired:   "required",
+		itemGroup:      "group",
+	}
+
+	n, ok := typeNames[i]
+	if !ok {
+		return fmt.Sprintf("<type:%d>", int(i))
+	}
+	return n
+}
+
 var key = map[string]itemType{
 	"message":  itemMessage,
 	"repeated": itemRepeated,
@@ -303,13 +331,15 @@ func (p *schemaParser) errorf(msg string, args ...interface{}) {
 
 func (p *schemaParser) expect(typ itemType) {
 	if p.token.typ != typ {
-		p.errorf("expected token type %v, got %v instead", typ, p.token)
+		//log.Printf("expected %s, got %s instead", typ, p.token)
+		p.errorf("expected %s, got %s instead", typ, p.token)
 	}
-	//log.Printf("expect %d successful, token = %v", typ, p.token)
+	//log.Printf("expect %s successful, token = %v", typ, p.token)
 }
 
 func (p *schemaParser) next() {
 	p.token = p.l.nextItem()
+	//log.Printf("next token: %s", p.token)
 }
 
 func (p *schemaParser) parseMessage() {
@@ -334,8 +364,10 @@ func (p *schemaParser) parseMessage() {
 
 func (p *schemaParser) parseMessageBody() []*column {
 	var cols []*column
+	p.expect(itemLeftBrace)
 	for {
 		p.next()
+		//log.Printf("token = %s", p.token)
 		if p.token.typ == itemRightBrace {
 			return cols
 		}
@@ -370,10 +402,8 @@ func (p *schemaParser) parseColumnDefinition() *column {
 		p.next()
 		if p.token.typ == itemLeftParen {
 			col.element.ConvertedType = p.parseConvertedType()
+			p.next()
 		}
-
-		p.next()
-		p.expect(itemLeftBrace)
 
 		col.children = p.parseMessageBody()
 
@@ -495,7 +525,6 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 	switch strings.ToUpper(typStr) {
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
-	// TODO: add support for more logical types.
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
