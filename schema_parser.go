@@ -11,24 +11,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// SchemaDefinition represents a valid textual schema definition.
-type SchemaDefinition struct {
-	col *column
-}
-
-// ParseSchemaDefinition parses a textual schema definition and returns
-// an object, or an error if parsing has failed.
-func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
-	p := newSchemaParser(schemaText)
-	if err := p.parse(); err != nil {
-		return nil, err
-	}
-
-	return &SchemaDefinition{
-		col: p.root,
-	}, nil
-}
-
 type item struct {
 	typ  itemType
 	pos  pos

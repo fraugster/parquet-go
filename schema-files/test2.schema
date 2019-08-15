@@ -1,0 +1,13 @@
+message foo {
+  required binary the_id (STRING) = 1;
+  required binary client (STRING) = 2;
+  required binary request_body = 3;
+  required int64 ts = 4;
+  required group data_enriched (MAP) {
+    repeated group key_value (MAP_KEY_VALUE) {
+      required binary key = 5;
+      required binary value = 6;
+    }
+  }
+  optional boolean is_fraud = 7;
+}

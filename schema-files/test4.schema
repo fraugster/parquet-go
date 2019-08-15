@@ -1,0 +1,11 @@
+message foo {
+  optional group array_of_arrays (LIST) {
+    repeated group list {
+      required group element (LIST) {
+        repeated group list {
+          required int32 element;
+        }
+      }
+    }
+  }
+}
