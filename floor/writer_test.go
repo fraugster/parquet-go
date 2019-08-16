@@ -175,6 +175,7 @@ func TestWriteFile(t *testing.T) {
 		`message test_msg {
 			required int64 foo;
 			optional binary bar (STRING);
+			repeated int32 baz;
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -187,11 +188,12 @@ func TestWriteFile(t *testing.T) {
 	data := []struct {
 		Foo int64
 		Bar *string
+		Baz []int32
 	}{
-		{23, strPtr("hello!")},
-		{42, strPtr("world!")},
-		{500, nil},
-		{1000, strPtr("bye!")},
+		{23, strPtr("hello!"), []int32{}},
+		{42, strPtr("world!"), []int32{1, 1, 2, 3, 5}},
+		{500, nil, nil},
+		{1000, strPtr("bye!"), []int32{2, 3, 5, 7, 11}},
 	}
 
 	for idx, d := range data {

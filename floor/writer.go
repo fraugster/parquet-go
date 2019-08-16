@@ -107,17 +107,18 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	case reflect.Float32:
 		return float32(value.Float()), nil
 	case reflect.Float64:
-		return float64(value.Float()), nil
+		return value.Float(), nil
 	case reflect.Array, reflect.Slice:
-		var values []interface{}
+		containedType := value.Type()
+		slice := reflect.MakeSlice(containedType, 0, value.Len())
 		for j := 0; j < value.Len(); j++ {
 			v, err := decodeValue(value.Index(j))
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, v)
+			slice = reflect.Append(slice, reflect.ValueOf(v))
 		}
-		return values, nil
+		return slice.Interface(), nil
 	case reflect.Map:
 		return nil, errors.New("map support not implemented yet")
 	case reflect.String:
