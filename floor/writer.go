@@ -109,16 +109,7 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	case reflect.Float64:
 		return value.Float(), nil
 	case reflect.Array, reflect.Slice:
-		containedType := value.Type()
-		slice := reflect.MakeSlice(containedType, 0, value.Len())
-		for j := 0; j < value.Len(); j++ {
-			v, err := decodeValue(value.Index(j))
-			if err != nil {
-				return nil, err
-			}
-			slice = reflect.Append(slice, reflect.ValueOf(v))
-		}
-		return slice.Interface(), nil
+		return decodeSliceOrArray(value)
 	case reflect.Map:
 		return nil, errors.New("map support not implemented yet")
 	case reflect.String:
@@ -131,6 +122,53 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 		return structData, nil
 	default:
 		return nil, fmt.Errorf("unsupported type %s", value.Type())
+	}
+}
+
+func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
+	containedType := value.Type()
+	mappedType, err := mapType(containedType.Elem())
+	if err != nil {
+		return nil, err
+	}
+	slice := reflect.MakeSlice(reflect.SliceOf(mappedType), 0, value.Len())
+
+	for j := 0; j < value.Len(); j++ {
+		v, err := decodeValue(value.Index(j))
+		if err != nil {
+			return nil, err
+		}
+		slice = reflect.Append(slice, reflect.ValueOf(v))
+	}
+	return slice.Interface(), nil
+}
+
+func mapType(typ reflect.Type) (reflect.Type, error) {
+	switch typ.Kind() {
+	case reflect.Bool:
+		return reflect.TypeOf(false), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Uint, reflect.Uint8, reflect.Uint16:
+		return reflect.TypeOf(int32(0)), nil
+	case reflect.Int64, reflect.Uint32, reflect.Uint64:
+		return reflect.TypeOf(int64(0)), nil
+	case reflect.Float32:
+		return reflect.TypeOf(float32(0)), nil
+	case reflect.Float64:
+		return reflect.TypeOf(float64(0)), nil
+	case reflect.Struct:
+		return reflect.TypeOf(map[string]interface{}{}), nil
+	case reflect.Array, reflect.Slice:
+		mappedType, err := mapType(typ.Elem())
+		if err != nil {
+			return nil, err
+		}
+		return reflect.SliceOf(mappedType), nil
+	case reflect.Map:
+		return nil, errors.New("map type support not implemented yet")
+	case reflect.String:
+		return typ, nil
+	default:
+		return nil, fmt.Errorf("unsupported type %s", typ)
 	}
 }
 

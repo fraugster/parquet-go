@@ -101,7 +101,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: []bool{false, true, false},
 			},
-			ExpectedOutput: map[string]interface{}{"foo": []interface{}{false, true, false}},
+			ExpectedOutput: map[string]interface{}{"foo": []bool{false, true, false}},
 			ExpectErr:      false,
 		},
 		{
@@ -110,7 +110,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: [5]uint16{1, 1, 2, 3, 5},
 			},
-			ExpectedOutput: map[string]interface{}{"foo": []interface{}{int32(1), int32(1), int32(2), int32(3), int32(5)}},
+			ExpectedOutput: map[string]interface{}{"foo": []int32{int32(1), int32(1), int32(2), int32(3), int32(5)}},
 			ExpectErr:      false,
 		},
 		{
@@ -201,6 +201,59 @@ func TestWriteFile(t *testing.T) {
 	}
 
 	require.NoError(t, hlWriter.Close())
+}
+
+func TestRepeatedGroupFile(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test2.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			repeated group foo {
+				required int64 bla;
+				optional binary bar (STRING);
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	w.SetSchemaDefinition(sd)
+
+	hlWriter := NewWriter(w)
+
+	type fooType struct {
+		Bla uint64
+		Bar *string
+	}
+
+	data := []struct {
+		Foo []fooType
+	}{
+		{Foo: []fooType{fooType{Bla: 23, Bar: strPtr("foobar")}}},
+		{Foo: []fooType{fooType{Bla: 24, Bar: strPtr("hello")}}},
+		{Foo: []fooType{fooType{Bla: 25}, fooType{Bla: 26, Bar: strPtr("bye!")}, fooType{Bla: 27}}},
+	}
+
+	for idx, d := range data {
+		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
+	}
+
+	require.NoError(t, hlWriter.Close())
+
+	rf, err := os.Open("files/test2.parquet")
+	require.NoError(t, err)
+
+	reader, err := goparquet.NewFileReader(rf)
+	require.NoError(t, err)
+
+	for idx, col := range reader.Columns() {
+		t.Logf("col %d: %s", idx, col.FlatName())
+	}
 }
 
 func strPtr(s string) *string {

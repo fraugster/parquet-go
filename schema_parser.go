@@ -388,6 +388,7 @@ func (p *schemaParser) parseColumnDefinition() *column {
 		}
 
 		col.children = p.parseMessageBody()
+		col.element.NumChildren = int32Ptr(int32(len(col.children)))
 
 		p.expect(itemRightBrace)
 	} else {
@@ -418,6 +419,10 @@ func (p *schemaParser) parseColumnDefinition() *column {
 	col.element.RepetitionType = parquet.FieldRepetitionTypePtr(col.rep)
 
 	return col
+}
+
+func int32Ptr(i int32) *int32 {
+	return &i
 }
 
 func (p *schemaParser) isValidType(typ string) {
