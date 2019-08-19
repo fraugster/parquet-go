@@ -702,17 +702,16 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 		rLevel++
 	}
 
-	if idx != 0 {
-		if name == "" {
-			name = s.Name
-		} else {
-			name += "." + s.Name
-		}
+	if name == "" {
+		name = s.Name
+	} else {
+		name += "." + s.Name
 	}
-
+	c.name = name
 	// TODO : Do more validation here
 	c.element = s
 	c.children = make([]*column, 0, l)
+	c.rep = *s.RepetitionType
 
 	var err error
 	idx++ // move idx from this group to next
