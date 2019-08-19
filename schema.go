@@ -661,6 +661,8 @@ func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	if err != nil {
 		return 0, err
 	}
+	c.rep = *s.RepetitionType
+	data.repTyp = *s.RepetitionType
 	c.data = data
 	c.flatName = name + "." + s.Name
 	c.name = s.Name
