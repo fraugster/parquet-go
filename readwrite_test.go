@@ -179,3 +179,76 @@ func TestWriteThenReadFileNested(t *testing.T) {
 		require.Equal(t, data[i], d)
 	}
 }
+
+func TestWriteThenReadFileNested2(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+
+	blaStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create fooStore")
+	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create barStore")
+
+	require.NoError(t, w.AddGroup("foo", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, w.AddColumn("foo.bla", NewDataColumn(blaStore, parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, w.AddColumn("foo.bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
+
+	data := []map[string]interface{}{
+		{
+			"foo": []map[string]interface{}{
+				{
+					"bla": int64(23),
+					"bar": "foobar",
+				},
+			},
+		},
+		{
+			"foo": []map[string]interface{}{
+				{
+					"bla": int64(24),
+					"bar": "hello",
+				},
+			},
+		},
+		{
+			"foo": []map[string]interface{}{
+				{
+					"bla": int64(25),
+				},
+				{
+					"bla": int64(26),
+					"bar": "bye!",
+				},
+				{
+					"bla": int64(27),
+				},
+			},
+		},
+	}
+	for i := range data {
+		require.NoError(t, w.AddData(data[i]))
+	}
+
+	assert.NoError(t, w.Close(), "Close failed")
+
+	require.NoError(t, wf.Close())
+
+	rf, err := os.Open("files/test.parquet")
+	require.NoError(t, err, "opening file failed")
+	defer rf.Close()
+
+	r, err := NewFileReader(rf)
+	require.NoError(t, err, "creating file reader failed")
+	require.NoError(t, r.ReadRowGroup())
+
+	require.Equal(t, int64(len(data)), r.NumRecords())
+	for i := range data {
+		d, err := r.GetData()
+		require.NoError(t, err)
+		require.Equal(t, data[i], d)
+	}
+}
