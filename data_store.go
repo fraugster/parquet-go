@@ -128,7 +128,7 @@ func (cs *ColumnStore) getDRLevelAt(pos int) (int32, int32, bool) {
 	return cs.dLevels[pos], cs.rLevels[pos], false
 }
 
-func (cs *ColumnStore) getNext(pos int, maxD, maxR int32) (v interface{}, err error) {
+func (cs *ColumnStore) getNext() (v interface{}, err error) {
 	v, err = cs.values.getNextValue()
 	if err != nil {
 		return nil, err
@@ -140,7 +140,14 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
 	if cs.readPos >= len(cs.rLevels) || cs.readPos >= len(cs.dLevels) {
 		return nil, errors.New("out of range")
 	}
-	v, err := cs.getNext(cs.readPos, maxD, maxR)
+	dl, _, _ := cs.getDRLevelAt(cs.readPos)
+	// this is a null value, increase the read pos, for advancing the rLvl and dLvl but
+	// do not touch the dict-store
+	if dl < maxD {
+		cs.readPos++
+		return nil, nil
+	}
+	v, err := cs.getNext()
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +170,7 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
 			// end of this object
 			return ret, nil
 		}
-		v, err := cs.getNext(cs.readPos, maxD, maxR)
+		v, err := cs.getNext()
 		if err != nil {
 			return nil, err
 		}

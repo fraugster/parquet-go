@@ -82,18 +82,12 @@ func (d *dictStore) init() {
 	d.readPos = 0
 }
 
-func (d *dictStore) assemble(null bool) []interface{} {
+func (d *dictStore) assemble() []interface{} {
 	if d.noDictMode {
 		return d.values
 	}
 	ret := make([]interface{}, 0, len(d.data))
 	for i := range d.data {
-		if d.data[i] < 0 {
-			if null {
-				ret = append(ret, nil)
-			}
-			continue
-		}
 		ret = append(ret, d.values[d.data[i]])
 	}
 
@@ -116,7 +110,6 @@ func (d *dictStore) getIndex(in interface{}, size int) int32 {
 func (d *dictStore) addValue(v interface{}, size int) {
 	if v == nil {
 		d.nullCount++
-		d.data = append(d.data, -1)
 		return
 	}
 	d.size += int64(size)
@@ -137,9 +130,6 @@ func (d *dictStore) getNextValue() (interface{}, error) {
 	}
 	d.readPos++
 	pos := d.data[d.readPos-1]
-	if pos < 0 {
-		return nil, nil // nil value
-	}
 	return d.values[pos], nil
 }
 

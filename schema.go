@@ -173,12 +173,12 @@ func (c *column) getFirstDRLevel() (int32, int32, bool) {
 		}
 
 		// if this value is not nil, dLevel less than this level is not interesting
-		if dl >= int32(c.maxD) {
+		if dl == int32(c.children[i].maxD) {
 			return dl, rl, last
 		}
 	}
 
-	return c.children[0].getFirstDRLevel()
+	return 0, 0, true
 }
 
 func (c *column) getData() (interface{}, error) {
@@ -195,7 +195,7 @@ func (c *column) getData() (interface{}, error) {
 		ret := []map[string]interface{}{data}
 		for {
 			_, rl, last := c.getFirstDRLevel()
-			if last || rl < int32(c.maxR) {
+			if last || rl <= int32(c.maxR) {
 				// end of this object
 				return ret, nil
 			}
@@ -666,6 +666,8 @@ func (c *column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	if err != nil {
 		return 0, err
 	}
+	c.rep = *s.RepetitionType
+	data.repTyp = *s.RepetitionType
 	c.data = data
 	c.flatName = name + "." + s.Name
 	c.name = s.Name
@@ -705,17 +707,16 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 		rLevel++
 	}
 
-	if idx != 0 {
-		if name == "" {
-			name = s.Name
-		} else {
-			name += "." + s.Name
-		}
+	if name == "" {
+		name = s.Name
+	} else {
+		name += "." + s.Name
 	}
-
+	c.name = name
 	// TODO : Do more validation here
 	c.element = s
 	c.children = make([]*column, 0, l)
+	c.rep = *s.RepetitionType
 
 	var err error
 	idx++ // move idx from this group to next
