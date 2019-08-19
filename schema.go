@@ -176,12 +176,12 @@ func (c *column) getFirstDRLevel() (int32, int32, bool) {
 		}
 
 		// if this value is not nil, dLevel less than this level is not interesting
-		if dl >= int32(c.maxD) {
+		if dl == int32(c.children[i].maxD) {
 			return dl, rl, last
 		}
 	}
 
-	return c.children[0].getFirstDRLevel()
+	return 0, 0, true
 }
 
 func (c *column) getData() (interface{}, error) {
@@ -198,7 +198,7 @@ func (c *column) getData() (interface{}, error) {
 		ret := []map[string]interface{}{data}
 		for {
 			_, rl, last := c.getFirstDRLevel()
-			if last || rl < int32(c.maxR) {
+			if last || rl <= int32(c.maxR) {
 				// end of this object
 				return ret, nil
 			}
