@@ -22,18 +22,18 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo { required binary the_id = 1; required binary client = 2; }`, false},
 		{`message foo { optional boolean is_fraud; }`, false},
 		{`message foo {
-				required binary the_id (STRING) = 1;
-				required binary client (STRING) = 2;
-				required binary request_body = 3;
-				required int64 ts = 4;
-				required group data_enriched (MAP) {
-					repeated group key_value (MAP_KEY_VALUE) {
-						required binary key = 5;
-						required binary value = 6;
-					}
+			required binary the_id (STRING) = 1;
+			required binary client (STRING) = 2;
+			required binary request_body = 3;
+			required int64 ts = 4;
+			required group data_enriched (MAP) {
+				repeated group key_value (MAP_KEY_VALUE) {
+					required binary key = 5;
+					required binary value = 6;
 				}
-				optional boolean is_fraud = 7;
-			}`, false},
+			}
+			optional boolean is_fraud = 7;
+		}`, false},
 		{`message $ { }`, true},                              // $ is not the start of a valid token.
 		{`message foo { optional int128 bar; }`, true},       // invalid type
 		{`message foo { optional int64 bar (BLUB); }`, true}, // invalid logical type
@@ -67,6 +67,98 @@ func TestSchemaParser(t *testing.T) {
 				}
 			}
 		}`, false},
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group list {
+					required int64 baz;
+				}
+			}
+		}`, false},
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group element {
+					required int64 baz;
+				}
+			}
+		}`, true}, // repeated group is called "element", not "list".
+		{`message foo {
+			optional group bar (LIST) {
+				repeated int64 list;
+			}
+		}`, true}, // repeated list is not a group.
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group list {
+					required int64 baz;
+				}
+				optional int64 list_size;
+			}
+		}`, true}, // only element underneath (LIST) allowed is repeated group list; list_size is invalid.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int64 key;
+					optional int32 value;
+				}
+			}
+		}`, false},
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group stuff {
+					required int64 key;
+					optional int32 value;
+				}
+			}
+		}`, true}, // repeated group underneath (MAP) is not called key_value.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated int64 key_value;
+			}
+		}`, true}, // repeated key_value is not a group.
+		{`message foo {
+			optional group bar (MAP) {
+			}
+		}`, true}, // empty group bar.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int64 key;
+					optional int32 value;
+					optional int32 another_value;
+				}
+			}
+		}`, true}, // inside key_value, only key and value are allowed.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					optional int64 key;
+					optional int32 value;
+				}
+			}
+		}`, true}, // bar.key_value.key must be required.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int64 key;
+				}
+			}
+		}`, true}, // bar.key_value.value is missing.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int64 key;
+					optional int32 key;
+				}
+			}
+		}`, true}, // bar.key_value has 2 children but child value is missing.
+		{`message foo {
+			optional group bar (MAP) {
+				repeated group key_value {
+					required int64 value;
+					optional int32 value;
+				}
+			}
+		}`, true}, // bar.key_value has 2 children but child key is missing.
 	}
 
 	for idx, tt := range testData {

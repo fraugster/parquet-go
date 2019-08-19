@@ -293,6 +293,8 @@ func (p *schemaParser) parse() (err error) {
 		fixFlatName("", c)
 	}
 
+	p.validateLogicalTypes(p.root)
+
 	return nil
 }
 
@@ -568,5 +570,66 @@ func fixFlatName(prefix string, col *column) {
 
 	for _, c := range col.children {
 		fixFlatName(flatName, c)
+	}
+}
+
+func (p *schemaParser) validateLogicalTypes(col *column) {
+	if col.element != nil && (col.element.LogicalType != nil || col.element.ConvertedType != nil) {
+		switch {
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetLIST()) || col.element.GetConvertedType() == parquet.ConvertedType_LIST:
+			// TODO: add support for backward compatibility:
+			// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
+			if col.element.Type != nil {
+				p.errorf("field %s is not a group but annotated as LIST", col.element.Name)
+			}
+			if len(col.children) != 1 {
+				p.errorf("field %s is a LIST but has %d children", len(col.children))
+			}
+			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("field %s is a LIST but its child is not a repeated group", col.element.Name)
+			}
+			if col.children[0].name != "list" {
+				p.errorf("field %s is a LIST but its child is not named \"list\"", col.element.Name)
+			}
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetMAP()) || col.element.GetConvertedType() == parquet.ConvertedType_MAP:
+			if col.element.Type != nil {
+				p.errorf("field %s is not a group but annotated as MAP", col.element.Name)
+			}
+			if len(col.children) != 1 {
+				p.errorf("field %s is a MAP but has %d children", len(col.children))
+			}
+			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("filed %s is a MAP but its child is not a repeated group", col.element.Name)
+			}
+			if col.children[0].name != "key_value" {
+				p.errorf("field %s is a MAP but its child is not named \"key_value\"", col.element.Name)
+			}
+			foundKey := false
+			foundValue := false
+			for _, c := range col.children[0].children {
+				switch c.element.Name {
+				case "key":
+					if c.element.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
+						p.errorf("field %s.key_value.key is not of repetition type \"required\"", col.element.Name)
+					}
+					foundKey = true
+				case "value":
+					foundValue = true
+					// nothing else to check.
+				default:
+					p.errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.element.Name, c.element.Name)
+				}
+			}
+			if !foundKey {
+				p.errorf("field %[1]s is missing %[1]s.key_value.key", col.element.Name)
+			}
+			if !foundValue {
+				p.errorf("field %[1]s is missing %[1]s.key_value.value", col.element.Name)
+			}
+		}
+	}
+
+	for _, c := range col.children {
+		p.validateLogicalTypes(c)
 	}
 }
