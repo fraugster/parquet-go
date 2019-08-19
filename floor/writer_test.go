@@ -299,7 +299,7 @@ func TestRepeatedGroupFile(t *testing.T) {
 		{
 			"foo": []map[string]interface{}{
 				map[string]interface{}{
-					"bla": int32(23),
+					"bla": int64(23),
 					"bar": "foobar",
 				},
 			},
@@ -307,7 +307,7 @@ func TestRepeatedGroupFile(t *testing.T) {
 		{
 			"foo": []map[string]interface{}{
 				map[string]interface{}{
-					"bla": int32(24),
+					"bla": int64(24),
 					"bar": "hello",
 				},
 			},
@@ -315,14 +315,14 @@ func TestRepeatedGroupFile(t *testing.T) {
 		{
 			"foo": []map[string]interface{}{
 				map[string]interface{}{
-					"bla": int32(25),
+					"bla": int64(25),
 				},
 				map[string]interface{}{
-					"bla": int32(26),
+					"bla": int64(26),
 					"bar": "bye!",
 				},
 				map[string]interface{}{
-					"bla": int32(27),
+					"bla": int64(27),
 				},
 			},
 		},
