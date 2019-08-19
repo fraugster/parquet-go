@@ -133,7 +133,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil, // TODO: add crc?
 		DataPageHeader: &parquet.DataPageHeader{
-			NumValues: dp.col.data.values.numValues(),
+			NumValues: dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			Encoding:  enc,
 			// Only RLE supported for now, not sure if we need support for more encoding
 			DefinitionLevelEncoding: parquet.Encoding_RLE,
@@ -172,7 +172,7 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	}
 
 	// TODO: there is a redundant loop and copy if the value encoder is a dictEncoder
-	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble(false)); err != nil {
+	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
 		return 0, 0, err
 	}
 

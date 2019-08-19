@@ -31,7 +31,7 @@ func TestOneColumn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(0), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.assemble())
 	assert.Equal(t, []int32{0, 0}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels)
 
@@ -60,7 +60,7 @@ func TestOneColumnOptional(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), nil}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10)}, d.data.values.assemble())
 	assert.Equal(t, []int32{1, 0}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels)
 
@@ -87,7 +87,7 @@ func TestOneColumnRepeated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20), nil}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.assemble())
 	assert.Equal(t, []int32{1, 1, 0}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 1, 0}, d.data.rLevels)
 
@@ -144,7 +144,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(1), int32(2), nil, int32(3)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(1), int32(2), int32(3)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.data.rLevels)
 
@@ -152,7 +152,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(3), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(100), nil, nil, int32(101)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(100), int32(101)}, d.data.values.assemble())
 	assert.Equal(t, []int32{3, 2, 1, 3}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.data.rLevels)
 
@@ -160,7 +160,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(11), nil}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(11)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 1}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 1, 1}, d.data.rLevels)
 
@@ -200,7 +200,7 @@ func TestComplexPart2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 2, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels)
 
@@ -208,7 +208,7 @@ func TestComplexPart2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{nil, int32(10), int32(30)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(30)}, d.data.values.assemble())
 	assert.Equal(t, []int32{1, 2, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 0, 1}, d.data.rLevels)
 
@@ -286,7 +286,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(0), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.assemble())
 	assert.Equal(t, []int32{0, 0}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels)
 
@@ -294,7 +294,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(11), nil, int32(12)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(11), int32(12)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels)
 
@@ -302,7 +302,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 2, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels)
 
@@ -310,7 +310,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{nil, int32(10), int32(30)}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(10), int32(30)}, d.data.values.assemble())
 	assert.Equal(t, []int32{1, 2, 2}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 0, 1}, d.data.rLevels)
 
@@ -318,7 +318,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(3), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(100), nil, nil, int32(101), nil}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(100), int32(101)}, d.data.values.assemble())
 	assert.Equal(t, []int32{3, 2, 1, 3, 1}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.data.rLevels)
 
@@ -326,7 +326,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(1), int32(2), nil, int32(3), nil}, d.data.values.assemble(true))
+	assert.Equal(t, []interface{}{int32(1), int32(2), int32(3)}, d.data.values.assemble())
 	assert.Equal(t, []int32{2, 2, 1, 2, 1}, d.data.dLevels)
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.data.rLevels)
 
@@ -369,7 +369,7 @@ func TestTwitterBlog(t *testing.T) {
 	for i := 1; i < 11; i++ {
 		expected = append(expected, int32(i))
 	}
-	assert.Equal(t, expected, d.data.values.assemble(true))
+	assert.Equal(t, expected, d.data.values.assemble())
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
 	assert.Equal(t, []int32{0, 2, 2, 1, 2, 2, 2, 0, 1, 2}, d.data.rLevels)

@@ -85,7 +85,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	}
 }
 
-func TestWriteThenReadFileRepeted(t *testing.T) {
+func TestWriteThenReadFileRepeated(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -101,7 +101,9 @@ func TestWriteThenReadFileRepeted(t *testing.T) {
 	data := []map[string]interface{}{
 		{"foo": []int64{1}},
 		{"foo": []int64{1, 2, 3, 1}},
+		{},
 		{"foo": []int64{1, 3, 1, 1}},
+		{},
 		{"foo": []int64{1, 2, 2, 1}},
 	}
 

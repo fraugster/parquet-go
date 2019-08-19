@@ -444,7 +444,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble(true))
+			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is not Required, so def level should be one more
 			assert.Equal(t, []int32{4, 4, 4}, st.dLevels)
 			// Filed is repeated so the rep level (except for the first one which is the new record)
@@ -455,7 +455,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, ok)
 			// No Reset
-			assert.Equal(t, append(convertToInterface(data), nil), st.values.assemble(true))
+			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// The new field is nil
 			assert.Equal(t, []int32{4, 4, 4, 3}, st.dLevels)
 			assert.Equal(t, []int32{0, 4, 4, 0}, st.rLevels)
@@ -467,7 +467,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble(true))
+			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3}, st.dLevels)
 			assert.Equal(t, []int32{0}, st.rLevels)
@@ -478,7 +478,7 @@ func TestStores(t *testing.T) {
 			assert.True(t, ok)
 			// No reset
 			dArr := []interface{}{getOne(data), getOne(data2)}
-			assert.Equal(t, dArr, st.values.assemble(true))
+			assert.Equal(t, dArr, st.values.assemble())
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3}, st.dLevels)
 			// rLevel is more than max, so its max now
@@ -492,12 +492,11 @@ func TestStores(t *testing.T) {
 			_, err = st.add(struct{}{}, 3, 3, 0)
 			assert.Error(t, err)
 
-			dArr = append(dArr, nil)
 			ok, err = st.add(nil, 3, 3, 0)
 			assert.NoError(t, err)
 			assert.False(t, ok)
 
-			assert.Equal(t, dArr, st.values.assemble(true))
+			assert.Equal(t, dArr, st.values.assemble())
 
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3, 3}, st.dLevels)

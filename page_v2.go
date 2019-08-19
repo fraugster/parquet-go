@@ -158,7 +158,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil, // TODO: add crc?
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
-			NumValues:                  dp.col.data.values.numValues(),
+			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			NumNulls:                   dp.col.data.values.nullValueCount(),
 			NumRows:                    int32(dp.schema.NumRecords()),
 			Encoding:                   dp.col.data.encoding(),
@@ -202,7 +202,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 		return 0, 0, err
 	}
 
-	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble(false)); err != nil {
+	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
 		return 0, 0, err
 	}
 
