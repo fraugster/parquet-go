@@ -190,7 +190,7 @@ func TestWriteFile(t *testing.T) {
 		Bar *string
 		Baz []int32
 	}{
-		{23, strPtr("hello!"), []int32{}},
+		{23, strPtr("hello!"), []int32{23}},
 		{42, strPtr("world!"), []int32{1, 1, 2, 3, 5}},
 		{500, nil, nil},
 		{1000, strPtr("bye!"), []int32{2, 3, 5, 7, 11}},
@@ -201,6 +201,43 @@ func TestWriteFile(t *testing.T) {
 	}
 
 	require.NoError(t, hlWriter.Close())
+
+	rf, err := os.Open("files/test.parquet")
+	require.NoError(t, err)
+
+	reader, err := goparquet.NewFileReader(rf)
+	require.NoError(t, err)
+
+	require.NoError(t, reader.ReadRowGroup())
+
+	require.Equal(t, int64(len(data)), reader.NumRecords())
+
+	expectedData := []map[string]interface{}{
+		{
+			"foo": int64(23),
+			"bar": "hello!",
+			"baz": []int32{23},
+		},
+		{
+			"foo": int64(42),
+			"bar": "world!",
+			"baz": []int32{1, 1, 2, 3, 5},
+		},
+		{
+			"foo": int64(500),
+		},
+		{
+			"foo": int64(1000),
+			"bar": "bye!",
+			"baz": []int32{2, 3, 5, 7, 11},
+		},
+	}
+
+	for i := int64(0); i < reader.NumRecords(); i++ {
+		data, err := reader.GetData()
+		require.NoError(t, err, "%d. reading record failed")
+		require.Equal(t, expectedData[i], data, "%d. data in parquet file differs from what's expected", i)
+	}
 }
 
 func TestRepeatedGroupFile(t *testing.T) {
@@ -241,6 +278,9 @@ func TestRepeatedGroupFile(t *testing.T) {
 
 	for idx, d := range data {
 		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
+		decodedData, err := decodeStruct(reflect.ValueOf(d))
+		require.NoError(t, err)
+		t.Logf("%d. decoded struct: %s", idx, spew.Sdump(decodedData))
 	}
 
 	require.NoError(t, hlWriter.Close())
@@ -251,8 +291,53 @@ func TestRepeatedGroupFile(t *testing.T) {
 	reader, err := goparquet.NewFileReader(rf)
 	require.NoError(t, err)
 
-	for idx, col := range reader.Columns() {
-		t.Logf("col %d: %s", idx, col.FlatName())
+	require.NoError(t, reader.ReadRowGroup())
+
+	require.Equal(t, int64(len(data)), reader.NumRecords())
+
+	expectedData := []map[string]interface{}{
+		{
+			"foo": []map[string]interface{}{
+				map[string]interface{}{
+					"bla": int32(23),
+					"bar": "foobar",
+				},
+			},
+		},
+		{
+			"foo": []map[string]interface{}{
+				map[string]interface{}{
+					"bla": int32(24),
+					"bar": "hello",
+				},
+			},
+		},
+		{
+			"foo": []map[string]interface{}{
+				map[string]interface{}{
+					"bla": int32(25),
+				},
+				map[string]interface{}{
+					"bla": int32(26),
+					"bar": "bye!",
+				},
+				map[string]interface{}{
+					"bla": int32(27),
+				},
+			},
+		},
+	}
+
+	/*
+		for idx, col := range reader.Columns() {
+			t.Logf("col %d: %s", idx, spew.Sdump(col))
+		}
+	*/
+
+	for i := int64(0); i < reader.NumRecords(); i++ {
+		data, err := reader.GetData()
+		require.NoError(t, err, "%d. reading record failed")
+		require.Equal(t, expectedData[i], data, "%d. data in parquet file differs from what's expected", i)
 	}
 }
 
