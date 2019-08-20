@@ -582,6 +582,9 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 			if col.element.Type != nil {
 				p.errorf("field %s is not a group but annotated as LIST", col.element.Name)
 			}
+			if rep := col.element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("field %s is a LIST but has repetition type %s", col.element.Name, rep)
+			}
 			if len(col.children) != 1 {
 				p.errorf("field %s is a LIST but has %d children", len(col.children))
 			}
@@ -590,6 +593,15 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 			}
 			if col.children[0].name != "list" {
 				p.errorf("field %s is a LIST but its child is not named \"list\"", col.element.Name)
+			}
+			if len(col.children[0].children) != 1 {
+				p.errorf("field %s.list has %d children", col.element.Name)
+			}
+			if col.children[0].children[0].element.Name != "element" {
+				p.errorf("%s.list has a child but it's called %q, not \"element\"", col.element.Name, col.children[0].children[0].element.Name)
+			}
+			if rep := col.children[0].children[0].element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("%s.list.element has disallowed repetition type %s", col.element.Name, rep)
 			}
 		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetMAP()) || col.element.GetConvertedType() == parquet.ConvertedType_MAP:
 			if col.element.Type != nil {

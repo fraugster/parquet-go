@@ -1,7 +1,7 @@
 message foo {
   required group ids (LIST) {
     repeated group list {
-      required int64 id;
+      required int64 element;
     }
   }
 }

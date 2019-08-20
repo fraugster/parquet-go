@@ -44,7 +44,7 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required group ids (LIST) {
 				repeated group list {
-					required int64 id;
+					required int64 element;
 				}
 			}
 		}`, false},
@@ -70,14 +70,14 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
-					required int64 baz;
+					required int64 element;
 				}
 			}
 		}`, false},
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group element {
-					required int64 baz;
+					required int64 element;
 				}
 			}
 		}`, true}, // repeated group is called "element", not "list".
@@ -86,6 +86,35 @@ func TestSchemaParser(t *testing.T) {
 				repeated int64 list;
 			}
 		}`, true}, // repeated list is not a group.
+		{`message foo {
+			repeated group bar (LIST) {
+				repeated group list {
+					optional int64 element;
+				}
+			}
+		}`, true}, // bar is LIST but has repetition type repeated.
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group list {
+					optional int64 element;
+					optional int64 element2;
+				}
+			}
+		}`, true}, //bar.list has 2 children.
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group list {
+					optional int64 invalid;
+				}
+			}
+		}`, true}, //bar.list has 1 child, but it's called invalid, not element.
+		{`message foo {
+			optional group bar (LIST) {
+				repeated group list {
+					repeated int64 element;
+				}
+			}
+		}`, true}, //bar.list.element is of the wrong repetition type.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
@@ -170,6 +199,6 @@ func TestSchemaParser(t *testing.T) {
 		} else {
 			assert.NoError(t, err, "%d. expected no error, got error instead", idx)
 		}
-		t.Logf("%d. msg = %s expect err = %t err = %v ; parsed message: %s", idx, tt.Msg, tt.ExpectErr, err, spew.Sdump(p.root))
+		//t.Logf("%d. msg = %s expect err = %t err = %v ; parsed message: %s", idx, tt.Msg, tt.ExpectErr, err, spew.Sdump(p.root))
 	}
 }
