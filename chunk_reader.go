@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
-	"strings"
 
 	"github.com/pkg/errors"
 
@@ -364,30 +363,17 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) ([]pageR
 		return &levelDecoderWrapper{decoder: dec, max: col.MaxRepetitionLevel()}, nil
 	}
 
-	nested := strings.IndexByte(col.FlatName(), '.') >= 0
-	repType := *col.Element().RepetitionType
-	if !nested {
-		if repType == parquet.FieldRepetitionType_REQUIRED {
-			// TODO: also check that len(Path) = maxD
-			// For data that is required, the definition levels are not encoded and
-			// always have the value of the max definition level.
-			// TODO: document level ranges
-			dDecoder = func(parquet.Encoding) (levelDecoder, error) {
-				return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: col.MaxDefinitionLevel()}, nil
-			}
-		}
-
-		if repType != parquet.FieldRepetitionType_REPEATED {
-			// TODO: I think we need to check all schemaElements in the path
-			// TODO: clarify the following comment from parquet-format/README:
-			// If the column is not nested the repetition levels are not encoded and
-			// always have the value of 1
-			rDecoder = func(parquet.Encoding) (levelDecoder, error) {
-				return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxRepetitionLevel()}, nil
-			}
+	if col.MaxRepetitionLevel() == 0 {
+		rDecoder = func(parquet.Encoding) (levelDecoder, error) {
+			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: col.MaxDefinitionLevel()}, nil
 		}
 	}
 
+	if col.MaxDefinitionLevel() == 0 {
+		dDecoder = func(parquet.Encoding) (levelDecoder, error) {
+			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxRepetitionLevel()}, nil
+		}
+	}
 	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 

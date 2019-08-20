@@ -349,3 +349,49 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		require.Equal(t, data[i], d)
 	}
 }
+
+func TestWriteThenReadFileNested3(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	valueStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create valueStore")
+	require.NoError(t, w.AddGroup("baz", parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, w.AddColumn("baz.value", NewDataColumn(valueStore, parquet.FieldRepetitionType_REQUIRED)))
+
+	data := []map[string]interface{}{
+		{
+			"baz": map[string]interface{}{
+				"value": int64(9001),
+			},
+		},
+		{},
+		{},
+	}
+
+	for i := range data {
+		require.NoError(t, w.AddData(data[i]))
+	}
+
+	assert.NoError(t, w.Close(), "Close failed")
+
+	require.NoError(t, wf.Close())
+
+	rf, err := os.Open("files/test.parquet")
+	require.NoError(t, err, "opening file failed")
+	defer rf.Close()
+
+	r, err := NewFileReader(rf)
+	require.NoError(t, err, "creating file reader failed")
+	require.NoError(t, r.ReadRowGroup())
+
+	require.Equal(t, int64(len(data)), r.NumRecords())
+	for i := range data {
+		d, err := r.GetData()
+		require.NoError(t, err)
+		require.Equal(t, data[i], d)
+	}
+}
