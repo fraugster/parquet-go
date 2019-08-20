@@ -561,7 +561,7 @@ func recursiveAddColumnNil(c []*column, defLvl, maxRepLvl uint16, repLvl uint16)
 			}
 		}
 		if c[i].children != nil {
-			if err := recursiveAddColumnNil(c, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := recursiveAddColumnNil(c[i].children, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}
@@ -707,7 +707,8 @@ func (c *column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	} else {
 		name += "." + s.Name
 	}
-	c.name = name
+	c.flatName = name
+	c.name = s.Name
 	// TODO : Do more validation here
 	c.element = s
 	c.children = make([]*column, 0, l)

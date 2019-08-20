@@ -252,3 +252,100 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 		require.Equal(t, data[i], d)
 	}
 }
+
+func TestWriteThenReadFileMap(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+
+	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create fooStore")
+	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create barStore")
+	elementStore, err := NewInt32Store(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create elementStore")
+
+	elementCol := NewDataColumn(elementStore, parquet.FieldRepetitionType_REQUIRED)
+	list, err := NewListColumn(elementCol, parquet.FieldRepetitionType_OPTIONAL)
+	require.NoError(t, err)
+
+	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
+	require.NoError(t, w.AddColumn("baz", list))
+
+	/* `message test_msg {
+		required int64 foo;
+		optional binary bar (STRING);
+		optional group baz (LIST) {
+			repeated group list {
+				required int32 element;
+			}
+		}
+	}` */
+	data := []map[string]interface{}{
+		{
+			"foo": int64(500),
+		},
+		{
+			"foo": int64(23),
+			"bar": "hello!",
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					{"element": int32(23)},
+				},
+			},
+		},
+		{
+			"foo": int64(42),
+			"bar": "world!",
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					{"element": int32(1)},
+					{"element": int32(1)},
+					{"element": int32(2)},
+					{"element": int32(3)},
+					{"element": int32(5)},
+				},
+			},
+		},
+		{
+			"foo": int64(1000),
+			"bar": "bye!",
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					{"element": int32(2)},
+					{"element": int32(3)},
+					{"element": int32(5)},
+					{"element": int32(7)},
+					{"element": int32(11)},
+				},
+			},
+		},
+	}
+
+	for i := range data {
+		require.NoError(t, w.AddData(data[i]))
+	}
+
+	assert.NoError(t, w.Close(), "Close failed")
+
+	require.NoError(t, wf.Close())
+
+	rf, err := os.Open("files/test.parquet")
+	require.NoError(t, err, "opening file failed")
+	defer rf.Close()
+
+	r, err := NewFileReader(rf)
+	require.NoError(t, err, "creating file reader failed")
+	require.NoError(t, r.ReadRowGroup())
+
+	require.Equal(t, int64(len(data)), r.NumRecords())
+	for i := range data {
+		d, err := r.GetData()
+		require.NoError(t, err)
+		require.Equal(t, data[i], d)
+	}
+}
