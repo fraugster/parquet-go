@@ -83,8 +83,6 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 	if v == nil {
 		cs.dLevels = append(cs.dLevels, int32(dL))
 		cs.rLevels = append(cs.rLevels, int32(rL))
-		// TODO: the next line is the problem. how I can ignore the nil value here? I need the count to be exact, but nil
-		// should I save it in the dictionary?
 		cs.values.addValue(nil, 0)
 		return false, nil
 	}
@@ -136,26 +134,26 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 	return v, nil
 }
 
-func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
+func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	if cs.readPos >= len(cs.rLevels) || cs.readPos >= len(cs.dLevels) {
-		return nil, errors.New("out of range")
+		return nil, 0, errors.New("out of range")
 	}
 	dl, _, _ := cs.getDRLevelAt(cs.readPos)
 	// this is a null value, increase the read pos, for advancing the rLvl and dLvl but
 	// do not touch the dict-store
 	if dl < maxD {
 		cs.readPos++
-		return nil, nil
+		return nil, dl, nil
 	}
 	v, err := cs.getNext()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// if this is not repeated just return the value, the result is not an array
-	if cs.repTyp != parquet.FieldRepetitionType_REPEATED || v == nil {
+	if cs.repTyp != parquet.FieldRepetitionType_REPEATED {
 		cs.readPos++
-		return v, err
+		return v, maxD, err
 	}
 
 	// the first rLevel in current object is always less than maxR (only for the repeated values) // TODO : validate that on first value?
@@ -168,11 +166,11 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, error) {
 		_, rl, last := cs.getDRLevelAt(cs.readPos)
 		if last || rl < maxR {
 			// end of this object
-			return ret, nil
+			return ret, maxD, nil
 		}
 		v, err := cs.getNext()
 		if err != nil {
-			return nil, err
+			return nil, maxD, err
 		}
 
 		ret = cs.typedColumnStore.append(ret, v)
