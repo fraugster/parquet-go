@@ -1,6 +1,7 @@
 package floor
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -232,10 +233,13 @@ func TestWriteFile(t *testing.T) {
 		{23, strPtr("hello!"), []int32{23}},
 		{42, strPtr("world!"), []int32{1, 1, 2, 3, 5}},
 		{500, nil, nil},
+		{750, strPtr("empty"), []int32{}},
 		{1000, strPtr("bye!"), []int32{2, 3, 5, 7, 11}},
 	}
 
 	for idx, d := range data {
+		ds, _ := decodeStruct(reflect.ValueOf(d))
+		t.Logf("%d. decodeStruct output = %s", idx, fmt.Sprintf("%#v", ds))
 		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
 	}
 
@@ -276,6 +280,13 @@ func TestWriteFile(t *testing.T) {
 		},
 		{
 			"foo": int64(500),
+		},
+		{
+			"foo": int64(750),
+			"bar": "empty",
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{},
+			},
 		},
 		{
 			"foo": int64(1000),

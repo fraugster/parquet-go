@@ -130,6 +130,10 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 }
 
 func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
+	if value.Kind() == reflect.Slice && value.IsNil() {
+		return nil, nil
+	}
+
 	data := map[string]interface{}{}
 
 	list := []map[string]interface{}{}
@@ -148,6 +152,10 @@ func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
 }
 
 func decodeMap(value reflect.Value) (interface{}, error) {
+	if value.IsNil() {
+		return nil, nil
+	}
+
 	data := map[string]interface{}{}
 
 	keyValueList := []map[string]interface{}{}
