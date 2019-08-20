@@ -3,7 +3,6 @@ package go_parquet
 import (
 	"bytes"
 	"io"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
@@ -147,15 +146,13 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 
 func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	dataBuf := &bytes.Buffer{}
-	nested := strings.IndexByte(dp.col.FlatName(), '.') >= 0
-	// if it is nested or it is not repeated we need the dLevel data
-	if nested || dp.col.data.repetitionType() != parquet.FieldRepetitionType_REQUIRED {
+	if dp.col.MaxDefinitionLevel() > 0 {
 		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
 	// if this is nested or if the data is repeated
-	if nested || dp.col.data.repetitionType() == parquet.FieldRepetitionType_REPEATED {
+	if dp.col.MaxRepetitionLevel() > 0 {
 		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
 			return 0, 0, err
 		}
