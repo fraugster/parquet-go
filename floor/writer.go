@@ -30,6 +30,8 @@ func (w *Writer) Write(obj interface{}) error {
 		return err
 	}
 
+	//log.Printf("Write: data = %s", spew.Sdump(data))
+
 	if err := w.w.AddData(data); err != nil {
 		return err
 	}

@@ -174,7 +174,13 @@ func fillValue(value reflect.Value, data interface{}) error {
 		}
 		value.SetString(s)
 	case reflect.Struct:
-
+		structData, ok := data.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected map[string]interface{} to fill struct, got %T", data)
+		}
+		if err := fillStruct(value, structData); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported type %s", value.Type())
 	}

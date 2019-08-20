@@ -22,6 +22,9 @@ func TestReadFile(t *testing.T) {
 		`message test_msg {
 			required int64 foo;
 			optional binary bar (STRING);
+			optional group baz {
+				required int64 value;
+			}
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -31,13 +34,19 @@ func TestReadFile(t *testing.T) {
 
 	hlWriter := NewWriter(w)
 
+	type bazMsg struct {
+		Value uint32
+	}
+
 	type testMsg struct {
 		Foo int64
 		Bar *string
+		Baz *bazMsg
 	}
 
-	require.NoError(t, hlWriter.Write(testMsg{Foo: 1, Bar: strPtr("hello")}))
-	require.NoError(t, hlWriter.Write(testMsg{Foo: 23}))
+	// Baz doesn't seem to get written correctly. when dumping the resulting file, baz.value is wrong.
+	require.NoError(t, hlWriter.Write(testMsg{Foo: 1, Bar: strPtr("hello"), Baz: &bazMsg{Value: 9001}}))
+	require.NoError(t, hlWriter.Write(&testMsg{Foo: 23}))
 	require.NoError(t, hlWriter.Write(testMsg{Foo: 42, Bar: strPtr("world!")}))
 	require.NoError(t, hlWriter.Close())
 
@@ -58,7 +67,7 @@ func TestReadFile(t *testing.T) {
 		var msg testMsg
 
 		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
-		//t.Logf("%d. data = %#v", count, hlReader.data)
+		t.Logf("%d. data = %#v", count, hlReader.data)
 
 		result = append(result, msg)
 
