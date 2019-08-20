@@ -101,8 +101,16 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: []bool{false, true, false},
 			},
-			ExpectedOutput: map[string]interface{}{"foo": []bool{false, true, false}},
-			ExpectErr:      false,
+			ExpectedOutput: map[string]interface{}{
+				"foo": map[string]interface{}{
+					"list": []map[string]interface{}{
+						map[string]interface{}{"element": false},
+						map[string]interface{}{"element": true},
+						map[string]interface{}{"element": false},
+					},
+				},
+			},
+			ExpectErr: false,
 		},
 		{
 			Input: struct {
@@ -110,8 +118,18 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: [5]uint16{1, 1, 2, 3, 5},
 			},
-			ExpectedOutput: map[string]interface{}{"foo": []int32{int32(1), int32(1), int32(2), int32(3), int32(5)}},
-			ExpectErr:      false,
+			ExpectedOutput: map[string]interface{}{
+				"foo": map[string]interface{}{
+					"list": []map[string]interface{}{
+						map[string]interface{}{"element": int32(1)},
+						map[string]interface{}{"element": int32(1)},
+						map[string]interface{}{"element": int32(2)},
+						map[string]interface{}{"element": int32(3)},
+						map[string]interface{}{"element": int32(5)},
+					},
+				},
+			},
+			ExpectErr: false,
 		},
 		{
 			Input: struct {
@@ -175,7 +193,11 @@ func TestWriteFile(t *testing.T) {
 		`message test_msg {
 			required int64 foo;
 			optional binary bar (STRING);
-			repeated int32 baz;
+			optional group baz (LIST) {
+				repeated group list {
+					required int32 element;
+				}
+			}
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -216,12 +238,24 @@ func TestWriteFile(t *testing.T) {
 		{
 			"foo": int64(23),
 			"bar": "hello!",
-			"baz": []int32{23},
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					map[string]interface{}{"element": int32(23)},
+				},
+			},
 		},
 		{
 			"foo": int64(42),
 			"bar": "world!",
-			"baz": []int32{1, 1, 2, 3, 5},
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					map[string]interface{}{"element": int32(1)},
+					map[string]interface{}{"element": int32(1)},
+					map[string]interface{}{"element": int32(2)},
+					map[string]interface{}{"element": int32(3)},
+					map[string]interface{}{"element": int32(5)},
+				},
+			},
 		},
 		{
 			"foo": int64(500),
@@ -229,110 +263,17 @@ func TestWriteFile(t *testing.T) {
 		{
 			"foo": int64(1000),
 			"bar": "bye!",
-			"baz": []int32{2, 3, 5, 7, 11},
-		},
-	}
-
-	for i := int64(0); i < reader.NumRecords(); i++ {
-		data, err := reader.GetData()
-		require.NoError(t, err, "%d. reading record failed")
-		require.Equal(t, expectedData[i], data, "%d. data in parquet file differs from what's expected", i)
-	}
-}
-
-func TestRepeatedGroupFile(t *testing.T) {
-	_ = os.Mkdir("files", 0755)
-
-	wf, err := os.OpenFile("files/test2.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
-
-	sd, err := goparquet.ParseSchemaDefinition(
-		`message test_msg {
-			repeated group foo {
-				required int64 bla;
-				optional binary bar (STRING);
-			}
-		}`)
-	require.NoError(t, err, "parsing schema definition failed")
-
-	t.Logf("schema definition: %s", spew.Sdump(sd))
-
-	w.SetSchemaDefinition(sd)
-
-	hlWriter := NewWriter(w)
-
-	type fooType struct {
-		Bla uint64
-		Bar *string
-	}
-
-	data := []struct {
-		Foo []fooType
-	}{
-		{Foo: []fooType{fooType{Bla: 23, Bar: strPtr("foobar")}}},
-		{Foo: []fooType{fooType{Bla: 24, Bar: strPtr("hello")}}},
-		{Foo: []fooType{fooType{Bla: 25}, fooType{Bla: 26, Bar: strPtr("bye!")}, fooType{Bla: 27}}},
-	}
-
-	for idx, d := range data {
-		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
-		decodedData, err := decodeStruct(reflect.ValueOf(d))
-		require.NoError(t, err)
-		t.Logf("%d. decoded struct: %s", idx, spew.Sdump(decodedData))
-	}
-
-	require.NoError(t, hlWriter.Close())
-
-	rf, err := os.Open("files/test2.parquet")
-	require.NoError(t, err)
-
-	reader, err := goparquet.NewFileReader(rf)
-	require.NoError(t, err)
-
-	require.NoError(t, reader.ReadRowGroup())
-
-	require.Equal(t, int64(len(data)), reader.NumRecords())
-
-	expectedData := []map[string]interface{}{
-		{
-			"foo": []map[string]interface{}{
-				map[string]interface{}{
-					"bla": int64(23),
-					"bar": "foobar",
-				},
-			},
-		},
-		{
-			"foo": []map[string]interface{}{
-				map[string]interface{}{
-					"bla": int64(24),
-					"bar": "hello",
-				},
-			},
-		},
-		{
-			"foo": []map[string]interface{}{
-				map[string]interface{}{
-					"bla": int64(25),
-				},
-				map[string]interface{}{
-					"bla": int64(26),
-					"bar": "bye!",
-				},
-				map[string]interface{}{
-					"bla": int64(27),
+			"baz": map[string]interface{}{
+				"list": []map[string]interface{}{
+					map[string]interface{}{"element": int32(2)},
+					map[string]interface{}{"element": int32(3)},
+					map[string]interface{}{"element": int32(5)},
+					map[string]interface{}{"element": int32(7)},
+					map[string]interface{}{"element": int32(11)},
 				},
 			},
 		},
 	}
-
-	/*
-		for idx, col := range reader.Columns() {
-			t.Logf("col %d: %s", idx, spew.Sdump(col))
-		}
-	*/
 
 	for i := int64(0); i < reader.NumRecords(); i++ {
 		data, err := reader.GetData()

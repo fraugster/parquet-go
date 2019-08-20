@@ -126,21 +126,21 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 }
 
 func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
-	containedType := value.Type()
-	mappedType, err := mapType(containedType.Elem())
-	if err != nil {
-		return nil, err
-	}
-	slice := reflect.MakeSlice(reflect.SliceOf(mappedType), 0, value.Len())
+	data := map[string]interface{}{}
 
-	for j := 0; j < value.Len(); j++ {
-		v, err := decodeValue(value.Index(j))
+	list := []map[string]interface{}{}
+
+	for i := 0; i < value.Len(); i++ {
+		v, err := decodeValue(value.Index(i))
 		if err != nil {
 			return nil, err
 		}
-		slice = reflect.Append(slice, reflect.ValueOf(v))
+		list = append(list, map[string]interface{}{"element": v})
 	}
-	return slice.Interface(), nil
+
+	data["list"] = list
+
+	return data, nil
 }
 
 func mapType(typ reflect.Type) (reflect.Type, error) {
