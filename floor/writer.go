@@ -111,7 +111,11 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	case reflect.Array, reflect.Slice:
 		return decodeSliceOrArray(value)
 	case reflect.Map:
-		return nil, errors.New("map support not implemented yet")
+		mapData, err := decodeMap(value)
+		if err != nil {
+			return nil, err
+		}
+		return mapData, nil
 	case reflect.String:
 		return value.String(), nil
 	case reflect.Struct:
@@ -143,33 +147,30 @@ func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
 	return data, nil
 }
 
-func mapType(typ reflect.Type) (reflect.Type, error) {
-	switch typ.Kind() {
-	case reflect.Bool:
-		return reflect.TypeOf(false), nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Uint, reflect.Uint8, reflect.Uint16:
-		return reflect.TypeOf(int32(0)), nil
-	case reflect.Int64, reflect.Uint32, reflect.Uint64:
-		return reflect.TypeOf(int64(0)), nil
-	case reflect.Float32:
-		return reflect.TypeOf(float32(0)), nil
-	case reflect.Float64:
-		return reflect.TypeOf(float64(0)), nil
-	case reflect.Struct:
-		return reflect.TypeOf(map[string]interface{}{}), nil
-	case reflect.Array, reflect.Slice:
-		mappedType, err := mapType(typ.Elem())
+func decodeMap(value reflect.Value) (interface{}, error) {
+	data := map[string]interface{}{}
+
+	keyValueList := []map[string]interface{}{}
+
+	iter := value.MapRange()
+
+	for iter.Next() {
+		key, err := decodeValue(iter.Key())
 		if err != nil {
 			return nil, err
 		}
-		return reflect.SliceOf(mappedType), nil
-	case reflect.Map:
-		return nil, errors.New("map type support not implemented yet")
-	case reflect.String:
-		return typ, nil
-	default:
-		return nil, fmt.Errorf("unsupported type %s", typ)
+
+		value, err := decodeValue(iter.Value())
+		if err != nil {
+			return nil, err
+		}
+
+		keyValueList = append(keyValueList, map[string]interface{}{"key": key, "value": value})
 	}
+
+	data["key_value"] = keyValueList
+
+	return data, nil
 }
 
 // Close flushes outstanding data and closes the underlying

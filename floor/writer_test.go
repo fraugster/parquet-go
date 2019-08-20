@@ -133,6 +133,23 @@ func TestDecodeStruct(t *testing.T) {
 		},
 		{
 			Input: struct {
+				Foo map[string]int64
+			}{
+				Foo: map[string]int64{
+					"hello": int64(23),
+				},
+			},
+			ExpectedOutput: map[string]interface{}{
+				"foo": map[string]interface{}{
+					"key_value": []map[string]interface{}{
+						map[string]interface{}{"key": "hello", "value": int64(23)},
+					},
+				},
+			},
+			ExpectErr: false,
+		},
+		{
+			Input: struct {
 				C chan int
 			}{},
 			ExpectedOutput: nil,
