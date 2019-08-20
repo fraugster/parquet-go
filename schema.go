@@ -128,16 +128,20 @@ func (c *column) getDataSize() int64 {
 	return c.data.values.size
 }
 
-func (c *column) getNextData() (map[string]interface{}, error) {
+func (c *column) getNextData() (map[string]interface{}, int32, error) {
 	if c.children == nil {
-		return nil, errors.New("bug: call getNextData on non group node")
+		return nil, 0, errors.New("bug: call getNextData on non group node")
 	}
 	ret := make(map[string]interface{})
 	notNil := 0
+	var maxD int32
 	for i := range c.children {
-		data, err := c.children[i].getData()
+		data, dl, err := c.children[i].getData()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
+		}
+		if dl > maxD {
+			maxD = dl
 		}
 
 		// https://golang.org/doc/faq#nil_error
@@ -151,13 +155,20 @@ func (c *column) getNextData() (map[string]interface{}, error) {
 			ret[c.children[i].name] = data
 			notNil++
 		}
+		var diff int32
+		if c.children[i].rep != parquet.FieldRepetitionType_REQUIRED {
+			diff++
+		}
+		if dl == int32(c.children[i].maxD)-diff {
+			notNil++
+		}
 	}
 
 	if notNil == 0 {
-		return nil, nil
+		return nil, maxD, nil
 	}
 
-	return ret, nil
+	return ret, int32(c.maxD), nil
 }
 
 func (c *column) getFirstDRLevel() (int32, int32, bool) {
@@ -181,15 +192,15 @@ func (c *column) getFirstDRLevel() (int32, int32, bool) {
 	return -1, -1, false
 }
 
-func (c *column) getData() (interface{}, error) {
+func (c *column) getData() (interface{}, int32, error) {
 	if c.children != nil {
-		data, err := c.getNextData()
+		data, maxD, err := c.getNextData()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		if c.rep != parquet.FieldRepetitionType_REPEATED || data == nil {
-			return data, nil
+			return data, maxD, nil
 		}
 
 		ret := []map[string]interface{}{data}
@@ -197,12 +208,12 @@ func (c *column) getData() (interface{}, error) {
 			_, rl, last := c.getFirstDRLevel()
 			if last || rl < int32(c.maxR) || rl == 0 {
 				// end of this object
-				return ret, nil
+				return ret, maxD, nil
 			}
 
-			data, err := c.getNextData()
+			data, _, err := c.getNextData()
 			if err != nil {
-				return nil, err
+				return nil, maxD, err
 			}
 
 			ret = append(ret, data)
@@ -546,7 +557,7 @@ func (r *schema) AddData(m map[string]interface{}) error {
 
 func (r *schema) GetData() (map[string]interface{}, error) {
 	// TODO: keep track of read row count
-	d, err := r.root.getData()
+	d, _, err := r.root.getData()
 	if err != nil {
 		return nil, err
 	}
@@ -560,6 +571,9 @@ func (r *schema) GetData() (map[string]interface{}, error) {
 func recursiveAddColumnNil(c []*column, defLvl, maxRepLvl uint16, repLvl uint16) error {
 	for i := range c {
 		if c[i].data != nil {
+			if c[i].rep == parquet.FieldRepetitionType_REQUIRED && defLvl == c[i].maxD {
+				return errors.Errorf("the value %q is required", c[i].flatName)
+			}
 			_, err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl)
 			if err != nil {
 				return err
@@ -598,8 +612,6 @@ func recursiveAddColumnData(c []*column, m interface{}, defLvl uint16, maxRepLvl
 				l++
 			}
 
-			// TODO: Transform data  into acceptable type if this is a LIST or MAP
-
 			switch v := d.(type) {
 			case nil:
 				if err := recursiveAddColumnNil(c[i].children, l, maxRepLvl, repLvl); err != nil {
@@ -622,6 +634,9 @@ func recursiveAddColumnData(c []*column, m interface{}, defLvl uint16, maxRepLvl
 					return false, errors.Errorf("no repeated group should not be array")
 				}
 				rL := repLvl
+				if len(v) == 0 {
+					return false, recursiveAddColumnNil(c[i].children, l, m, rL)
+				}
 				for vi := range v {
 					inc, err := recursiveAddColumnData(c[i].children, v[vi], l, m, rL)
 					if err != nil {

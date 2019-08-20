@@ -382,3 +382,41 @@ func TestTwitterBlog(t *testing.T) {
 	}
 
 }
+
+func TestEmptyParent(t *testing.T) {
+	elementStore, err := NewInt32Store(parquet.Encoding_PLAIN, true)
+	require.NoError(t, err, "failed to create elementStore")
+
+	elementCol := NewDataColumn(elementStore, parquet.FieldRepetitionType_REQUIRED)
+	list, err := NewListColumn(elementCol, parquet.FieldRepetitionType_OPTIONAL)
+	require.NoError(t, err)
+
+	row := &schema{}
+	require.NoError(t, row.AddColumn("baz", list))
+
+	data := []map[string]interface{}{
+		{
+			"baz": map[string]interface{}{},
+		},
+	}
+
+	for i := range data {
+		require.NoError(t, row.AddData(data[i]))
+	}
+
+	col, err := row.findDataColumn("baz.list.element")
+	require.NoError(t, err)
+
+	assert.Equal(t, []interface{}{}, col.data.values.assemble())
+
+	assert.Equal(t, uint16(2), col.MaxDefinitionLevel())
+	assert.Equal(t, uint16(1), col.MaxRepetitionLevel())
+	require.Equal(t, []int32{0}, col.data.rLevels)
+	require.Equal(t, []int32{1}, col.data.dLevels)
+
+	for i := range data {
+		read, err := row.GetData()
+		require.NoError(t, err)
+		assert.Equal(t, data[i], read)
+	}
+}
