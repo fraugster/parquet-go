@@ -3,6 +3,8 @@ package floor
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"strings"
 
@@ -16,9 +18,29 @@ func NewReader(r *goparquet.FileReader) *Reader {
 	}
 }
 
+// NewFileReader returns a new high-level parquet file reader
+// that directly reads from the provided file.
+func NewFileReader(file string) (*Reader, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := goparquet.NewFileReader(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Reader{
+		r: r,
+		f: f,
+	}, nil
+}
+
 // Reader represents a high-level reader for parquet files.
 type Reader struct {
 	r *goparquet.FileReader
+	f io.Closer
 
 	initialized  bool
 	currentGroup int
@@ -26,6 +48,15 @@ type Reader struct {
 	data         map[string]interface{}
 	err          error
 	eof          bool
+}
+
+// Close closes the reader.
+func (r *Reader) Close() error {
+	if r.f != nil {
+		return r.f.Close()
+	}
+
+	return nil
 }
 
 // Next reads the next object so that it is ready to be scanned.
@@ -293,4 +324,10 @@ func getFloatValue(data interface{}) (float64, error) {
 // If Next returned false due to EOF, Err returns nil.
 func (r *Reader) Err() error {
 	return r.err
+}
+
+// GetSchemaDefinition returns the schema definition of the parquet
+// file.
+func (r *Reader) GetSchemaDefinition() *goparquet.SchemaDefinition {
+	return r.r.GetSchemaDefinition()
 }

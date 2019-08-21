@@ -50,14 +50,8 @@ func TestReadFile(t *testing.T) {
 	require.NoError(t, hlWriter.Write(testMsg{Foo: 42, Bar: strPtr("world!")}))
 	require.NoError(t, hlWriter.Close())
 
-	rf, err := os.Open("files/readtest.parquet")
+	hlReader, err := NewFileReader("files/readtest.parquet")
 	require.NoError(t, err)
-	defer rf.Close()
-
-	reader, err := goparquet.NewFileReader(rf)
-	require.NoError(t, err)
-
-	hlReader := NewReader(reader)
 
 	count := 0
 
@@ -84,6 +78,8 @@ func TestReadFile(t *testing.T) {
 	t.Logf("result = %s", spew.Sdump(result))
 
 	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+
+	require.NoError(t, hlReader.Close())
 }
 
 func TestReadWriteMap(t *testing.T) {
@@ -124,14 +120,8 @@ func TestReadWriteMap(t *testing.T) {
 	}
 	require.NoError(t, hlWriter.Close())
 
-	rf, err := os.Open("files/map.parquet")
+	hlReader, err := NewFileReader("files/map.parquet")
 	require.NoError(t, err)
-	defer rf.Close()
-
-	reader, err := goparquet.NewFileReader(rf)
-	require.NoError(t, err)
-
-	hlReader := NewReader(reader)
 
 	count := 0
 
@@ -154,6 +144,8 @@ func TestReadWriteMap(t *testing.T) {
 	for idx, elem := range result {
 		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
 	}
+
+	require.NoError(t, hlReader.Close())
 }
 
 func TestReadWriteSlice(t *testing.T) {
@@ -194,14 +186,8 @@ func TestReadWriteSlice(t *testing.T) {
 	}
 	require.NoError(t, hlWriter.Close())
 
-	rf, err := os.Open("files/list.parquet")
+	hlReader, err := NewFileReader("files/list.parquet")
 	require.NoError(t, err)
-	defer rf.Close()
-
-	reader, err := goparquet.NewFileReader(rf)
-	require.NoError(t, err)
-
-	hlReader := NewReader(reader)
 
 	count := 0
 
@@ -224,6 +210,8 @@ func TestReadWriteSlice(t *testing.T) {
 	for idx, elem := range result {
 		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
 	}
+
+	require.NoError(t, hlReader.Close())
 }
 
 func TestReadWriteArray(t *testing.T) {
@@ -264,14 +252,8 @@ func TestReadWriteArray(t *testing.T) {
 	}
 	require.NoError(t, hlWriter.Close())
 
-	rf, err := os.Open("files/array.parquet")
+	hlReader, err := NewFileReader("files/array.parquet")
 	require.NoError(t, err)
-	defer rf.Close()
-
-	reader, err := goparquet.NewFileReader(rf)
-	require.NoError(t, err)
-
-	hlReader := NewReader(reader)
 
 	count := 0
 
@@ -295,6 +277,8 @@ func TestReadWriteArray(t *testing.T) {
 	for idx, elem := range result {
 		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
 	}
+
+	require.NoError(t, hlReader.Close())
 }
 
 func TestFillValue(t *testing.T) {
