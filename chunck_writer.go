@@ -304,7 +304,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *column, codec parquet.Comp
 			Encodings:             encodings,
 			PathInSchema:          strings.Split(col.flatName, "."),
 			Codec:                 codec,
-			NumValues:             schema.NumRecords(),
+			NumValues:             int64(col.data.values.numValues() + col.data.values.nullValueCount()),
 			TotalUncompressedSize: totalUnComp,
 			TotalCompressedSize:   totalComp,
 			KeyValueMetadata:      nil, // TODO: add key/value metadata support
