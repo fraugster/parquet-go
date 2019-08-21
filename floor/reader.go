@@ -203,82 +203,9 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 		}
 		value.SetFloat(f)
 	case reflect.Array, reflect.Slice:
-		if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
-			return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
-		}
-
-		listData, ok := data.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected map[string]interface{} to fill list, got %T", data)
-		}
-		elemList, ok := listData["list"].([]map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected list child of type []map[string]interface{}, got %T", listData["list"])
-		}
-		elementList := []interface{}{}
-		for _, elemMap := range elemList {
-			elem, ok := elemMap["element"]
-			if !ok {
-				return errors.New("got list element without element child")
-			}
-			elementList = append(elementList, elem)
-		}
-		if value.Kind() == reflect.Slice {
-			value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
-		}
-
-		listSchemaDef := schemaDef.SubSchema("list")
-		elemSchemaDef := listSchemaDef.SubSchema("element")
-
-		for idx, elem := range elementList {
-			if idx < value.Len() {
-				if err := fillValue(value.Index(idx), elem, elemSchemaDef); err != nil {
-					return err
-				}
-			}
-		}
+		return fillArrayOrSlice(value, data, schemaDef)
 	case reflect.Map:
-		if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
-			return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
-		}
-
-		mapData, ok := data.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected map[string]interface{} to fill map, got %T", data)
-		}
-		keyValueList, ok := mapData["key_value"].([]map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected key_value child of type []map[string]interface{}, got %T", mapData["key_value"])
-		}
-		value.Set(reflect.MakeMap(value.Type()))
-
-		keyValueSchemaDef := schemaDef.SubSchema("key_value")
-		keySchemaDef := keyValueSchemaDef.SubSchema("key")
-		valueSchemaDef := keyValueSchemaDef.SubSchema("value")
-
-		for _, keyValueMap := range keyValueList {
-			keyData, ok := keyValueMap["key"]
-			if !ok {
-				return errors.New("got key_value element without key")
-			}
-
-			keyValue := reflect.New(value.Type().Key()).Elem()
-			if err := fillValue(keyValue, keyData, keySchemaDef); err != nil {
-				return fmt.Errorf("couldn't fill key with key data: %v", err)
-			}
-
-			valueData, ok := keyValueMap["value"]
-			if !ok {
-				return errors.New("got key_value element without value")
-			}
-			valueValue := reflect.New(value.Type().Elem()).Elem()
-			if err := fillValue(valueValue, valueData, valueSchemaDef); err != nil {
-				return fmt.Errorf("couldn't fill value with value data: %v", err)
-			}
-
-			value.SetMapIndex(keyValue, valueValue)
-		}
-
+		return fillMap(value, data, schemaDef)
 	case reflect.String:
 		s, err := getStringValue(data)
 		if err != nil {
@@ -295,6 +222,90 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 		}
 	default:
 		return fmt.Errorf("unsupported type %s", value.Type())
+	}
+
+	return nil
+}
+
+func fillMap(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
+		return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
+	}
+
+	mapData, ok := data.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected map[string]interface{} to fill map, got %T", data)
+	}
+	keyValueList, ok := mapData["key_value"].([]map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected key_value child of type []map[string]interface{}, got %T", mapData["key_value"])
+	}
+	value.Set(reflect.MakeMap(value.Type()))
+
+	keyValueSchemaDef := schemaDef.SubSchema("key_value")
+	keySchemaDef := keyValueSchemaDef.SubSchema("key")
+	valueSchemaDef := keyValueSchemaDef.SubSchema("value")
+
+	for _, keyValueMap := range keyValueList {
+		keyData, ok := keyValueMap["key"]
+		if !ok {
+			return errors.New("got key_value element without key")
+		}
+
+		keyValue := reflect.New(value.Type().Key()).Elem()
+		if err := fillValue(keyValue, keyData, keySchemaDef); err != nil {
+			return fmt.Errorf("couldn't fill key with key data: %v", err)
+		}
+
+		valueData, ok := keyValueMap["value"]
+		if !ok {
+			return errors.New("got key_value element without value")
+		}
+		valueValue := reflect.New(value.Type().Elem()).Elem()
+		if err := fillValue(valueValue, valueData, valueSchemaDef); err != nil {
+			return fmt.Errorf("couldn't fill value with value data: %v", err)
+		}
+
+		value.SetMapIndex(keyValue, valueValue)
+	}
+
+	return nil
+}
+
+func fillArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
+		return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
+	}
+
+	listData, ok := data.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected map[string]interface{} to fill list, got %T", data)
+	}
+	elemList, ok := listData["list"].([]map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected list child of type []map[string]interface{}, got %T", listData["list"])
+	}
+	elementList := []interface{}{}
+	for _, elemMap := range elemList {
+		elem, ok := elemMap["element"]
+		if !ok {
+			return errors.New("got list element without element child")
+		}
+		elementList = append(elementList, elem)
+	}
+	if value.Kind() == reflect.Slice {
+		value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
+	}
+
+	listSchemaDef := schemaDef.SubSchema("list")
+	elemSchemaDef := listSchemaDef.SubSchema("element")
+
+	for idx, elem := range elementList {
+		if idx < value.Len() {
+			if err := fillValue(value.Index(idx), elem, elemSchemaDef); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
