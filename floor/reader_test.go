@@ -14,11 +14,6 @@ import (
 func TestReadFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/readtest.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
-
 	sd, err := goparquet.ParseSchemaDefinition(
 		`message test_msg {
 			required int64 foo;
@@ -31,9 +26,13 @@ func TestReadFile(t *testing.T) {
 
 	t.Logf("schema definition: %s", spew.Sdump(sd))
 
-	w.SetSchemaDefinition(sd)
-
-	hlWriter := NewWriter(w)
+	hlWriter, err := NewFileWriter(
+		"files/readtest.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err, "creating parquet file writer failed")
 
 	type bazMsg struct {
 		Value uint32
@@ -67,6 +66,9 @@ func TestReadFile(t *testing.T) {
 	for hlReader.Next() {
 		var msg testMsg
 
+		require.Error(t, hlReader.Scan(int(1)), "%d. Scan into int unexpectedly succeeded", count)
+		require.Error(t, hlReader.Scan(new(int)), "%d. Scan into *int unexpectedly succeeded", count)
+
 		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
 		t.Logf("%d. data = %#v", count, hlReader.data)
 
@@ -74,6 +76,9 @@ func TestReadFile(t *testing.T) {
 
 		count++
 	}
+
+	require.NoError(t, hlReader.Err(), "hlReader returned error")
+	require.False(t, hlReader.Next(), "hlReader returned true after it had returned false")
 
 	t.Logf("count = %d", count)
 	t.Logf("result = %s", spew.Sdump(result))
@@ -83,11 +88,6 @@ func TestReadFile(t *testing.T) {
 
 func TestReadWriteMap(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
-
-	wf, err := os.OpenFile("files/map.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
 
 	sd, err := goparquet.ParseSchemaDefinition(
 		`message test_msg {
@@ -102,9 +102,13 @@ func TestReadWriteMap(t *testing.T) {
 
 	t.Logf("schema definition: %s", spew.Sdump(sd))
 
-	w.SetSchemaDefinition(sd)
-
-	hlWriter := NewWriter(w)
+	hlWriter, err := NewFileWriter(
+		"files/map.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err)
 
 	type testMsg struct {
 		Foo map[string]int32
@@ -155,11 +159,6 @@ func TestReadWriteMap(t *testing.T) {
 func TestReadWriteSlice(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/list.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
-
 	sd, err := goparquet.ParseSchemaDefinition(
 		`message test_msg {
 			required group foo (LIST) {
@@ -172,9 +171,13 @@ func TestReadWriteSlice(t *testing.T) {
 
 	t.Logf("schema definition: %s", spew.Sdump(sd))
 
-	w.SetSchemaDefinition(sd)
-
-	hlWriter := NewWriter(w)
+	hlWriter, err := NewFileWriter(
+		"files/list.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err)
 
 	type testMsg struct {
 		Foo []string
@@ -226,11 +229,6 @@ func TestReadWriteSlice(t *testing.T) {
 func TestReadWriteArray(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/array.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
-
 	sd, err := goparquet.ParseSchemaDefinition(
 		`message test_msg {
 			required group foo (LIST) {
@@ -243,9 +241,13 @@ func TestReadWriteArray(t *testing.T) {
 
 	t.Logf("schema definition: %s", spew.Sdump(sd))
 
-	w.SetSchemaDefinition(sd)
-
-	hlWriter := NewWriter(w)
+	hlWriter, err := NewFileWriter(
+		"files/array.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err)
 
 	type testMsg struct {
 		Foo [2]string
@@ -287,6 +289,7 @@ func TestReadWriteArray(t *testing.T) {
 	}
 
 	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+
 	t.Logf("count = %d", count)
 
 	for idx, elem := range result {
@@ -298,10 +301,18 @@ func TestFillValue(t *testing.T) {
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23))
 
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int64(23)))
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int32(23)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int16(23)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int8(23)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int(23)))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), 3.5))
 
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int64(42)))
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int32(42)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int16(42)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int8(42)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int(42)))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), "9001"))
 
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float64(23.5)))

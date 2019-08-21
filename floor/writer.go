@@ -3,6 +3,8 @@ package floor
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"strings"
 
@@ -16,9 +18,26 @@ func NewWriter(w *goparquet.FileWriter) *Writer {
 	}
 }
 
+// NewFileWriter creates a nigh high-level writer for parquet
+// that writes to a particular file.
+func NewFileWriter(file string, opts ...goparquet.FileWriterOption) (*Writer, error) {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	w := goparquet.NewFileWriter(f, opts...)
+
+	return &Writer{
+		w: w,
+		f: f,
+	}, nil
+}
+
 // Writer represents a high-level writer for parquet files.
 type Writer struct {
 	w *goparquet.FileWriter
+	f io.Closer
 }
 
 // Write adds a new object to be written to the parquet file.
@@ -186,5 +205,9 @@ func decodeMap(value reflect.Value) (interface{}, error) {
 // Close flushes outstanding data and closes the underlying
 // parquet writer.
 func (w *Writer) Close() error {
+	if w.f != nil {
+		defer w.f.Close()
+	}
+
 	return w.w.Close()
 }
