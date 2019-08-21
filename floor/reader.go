@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/fraugster/parquet-go/parquet"
+
 	goparquet "github.com/fraugster/parquet-go"
 )
 
@@ -133,14 +135,16 @@ func (r *Reader) Scan(obj interface{}) error {
 		return errors.New("provided object is not a struct")
 	}
 
-	if err := fillStruct(objValue, r.data); err != nil {
+	schemaDef := r.r.GetSchemaDefinition()
+
+	if err := fillStruct(objValue, r.data, schemaDef); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func fillStruct(value reflect.Value, data map[string]interface{}) error {
+func fillStruct(value reflect.Value, data map[string]interface{}, schemaDef *goparquet.SchemaDefinition) error {
 	typ := value.Type()
 
 	numFields := typ.NumField()
@@ -149,13 +153,17 @@ func fillStruct(value reflect.Value, data map[string]interface{}) error {
 
 		fieldName := strings.ToLower(typ.Field(i).Name)
 
+		fieldSchemaDef := schemaDef.SubSchema(fieldName)
+
 		fieldData, ok := data[fieldName]
 		if !ok {
-			// TODO: couple this somehow with schema and check whether field is required.
+			if elem := fieldSchemaDef.SchemaElement(); elem.GetRepetitionType() == parquet.FieldRepetitionType_REQUIRED {
+				return fmt.Errorf("field %s is %s but couldn't be found in data", fieldName, elem.GetRepetitionType())
+			}
 			continue
 		}
 
-		if err := fillValue(fieldValue, fieldData); err != nil {
+		if err := fillValue(fieldValue, fieldData, fieldSchemaDef); err != nil {
 			return err
 		}
 	}
@@ -163,7 +171,7 @@ func fillStruct(value reflect.Value, data map[string]interface{}) error {
 	return nil
 }
 
-func fillValue(value reflect.Value, data interface{}) error {
+func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
@@ -195,6 +203,10 @@ func fillValue(value reflect.Value, data interface{}) error {
 		}
 		value.SetFloat(f)
 	case reflect.Array, reflect.Slice:
+		if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
+			return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
+		}
+
 		listData, ok := data.(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("expected map[string]interface{} to fill list, got %T", data)
@@ -214,14 +226,22 @@ func fillValue(value reflect.Value, data interface{}) error {
 		if value.Kind() == reflect.Slice {
 			value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
 		}
+
+		listSchemaDef := schemaDef.SubSchema("list")
+		elemSchemaDef := listSchemaDef.SubSchema("element")
+
 		for idx, elem := range elementList {
 			if idx < value.Len() {
-				if err := fillValue(value.Index(idx), elem); err != nil {
+				if err := fillValue(value.Index(idx), elem, elemSchemaDef); err != nil {
 					return err
 				}
 			}
 		}
 	case reflect.Map:
+		if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
+			return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
+		}
+
 		mapData, ok := data.(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("expected map[string]interface{} to fill map, got %T", data)
@@ -231,6 +251,11 @@ func fillValue(value reflect.Value, data interface{}) error {
 			return fmt.Errorf("expected key_value child of type []map[string]interface{}, got %T", mapData["key_value"])
 		}
 		value.Set(reflect.MakeMap(value.Type()))
+
+		keyValueSchemaDef := schemaDef.SubSchema("key_value")
+		keySchemaDef := keyValueSchemaDef.SubSchema("key")
+		valueSchemaDef := keyValueSchemaDef.SubSchema("value")
+
 		for _, keyValueMap := range keyValueList {
 			keyData, ok := keyValueMap["key"]
 			if !ok {
@@ -238,7 +263,7 @@ func fillValue(value reflect.Value, data interface{}) error {
 			}
 
 			keyValue := reflect.New(value.Type().Key()).Elem()
-			if err := fillValue(keyValue, keyData); err != nil {
+			if err := fillValue(keyValue, keyData, keySchemaDef); err != nil {
 				return fmt.Errorf("couldn't fill key with key data: %v", err)
 			}
 
@@ -247,7 +272,7 @@ func fillValue(value reflect.Value, data interface{}) error {
 				return errors.New("got key_value element without value")
 			}
 			valueValue := reflect.New(value.Type().Elem()).Elem()
-			if err := fillValue(valueValue, valueData); err != nil {
+			if err := fillValue(valueValue, valueData, valueSchemaDef); err != nil {
 				return fmt.Errorf("couldn't fill value with value data: %v", err)
 			}
 
@@ -265,7 +290,7 @@ func fillValue(value reflect.Value, data interface{}) error {
 		if !ok {
 			return fmt.Errorf("expected map[string]interface{} to fill struct, got %T", data)
 		}
-		if err := fillStruct(value, structData); err != nil {
+		if err := fillStruct(value, structData, schemaDef); err != nil {
 			return err
 		}
 	default:

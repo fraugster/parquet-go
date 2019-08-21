@@ -59,6 +59,10 @@ func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
 // SchemaElement returns the schema element associated with the current
 // schema definition. If no schema element is present, then nil is returned.
 func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
+	if sd == nil {
+		return nil
+	}
+
 	return sd.col.element
 }
 

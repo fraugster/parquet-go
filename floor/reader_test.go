@@ -282,28 +282,28 @@ func TestReadWriteArray(t *testing.T) {
 }
 
 func TestFillValue(t *testing.T) {
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false, nil))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23, nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int64(23)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int32(23)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int16(23)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int8(23)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int(23)))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), 3.5))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int64(23), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int32(23), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int16(23), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int8(23), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int(23), nil))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), 3.5, nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int64(42)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int32(42)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int16(42)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int8(42)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int(42)))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), "9001"))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int64(42), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int32(42), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int16(42), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int8(42), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int(42), nil))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), "9001", nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float64(23.5)))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float32(23.5)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float64(23.5), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float32(23.5), nil))
 
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), false))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), false, nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!"))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!", nil))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000), nil))
 }
