@@ -2,6 +2,7 @@ package floor
 
 import (
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -78,4 +79,236 @@ func TestReadFile(t *testing.T) {
 	t.Logf("result = %s", spew.Sdump(result))
 
 	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+}
+
+func TestReadWriteMap(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/map.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required group foo (MAP) {
+				repeated group key_value {
+					required binary key (STRING);
+					required int32 value;
+				}
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	w.SetSchemaDefinition(sd)
+
+	hlWriter := NewWriter(w)
+
+	type testMsg struct {
+		Foo map[string]int32
+	}
+
+	testData := []testMsg{
+		{Foo: map[string]int32{"foo": 23, "bar": 42, "baz": 9001}},
+		{Foo: map[string]int32{"a": 61, "c": 63}},
+	}
+
+	for _, tt := range testData {
+		require.NoError(t, hlWriter.Write(tt))
+	}
+	require.NoError(t, hlWriter.Close())
+
+	rf, err := os.Open("files/map.parquet")
+	require.NoError(t, err)
+	defer rf.Close()
+
+	reader, err := goparquet.NewFileReader(rf)
+	require.NoError(t, err)
+
+	hlReader := NewReader(reader)
+
+	count := 0
+
+	var result []testMsg
+
+	for hlReader.Next() {
+		var msg testMsg
+
+		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
+		t.Logf("%d. data = %#v", count, hlReader.data)
+
+		result = append(result, msg)
+
+		count++
+	}
+
+	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+	t.Logf("count = %d", count)
+
+	for idx, elem := range result {
+		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
+	}
+}
+
+func TestReadWriteSlice(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/list.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required group foo (LIST) {
+				repeated group list {
+					required binary element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	w.SetSchemaDefinition(sd)
+
+	hlWriter := NewWriter(w)
+
+	type testMsg struct {
+		Foo []string
+	}
+
+	testData := []testMsg{
+		{Foo: []string{"hello", "world!"}},
+		{Foo: []string{"these", "are", "just", "my", "tokens"}},
+		{Foo: []string{"bla"}},
+	}
+
+	for _, tt := range testData {
+		require.NoError(t, hlWriter.Write(tt))
+	}
+	require.NoError(t, hlWriter.Close())
+
+	rf, err := os.Open("files/list.parquet")
+	require.NoError(t, err)
+	defer rf.Close()
+
+	reader, err := goparquet.NewFileReader(rf)
+	require.NoError(t, err)
+
+	hlReader := NewReader(reader)
+
+	count := 0
+
+	var result []testMsg
+
+	for hlReader.Next() {
+		var msg testMsg
+
+		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
+		t.Logf("%d. data = %#v", count, hlReader.data)
+
+		result = append(result, msg)
+
+		count++
+	}
+
+	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+	t.Logf("count = %d", count)
+
+	for idx, elem := range result {
+		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
+	}
+}
+
+func TestReadWriteArray(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/array.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	w := goparquet.NewFileWriter(wf, goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY), goparquet.CreatedBy("floor-unittest"))
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required group foo (LIST) {
+				repeated group list {
+					required binary element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	w.SetSchemaDefinition(sd)
+
+	hlWriter := NewWriter(w)
+
+	type testMsg struct {
+		Foo [2]string
+	}
+
+	testData := []testMsg{
+		{Foo: [2]string{"hello", "world!"}},
+		{Foo: [2]string{"good morning", "vietnam!"}},
+		{Foo: [2]string{"Berlin", "Zehlendorf"}},
+	}
+
+	for _, tt := range testData {
+		require.NoError(t, hlWriter.Write(tt))
+	}
+	require.NoError(t, hlWriter.Close())
+
+	rf, err := os.Open("files/array.parquet")
+	require.NoError(t, err)
+	defer rf.Close()
+
+	reader, err := goparquet.NewFileReader(rf)
+	require.NoError(t, err)
+
+	hlReader := NewReader(reader)
+
+	count := 0
+
+	var result []testMsg
+
+	for hlReader.Next() {
+		var msg testMsg
+
+		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
+		t.Logf("%d. data = %#v", count, hlReader.data)
+
+		result = append(result, msg)
+
+		count++
+	}
+
+	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+	t.Logf("count = %d", count)
+
+	for idx, elem := range result {
+		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
+	}
+}
+
+func TestFillValue(t *testing.T) {
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23))
+
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int32(23)))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), 3.5))
+
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int32(42)))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), "9001"))
+
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float64(23.5)))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float32(23.5)))
+
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), false))
+
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!"))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000)))
 }

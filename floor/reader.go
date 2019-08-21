@@ -152,11 +152,11 @@ func fillValue(value reflect.Value, data interface{}) error {
 		}
 		value.SetInt(i)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		u, err := getUintValue(data)
+		u, err := getIntValue(data)
 		if err != nil {
 			return err
 		}
-		value.SetUint(u)
+		value.SetUint(uint64(u))
 	case reflect.Float32, reflect.Float64:
 		f, err := getFloatValue(data)
 		if err != nil {
@@ -164,8 +164,64 @@ func fillValue(value reflect.Value, data interface{}) error {
 		}
 		value.SetFloat(f)
 	case reflect.Array, reflect.Slice:
-
+		listData, ok := data.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected map[string]interface{} to fill list, got %T", data)
+		}
+		elemList, ok := listData["list"].([]map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected list child of type []map[string]interface{}, got %T", listData["list"])
+		}
+		elementList := []interface{}{}
+		for _, elemMap := range elemList {
+			elem, ok := elemMap["element"]
+			if !ok {
+				return errors.New("got list element without element child")
+			}
+			elementList = append(elementList, elem)
+		}
+		if value.Kind() == reflect.Slice {
+			value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
+		}
+		for idx, elem := range elementList {
+			if idx < value.Len() {
+				if err := fillValue(value.Index(idx), elem); err != nil {
+					return err
+				}
+			}
+		}
 	case reflect.Map:
+		mapData, ok := data.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected map[string]interface{} to fill map, got %T", data)
+		}
+		keyValueList, ok := mapData["key_value"].([]map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected key_value child of type []map[string]interface{}, got %T", mapData["key_value"])
+		}
+		value.Set(reflect.MakeMap(value.Type()))
+		for _, keyValueMap := range keyValueList {
+			keyData, ok := keyValueMap["key"]
+			if !ok {
+				return errors.New("got key_value element without key")
+			}
+
+			keyValue := reflect.New(value.Type().Key()).Elem()
+			if err := fillValue(keyValue, keyData); err != nil {
+				return fmt.Errorf("couldn't fill key with key data: %v", err)
+			}
+
+			valueData, ok := keyValueMap["value"]
+			if !ok {
+				return errors.New("got key_value element without value")
+			}
+			valueValue := reflect.New(value.Type().Elem()).Elem()
+			if err := fillValue(valueValue, valueData); err != nil {
+				return fmt.Errorf("couldn't fill value with value data: %v", err)
+			}
+
+			value.SetMapIndex(keyValue, valueValue)
+		}
 
 	case reflect.String:
 		s, err := getStringValue(data)
@@ -222,23 +278,6 @@ func getIntValue(data interface{}) (int64, error) {
 	}
 }
 
-func getUintValue(data interface{}) (uint64, error) {
-	switch x := data.(type) {
-	case uint:
-		return uint64(x), nil
-	case uint8:
-		return uint64(x), nil
-	case uint16:
-		return uint64(x), nil
-	case uint32:
-		return uint64(x), nil
-	case uint64:
-		return x, nil
-	default:
-		return 0, fmt.Errorf("expected unsigned integer, got %T", data)
-	}
-}
-
 func getFloatValue(data interface{}) (float64, error) {
 	switch x := data.(type) {
 	case float32:
@@ -254,10 +293,4 @@ func getFloatValue(data interface{}) (float64, error) {
 // If Next returned false due to EOF, Err returns nil.
 func (r *Reader) Err() error {
 	return r.err
-}
-
-// Close closes the reader including the underlying object.
-func (r *Reader) Close() error {
-	// TODO: implement
-	return nil
 }
