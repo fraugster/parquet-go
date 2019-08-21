@@ -18,71 +18,85 @@ func TestDecodeStruct(t *testing.T) {
 		Input          interface{}
 		ExpectedOutput map[string]interface{}
 		ExpectErr      bool
+		Schema         string
 	}{
 		{
 			Input:          struct{ Foo int16 }{Foo: 42},
 			ExpectedOutput: map[string]interface{}{"foo": int32(42)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int }{Foo: 43},
 			ExpectedOutput: map[string]interface{}{"foo": int32(43)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int8 }{Foo: 44},
 			ExpectedOutput: map[string]interface{}{"foo": int32(44)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int32 }{Foo: 100000},
 			ExpectedOutput: map[string]interface{}{"foo": int32(100000)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo uint64 }{Foo: 1125899906842624},
 			ExpectedOutput: map[string]interface{}{"foo": int64(1125899906842624)},
 			ExpectErr:      false,
+			Schema:         `message test { required int64 foo; }`,
 		},
 		{
 			Input:          struct{ Foo uint }{Foo: 200000},
 			ExpectedOutput: map[string]interface{}{"foo": int32(200000)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo float32 }{Foo: 42.5},
 			ExpectedOutput: map[string]interface{}{"foo": float32(42.5)},
 			ExpectErr:      false,
+			Schema:         `message test { required float foo; }`,
 		},
 		{
 			Input:          struct{ Foo float64 }{Foo: 23.5},
 			ExpectedOutput: map[string]interface{}{"foo": float64(23.5)},
 			ExpectErr:      false,
+			Schema:         `message test { required double foo; }`,
 		},
 		{
 			Input:          struct{ Foo byte }{Foo: 1},
 			ExpectedOutput: map[string]interface{}{"foo": int32(1)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo string }{Foo: "bar"},
 			ExpectedOutput: map[string]interface{}{"foo": "bar"},
 			ExpectErr:      false,
+			Schema:         `message test { required binary foo (STRING); }`,
 		},
 		{
 			Input:          struct{ Foo *string }{Foo: new(string)},
 			ExpectedOutput: map[string]interface{}{"foo": ""},
 			ExpectErr:      false,
+			Schema:         `message test { optional binary foo (STRING); }`,
 		},
 		{
 			Input:          struct{ Foo *string }{},
 			ExpectedOutput: map[string]interface{}{},
 			ExpectErr:      false,
+			Schema:         `message test { optional binary foo (STRING); }`,
 		},
 		{
 			Input:          int(23),
 			ExpectedOutput: nil,
 			ExpectErr:      true,
+			Schema:         `message test { }`,
 		},
 		{
 			Input: struct {
@@ -95,6 +109,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{},
 			ExpectedOutput: map[string]interface{}{"foo": map[string]interface{}{"bar": int64(0)}, "baz": int64(0), "blub": false},
 			ExpectErr:      false,
+			Schema:         `message test { required group foo { required int64 bar; } required int64 baz; optional boolean quux; required boolean blub; }`,
 		},
 		{
 			Input: struct {
@@ -112,6 +127,13 @@ func TestDecodeStruct(t *testing.T) {
 				},
 			},
 			ExpectErr: false,
+			Schema: `message test {
+				required group foo (LIST) {
+					repeated group list {
+						required boolean element;
+					}
+				}
+			}`,
 		},
 		{
 			Input: struct {
@@ -131,6 +153,13 @@ func TestDecodeStruct(t *testing.T) {
 				},
 			},
 			ExpectErr: false,
+			Schema: `message test {
+				required group foo (LIST) {
+					repeated group list {
+						required int32 element;
+					}
+				}
+			}`,
 		},
 		{
 			Input: struct {
@@ -148,6 +177,14 @@ func TestDecodeStruct(t *testing.T) {
 				},
 			},
 			ExpectErr: false,
+			Schema: `message test {
+				required group foo (MAP) {
+					repeated group key_value {
+						required binary key (STRING);
+						required int64 value;
+					}
+				}
+			}`,
 		},
 		{
 			Input: struct {
@@ -155,6 +192,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{},
 			ExpectedOutput: nil,
 			ExpectErr:      true,
+			Schema:         `message foo { }`,
 		},
 		{
 			Input: struct {
@@ -164,6 +202,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{},
 			ExpectedOutput: nil,
 			ExpectErr:      true,
+			Schema:         `message foo { required group foo { } }`,
 		},
 		{
 			Input: struct {
@@ -171,6 +210,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{Foo: []chan int{make(chan int)}},
 			ExpectedOutput: nil,
 			ExpectErr:      true,
+			Schema:         `message foo { required group foo (LIST) { repeated group list { required int32 element; } } }`,
 		},
 		{
 			Input: &struct {
@@ -178,6 +218,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{Bla: 616},
 			ExpectedOutput: map[string]interface{}{"bla": int32(616)},
 			ExpectErr:      false,
+			Schema:         `message test { required int32 bla; }`,
 		},
 		{
 			Input: (*struct {
@@ -185,11 +226,14 @@ func TestDecodeStruct(t *testing.T) {
 			})(nil),
 			ExpectedOutput: nil,
 			ExpectErr:      true,
+			Schema:         `message test { required int32 bla; }`,
 		},
 	}
 
 	for idx, tt := range testData {
-		output, err := decodeStruct(reflect.ValueOf(tt.Input))
+		sd, err := goparquet.ParseSchemaDefinition(tt.Schema)
+		assert.NoError(t, err, "%d. parsing schema failed", idx)
+		output, err := decodeStruct(reflect.ValueOf(tt.Input), sd)
 		if tt.ExpectErr {
 			assert.Error(t, err, "%d. expected error, but found none", idx)
 		} else {
@@ -237,7 +281,7 @@ func TestWriteFile(t *testing.T) {
 	}
 
 	for idx, d := range data {
-		ds, _ := decodeStruct(reflect.ValueOf(d))
+		ds, _ := decodeStruct(reflect.ValueOf(d), sd)
 		t.Logf("%d. decodeStruct output = %s", idx, fmt.Sprintf("%#v", ds))
 		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
 	}

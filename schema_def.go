@@ -42,6 +42,26 @@ func (sd *SchemaDefinition) String() string {
 	return buf.String()
 }
 
+// SubSchema returns the direct child of the current schema definition
+// that matches the provided name. If no such child exists, nil is
+// returned.
+func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
+	for _, c := range sd.col.children {
+		if c.name == name {
+			return &SchemaDefinition{
+				col: c,
+			}
+		}
+	}
+	return nil
+}
+
+// SchemaElement returns the schema element associated with the current
+// schema definition. If no schema element is present, then nil is returned.
+func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
+	return sd.col.element
+}
+
 func printCols(w io.Writer, cols []*column, indent int) {
 	for _, col := range cols {
 		printIndent(w, indent)

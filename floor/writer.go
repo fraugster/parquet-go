@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 // NewWriter creates a new high-level writer for parquet.
@@ -44,7 +45,9 @@ type Writer struct {
 func (w *Writer) Write(obj interface{}) error {
 	value := reflect.ValueOf(obj)
 
-	data, err := decodeStruct(value)
+	schemaDef := w.w.GetSchemaDefinition()
+
+	data, err := decodeStruct(value, schemaDef)
 	if err != nil {
 		return err
 	}
@@ -58,7 +61,7 @@ func (w *Writer) Write(obj interface{}) error {
 	return nil
 }
 
-func decodeStruct(value reflect.Value) (map[string]interface{}, error) {
+func decodeStruct(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (map[string]interface{}, error) {
 	if value.Type().Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil, errors.New("object is nil")
@@ -80,7 +83,9 @@ func decodeStruct(value reflect.Value) (map[string]interface{}, error) {
 
 		fieldName := strings.ToLower(typ.Field(i).Name) // TODO: derive field name differently.
 
-		v, err := decodeValue(fieldValue)
+		subSchemaDef := schemaDef.SubSchema(fieldName)
+
+		v, err := decodeValue(fieldValue, subSchemaDef)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +99,7 @@ func decodeStruct(value reflect.Value) (map[string]interface{}, error) {
 	return data, nil
 }
 
-func decodeValue(value reflect.Value) (interface{}, error) {
+func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil, nil
@@ -130,9 +135,9 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	case reflect.Float64:
 		return value.Float(), nil
 	case reflect.Array, reflect.Slice:
-		return decodeSliceOrArray(value)
+		return decodeSliceOrArray(value, schemaDef)
 	case reflect.Map:
-		mapData, err := decodeMap(value)
+		mapData, err := decodeMap(value, schemaDef)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +145,7 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	case reflect.String:
 		return value.String(), nil
 	case reflect.Struct:
-		structData, err := decodeStruct(value)
+		structData, err := decodeStruct(value, schemaDef)
 		if err != nil {
 			return nil, err
 		}
@@ -150,17 +155,24 @@ func decodeValue(value reflect.Value) (interface{}, error) {
 	}
 }
 
-func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
+func decodeSliceOrArray(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil, nil
 	}
+
+	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
+		return nil, fmt.Errorf("decoding slice or array but schema element %s is not annotated as LIST", elem.GetName())
+	}
+
+	listSchemaDef := schemaDef.SubSchema("list")
+	elementSchemaDef := listSchemaDef.SubSchema("element")
 
 	data := map[string]interface{}{}
 
 	list := []map[string]interface{}{}
 
 	for i := 0; i < value.Len(); i++ {
-		v, err := decodeValue(value.Index(i))
+		v, err := decodeValue(value.Index(i), elementSchemaDef)
 		if err != nil {
 			return nil, err
 		}
@@ -172,10 +184,18 @@ func decodeSliceOrArray(value reflect.Value) (interface{}, error) {
 	return data, nil
 }
 
-func decodeMap(value reflect.Value) (interface{}, error) {
+func decodeMap(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
 	if value.IsNil() {
 		return nil, nil
 	}
+
+	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
+		return nil, fmt.Errorf("decoding map but schema element %s is not annotated as MAP", elem.GetName())
+	}
+
+	keyValueSchemaDef := schemaDef.SubSchema("key_value")
+	keySchemaDef := keyValueSchemaDef.SubSchema("key")
+	valueSchemaDef := keyValueSchemaDef.SubSchema("value")
 
 	data := map[string]interface{}{}
 
@@ -184,12 +204,12 @@ func decodeMap(value reflect.Value) (interface{}, error) {
 	iter := value.MapRange()
 
 	for iter.Next() {
-		key, err := decodeValue(iter.Key())
+		key, err := decodeValue(iter.Key(), keySchemaDef)
 		if err != nil {
 			return nil, err
 		}
 
-		value, err := decodeValue(iter.Value())
+		value, err := decodeValue(iter.Value(), valueSchemaDef)
 		if err != nil {
 			return nil, err
 		}
