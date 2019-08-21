@@ -62,11 +62,12 @@ func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel []int32
 
 func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
 	var err error
-	dp.dDecoder, err = dDecoder(dp.ph.DataPageHeader.DefinitionLevelEncoding)
+	dp.rDecoder, err = rDecoder(dp.ph.DataPageHeader.RepetitionLevelEncoding)
 	if err != nil {
 		return err
 	}
-	dp.rDecoder, err = rDecoder(dp.ph.DataPageHeader.RepetitionLevelEncoding)
+
+	dp.dDecoder, err = dDecoder(dp.ph.DataPageHeader.DefinitionLevelEncoding)
 	if err != nil {
 		return err
 	}
@@ -97,11 +98,11 @@ func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		return err
 	}
 
-	if err := dp.dDecoder.initSize(reader); err != nil {
+	if err := dp.rDecoder.initSize(reader); err != nil {
 		return err
 	}
 
-	if err := dp.rDecoder.initSize(reader); err != nil {
+	if err := dp.dDecoder.initSize(reader); err != nil {
 		return err
 	}
 
@@ -146,15 +147,16 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 
 func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	dataBuf := &bytes.Buffer{}
-	// Only write definition value higher than zero
-	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
-			return 0, 0, err
-		}
-	}
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
 		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	// Only write definition value higher than zero
+	if dp.col.MaxDefinitionLevel() > 0 {
+		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}

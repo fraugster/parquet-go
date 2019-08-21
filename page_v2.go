@@ -111,17 +111,15 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 			return errors.Wrapf(err, "need to read %d byte but there was only %d byte", levelsSize, n)
 		}
 
-		// In this image https://camo.githubusercontent.com/0f0b52f7405720585ed7303c9ff317f272ebba19/68747470733a2f2f7261772e6769746875622e636f6d2f6170616368652f706172717565742d666f726d61742f6d61737465722f646f632f696d616765732f46696c654c61796f75742e676966
-		// the repetition is before definition, but page v1 is different TODO: verify this
-		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
-				return errors.Wrapf(err, "read definition level failed")
-			}
-		}
-
 		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
 			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
 				return errors.Wrapf(err, "read repetition level failed")
+			}
+		}
+
+		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
+			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
+				return errors.Wrapf(err, "read definition level failed")
 			}
 		}
 	}
@@ -171,20 +169,20 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 }
 
 func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
-	def := &bytes.Buffer{}
-
-	// Only write definition level higher than zero
-	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevels(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
-			return 0, 0, err
-		}
-	}
-
 	rep := &bytes.Buffer{}
 
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
 		if err := encodeLevels(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	def := &bytes.Buffer{}
+
+	// Only write definition level higher than zero
+	if dp.col.MaxDefinitionLevel() > 0 {
+		if err := encodeLevels(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
