@@ -179,15 +179,42 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
-		if schemaDef.SchemaElement().LogicalType != nil && schemaDef.SchemaElement().GetLogicalType().IsSetDATE() {
-			i, err := getIntValue(data)
-			if err != nil {
-				return err
-			}
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
+			switch {
+			case elem.GetLogicalType().IsSetDATE():
+				i, err := getIntValue(data)
+				if err != nil {
+					return err
+				}
 
-			date := time.Unix(0, 0).UTC().Add(24 * time.Hour * time.Duration(i))
-			value.Set(reflect.ValueOf(date))
-			return nil
+				date := time.Unix(0, 0).UTC().Add(24 * time.Hour * time.Duration(i))
+				value.Set(reflect.ValueOf(date))
+				return nil
+			case elem.GetLogicalType().IsSetTIMESTAMP():
+				i, err := getIntValue(data)
+				if err != nil {
+					return err
+				}
+
+				var ts time.Time
+				switch {
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
+					ts = time.Unix(i/1000000000, i%1000000000)
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
+					ts = time.Unix(i/1000000, 1000*(i%1000000))
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
+					ts = time.Unix(i/1000, 1000000*(i%1000))
+				default:
+					return errors.New("invalid TIMESTAMP unit")
+				}
+
+				if elem.GetLogicalType().TIMESTAMP.GetIsAdjustedToUTC() {
+					ts = ts.UTC()
+				}
+
+				value.Set(reflect.ValueOf(ts))
+				return nil
+			}
 		}
 	}
 

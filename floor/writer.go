@@ -109,9 +109,27 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
-		if schemaDef.SchemaElement().LogicalType != nil && schemaDef.SchemaElement().GetLogicalType().IsSetDATE() {
-			days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
-			return days, nil
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
+			switch {
+			case elem.GetLogicalType().IsSetDATE():
+				days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
+				return days, nil
+			case elem.GetLogicalType().IsSetTIMESTAMP():
+				var factor int64
+				switch {
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
+					factor = 1
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
+					factor = 1000
+				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
+					factor = 1000000
+				default:
+					return nil, errors.New("invalid TIMESTAMP unit")
+				}
+				ts := value.Interface().(time.Time).UnixNano()
+				ts /= int64(factor)
+				return ts, nil
+			}
 		}
 	}
 

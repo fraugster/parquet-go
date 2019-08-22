@@ -249,6 +249,36 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr:      false,
 			Schema:         `message test { required int32 date (DATE); }`,
 		},
+		{
+			Input: struct {
+				TS time.Time
+			}{
+				TS: time.Date(1970, 01, 01, 0, 0, 23, 0, time.UTC),
+			},
+			ExpectedOutput: map[string]interface{}{"ts": int64(23000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=MILLIS)); }`,
+		},
+		{
+			Input: struct {
+				TS time.Time
+			}{
+				TS: time.Date(1970, 01, 01, 0, 0, 24, 0, time.UTC),
+			},
+			ExpectedOutput: map[string]interface{}{"ts": int64(24000000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=MICROS)); }`,
+		},
+		{
+			Input: struct {
+				TS time.Time
+			}{
+				TS: time.Date(1970, 01, 01, 0, 0, 25, 2000, time.UTC),
+			},
+			ExpectedOutput: map[string]interface{}{"ts": int64(25000002000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=NANOS)); }`,
+		},
 	}
 
 	for idx, tt := range testData {

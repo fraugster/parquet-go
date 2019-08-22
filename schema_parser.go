@@ -251,7 +251,7 @@ func lexIdentifier(l *schemaLexer) stateFn {
 loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNum(r):
+		case isAlphaNum(r), r == '=': // the = is there to accept it as part of the identifiers being read within type annotations.
 			// absorb.
 		default:
 			l.backup()
@@ -511,19 +511,65 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 
 	lt := parquet.NewLogicalType()
 
+	p.next()
+
+	var annotations []string
+
+	if p.token.typ == itemLeftParen {
+		p.next()
+		for p.token.typ != itemRightParen {
+			p.expect(itemIdentifier)
+			annotations = append(annotations, p.token.val)
+			p.next()
+			switch p.token.typ {
+			case itemComma, itemRightParen:
+				// they are expected, nothing to do.
+			default:
+				p.errorf("unexpected %s", p.token)
+			}
+			p.next()
+		}
+	}
+
+	p.expect(itemRightParen)
+
 	switch strings.ToUpper(typStr) {
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
 	case "DATE":
 		lt.DATE = parquet.NewDateType()
+	case "TIMESTAMP":
+		lt.TIMESTAMP = parquet.NewTimestampType()
+		for _, ann := range annotations {
+			// TODO: this is ugly and probably slightly incorrect. Clean it up.
+			if strings.HasPrefix(ann, "isAdjustedToUTC=") {
+				switch {
+				case strings.HasSuffix(ann, "=true"):
+					lt.TIMESTAMP.IsAdjustedToUTC = true
+				case strings.HasSuffix(ann, "=false"):
+					lt.TIMESTAMP.IsAdjustedToUTC = false
+				default:
+					p.errorf("invalid annotation %q", ann)
+				}
+			} else if strings.HasPrefix(ann, "unit=") {
+				lt.TIMESTAMP.Unit = parquet.NewTimeUnit()
+				switch {
+				case strings.HasSuffix(ann, "=MILLIS"):
+					lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
+				case strings.HasSuffix(ann, "=MICROS"):
+					lt.TIMESTAMP.Unit.MICROS = parquet.NewMicroSeconds()
+				case strings.HasSuffix(ann, "=NANOS"):
+					lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
+				default:
+					p.errorf("invalid annotation %q", ann)
+				}
+			} else {
+				p.errorf("unsupported annotation %q", ann)
+			}
+		}
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
-
-	p.next()
-	// TODO: parse full syntax as found here:
-	// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/schema/MessageTypeParser.java#L169
-	p.expect(itemRightParen)
 
 	return lt
 }
@@ -643,6 +689,10 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDATE()) || col.element.GetConvertedType() == parquet.ConvertedType_DATE:
 			if col.element.GetType() != parquet.Type_INT32 {
 				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP but is not an int64", col.element.Name)
 			}
 		}
 	}

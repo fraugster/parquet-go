@@ -12,6 +12,7 @@ func TestSchemaParser(t *testing.T) {
 		Msg       string
 		ExpectErr bool
 	}{
+		// 0.
 		{`message foo { }`, false},
 		{`message foo {`, true}, // missing closing brace
 		{`message foo { required int64 bar; }`, false},
@@ -34,6 +35,7 @@ func TestSchemaParser(t *testing.T) {
 			}
 			optional boolean is_fraud = 7;
 		}`, false},
+		// 10.
 		{`message $ { }`, true},                              // $ is not the start of a valid token.
 		{`message foo { optional int128 bar; }`, true},       // invalid type
 		{`message foo { optional int64 bar (BLUB); }`, true}, // invalid logical type
@@ -67,6 +69,7 @@ func TestSchemaParser(t *testing.T) {
 				}
 			}
 		}`, false},
+		// 20.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
@@ -139,6 +142,7 @@ func TestSchemaParser(t *testing.T) {
 				}
 			}
 		}`, true}, // repeated group underneath (MAP) is not called key_value.
+		// 30.
 		{`message foo {
 			optional group bar (MAP) {
 				repeated int64 key_value;
@@ -194,6 +198,12 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required int64 date (DATE);
 		}`, true}, // date is annotated as DATE but data type is int64.
+		{`message foo {
+			required int64 ts (TIMESTAMP(isAdjustedToUTC=true, unit=MILLIS));
+		}`, false},
+		{`message foo {
+			required int64 ts (TIMESTAMP(,));
+		}`, true}, // invalid annotation syntax for TIMESTAMP.
 	}
 
 	for idx, tt := range testData {

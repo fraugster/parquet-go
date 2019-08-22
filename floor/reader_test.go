@@ -308,9 +308,25 @@ func TestFillValue(t *testing.T) {
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!", nil))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000), nil))
 
-	date := time.Unix(0, 0)
-	sd, err := goparquet.ParseSchemaDefinition(`message test { required int32 date (DATE); }`)
+	sd, err := goparquet.ParseSchemaDefinition(`message test {
+		required int32 date (DATE);
+		required int64 tsnano (TIMESTAMP(isAdjustedToUTC=true, unit=NANOS));
+		required int64 tsmicro (TIMESTAMP(isAdjustedToUTC=true, unit=MICROS));
+		required int64 tsmilli (TIMESTAMP(isAdjustedToUTC=true, unit=MILLIS));
+	}`)
 	require.NoError(t, err)
+
+	date := time.Unix(0, 0)
 	require.NoError(t, fillValue(reflect.ValueOf(&date).Elem(), int32(9), sd.SubSchema("date")))
 	require.Equal(t, date, time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC))
+
+	ts := time.Unix(0, 0)
+	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(42000000000), sd.SubSchema("tsnano")))
+	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 0, 42, 0, time.UTC))
+
+	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(1423000000), sd.SubSchema("tsmicro")))
+	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 23, 43, 0, time.UTC))
+
+	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(45299450), sd.SubSchema("tsmilli")))
+	require.Equal(t, ts, time.Date(1970, 01, 01, 12, 34, 59, 450000000, time.UTC))
 }
