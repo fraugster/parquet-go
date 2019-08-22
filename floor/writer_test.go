@@ -405,3 +405,53 @@ func TestWriteFile(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
+
+func TestWriteReadByteArrays(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required fixed_len_byte_array(4) foo;
+			optional fixed_len_byte_array(4) bar;
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	hlWriter, err := NewFileWriter(
+		"files/bytearrays.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err, "creating new file writer failed")
+
+	type testData struct {
+		Foo [4]byte
+		Bar []byte
+	}
+
+	data := []testData{
+		{Foo: [4]byte{0, 1, 2, 3}, Bar: []byte{4, 5, 6, 7}},
+		{Foo: [4]byte{8, 9, 10, 11}},
+		{Foo: [4]byte{12, 13, 14, 15}, Bar: []byte{16, 17, 18, 19}},
+	}
+
+	for idx, record := range data {
+		require.NoError(t, hlWriter.Write(record), "%d. writing record failed", idx)
+	}
+	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/bytearrays.parquet")
+	require.NoError(t, err, "creating new file reader failed")
+
+	var readData []testData
+
+	for hlReader.Next() {
+		var record testData
+		require.NoError(t, hlReader.Scan(&record))
+		readData = append(readData, record)
+	}
+
+	require.Equal(t, data, readData, "data written and read back doesn't match")
+}

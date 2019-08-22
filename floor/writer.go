@@ -161,6 +161,9 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 	case reflect.Float64:
 		return value.Float(), nil
 	case reflect.Array, reflect.Slice:
+		if value.Type().Elem().Kind() == reflect.Uint8 {
+			return decodeByteSliceOrArray(value, schemaDef)
+		}
 		return decodeSliceOrArray(value, schemaDef)
 	case reflect.Map:
 		mapData, err := decodeMap(value, schemaDef)
@@ -179,6 +182,28 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 	default:
 		return nil, fmt.Errorf("unsupported type %s", value.Type())
 	}
+}
+
+func decodeByteSliceOrArray(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
+	if value.Kind() == reflect.Slice && value.IsNil() {
+		return nil, nil
+	}
+
+	if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
+		if value.Len() != 16 {
+			return nil, fmt.Errorf("field is annotated as UUID but length is %d", value.Len())
+		}
+	}
+
+	if value.Kind() == reflect.Slice {
+		return value.Bytes(), nil
+	}
+
+	data := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
+
+	reflect.Copy(data, value)
+
+	return data.Bytes(), nil
 }
 
 func decodeSliceOrArray(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {

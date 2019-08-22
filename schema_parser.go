@@ -396,6 +396,25 @@ func (p *schemaParser) parseColumnDefinition() *column {
 	} else {
 		col.element.Type = p.getTokenType()
 
+		if col.element.GetType() == parquet.Type_FIXED_LEN_BYTE_ARRAY {
+			p.next()
+			p.expect(itemLeftParen)
+			p.next()
+			p.expect(itemNumber)
+
+			i, err := strconv.ParseInt(p.token.val, 10, 32)
+			if err != nil || i < 0 {
+				p.errorf("invalid fixed_len_byte_array length %q", p.token.val)
+			}
+
+			byteArraySize := int32(i)
+
+			col.element.TypeLength = &byteArraySize
+
+			p.next()
+			p.expect(itemRightParen)
+		}
+
 		p.next()
 		p.expect(itemIdentifier)
 		col.name = p.token.val
@@ -428,7 +447,7 @@ func int32Ptr(i int32) *int32 {
 }
 
 func (p *schemaParser) isValidType(typ string) {
-	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96"} // TODO: add more.
+	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"} // TODO: add more.
 	for _, vt := range validTypes {
 		if vt == typ {
 			return
@@ -456,6 +475,8 @@ func (p *schemaParser) getTokenType() *parquet.Type {
 		return parquet.TypePtr(parquet.Type_INT64)
 	case "int96":
 		return parquet.TypePtr(parquet.Type_INT96)
+	case "fixed_len_byte_array":
+		return parquet.TypePtr(parquet.Type_FIXED_LEN_BYTE_ARRAY)
 	default:
 		p.errorf("unsupported type %q", p.token.val)
 		return nil
@@ -492,8 +513,10 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true)
 	case parquet.Type_INT96:
 		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true)
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, int(elem.GetTypeLength()))
 	default:
-		p.errorf("unsupported type %q", elem.Type.String())
+		p.errorf("unsupported type %q when creating column store", elem.Type.String())
 	}
 	if err != nil {
 		p.errorf("creating column store for type %q failed: %v", elem.Type.String(), err)
@@ -560,6 +583,8 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		default:
 			p.errorf("invalid isAdjustedToUTC annotation %q for TIMESTAMP", annotations[1])
 		}
+	case "UUID":
+		lt.UUID = parquet.NewUUIDType()
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}

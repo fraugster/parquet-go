@@ -244,6 +244,9 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 		}
 		value.SetFloat(f)
 	case reflect.Array, reflect.Slice:
+		if value.Type().Elem().Kind() == reflect.Uint8 {
+			return fillByteArrayOrSlice(value, data, schemaDef)
+		}
 		return fillArrayOrSlice(value, data, schemaDef)
 	case reflect.Map:
 		return fillMap(value, data, schemaDef)
@@ -310,6 +313,23 @@ func fillMap(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaD
 		value.SetMapIndex(keyValue, valueValue)
 	}
 
+	return nil
+}
+
+func fillByteArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+	byteSlice, ok := data.([]byte)
+	if !ok {
+		return errors.New("data is not []byte")
+	}
+	if value.Kind() == reflect.Slice {
+		value.Set(reflect.MakeSlice(value.Type(), len(byteSlice), len(byteSlice)))
+	}
+
+	for i, b := range byteSlice {
+		if i < value.Len() {
+			value.Index(i).SetUint(uint64(b))
+		}
+	}
 	return nil
 }
 

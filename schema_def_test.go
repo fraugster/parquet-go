@@ -23,8 +23,8 @@ func TestSchemaDefinition(t *testing.T) {
 		schemaText := string(fileContent)
 
 		sd, err := ParseSchemaDefinition(schemaText)
-		require.NoError(t, err, "%d. parsing schema definition returned error", idx)
+		require.NoError(t, err, "%d. %s: parsing schema definition returned error", idx, file)
 
-		require.Equal(t, schemaText, sd.String(), "%d. sd.String returned different string representation", idx)
+		require.Equal(t, schemaText, sd.String(), "%d. %s: sd.String returned different string representation", idx, file)
 	}
 }

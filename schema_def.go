@@ -91,7 +91,7 @@ func printCols(w io.Writer, cols []*column, indent int) {
 			printIndent(w, indent)
 			fmt.Fprintf(w, "}\n")
 		} else {
-			typ := getSchemaType(col.element.GetType())
+			typ := getSchemaType(col.element)
 			fmt.Fprintf(w, "%s %s", typ, col.element.GetName())
 			if col.element.LogicalType != nil {
 				fmt.Fprintf(w, " (%s)", getSchemaLogicalType(col.element.GetLogicalType()))
@@ -110,8 +110,8 @@ func printIndent(w io.Writer, indent int) {
 	}
 }
 
-func getSchemaType(t parquet.Type) string {
-	switch t {
+func getSchemaType(elem *parquet.SchemaElement) string {
+	switch elem.GetType() {
 
 	case parquet.Type_BYTE_ARRAY:
 		return "binary"
@@ -127,14 +127,16 @@ func getSchemaType(t parquet.Type) string {
 		return "int64"
 	case parquet.Type_INT96:
 		return "int96"
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		return fmt.Sprintf("fixed_len_byte_array(%d)", elem.GetTypeLength())
 	}
-	return fmt.Sprintf("UT:%s", t)
+	return fmt.Sprintf("UT:%s", elem.GetType())
 }
 
 func getSchemaConvertedType(t parquet.ConvertedType) string {
 	switch t {
 	case parquet.ConvertedType_UTF8:
-		return "STRING"
+		return "UTF8"
 	case parquet.ConvertedType_LIST:
 		return "LIST"
 	case parquet.ConvertedType_MAP:
@@ -149,6 +151,21 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 	switch {
 	case t.IsSetSTRING():
 		return "STRING"
+	case t.IsSetDATE():
+		return "DATE"
+	case t.IsSetTIMESTAMP():
+		unit := ""
+		switch {
+		case t.TIMESTAMP.Unit.IsSetNANOS():
+			unit = "NANOS"
+		case t.TIMESTAMP.Unit.IsSetMICROS():
+			unit = "MICROS"
+		case t.TIMESTAMP.Unit.IsSetMILLIS():
+			unit = "MILLIS"
+		default:
+			unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
+		}
+		return fmt.Sprintf("TIMESTAMP(%s, %t)", unit, t.TIMESTAMP.IsAdjustedToUTC)
 	default:
 		return "BUG(UNKNOWN)"
 	}

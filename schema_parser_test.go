@@ -220,6 +220,15 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required int64 ts (TIMESTAMP(MILLIS,bla));
 		}`, true}, // invalid TIMESTAMP isAdjustedToUTC.
+		{`message foo {
+			required fixed_len_byte_array(16) theid (UUID);
+		}`, false},
+		{`message foo {
+			required fixed_len_byte_array theid;
+		}`, true}, // no length provided.
+		{`message foo {
+			required fixed_len_byte_array(-1) theid;
+		}`, true}, // negative length.
 	}
 
 	for idx, tt := range testData {
