@@ -172,7 +172,7 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 		}
 		return mapData, nil
 	case reflect.String:
-		return value.String(), nil
+		return []byte(value.String()), nil
 	case reflect.Struct:
 		structData, err := decodeStruct(value, schemaDef)
 		if err != nil {

@@ -195,23 +195,8 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 	case parquet.Type_BOOLEAN:
 		return newPlainStore(&booleanStore{}), nil
 	case parquet.Type_BYTE_ARRAY:
-		if typ.ConvertedType != nil {
-			// Should convert to string? enums are not supported in go, so they are simply string
-			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-				return newPlainStore(&stringStore{}), nil
-			}
-		}
-		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
-			return newPlainStore(&stringStore{}), nil
-		}
-
 		return newPlainStore(&byteArrayStore{}), nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-
-		if typ.LogicalType != nil && typ.LogicalType.UUID != nil {
-			return newPlainStore(&uuidStore{}), nil
-		}
-
 		if typ.TypeLength == nil {
 			return nil, errors.Errorf("type %s with nil type len", typ.Type)
 		}
@@ -320,24 +305,4 @@ func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, l int) (*Colum
 	return newStore(&byteArrayStore{
 		length: l,
 	}, enc, allowDict), nil
-}
-
-// NewStringStore creates a new string storage
-func NewStringStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
-	switch enc {
-	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
-	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
-	}
-	return newStore(&stringStore{}, enc, allowDict), nil
-}
-
-// NewUUIDStore create a new UUID store, the allowDict the allowDict is a hint for using dictionary
-func NewUUIDStore(enc parquet.Encoding, allowDict bool) (*ColumnStore, error) {
-	switch enc {
-	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
-	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
-	}
-	return newStore(&uuidStore{}, enc, allowDict), nil
 }

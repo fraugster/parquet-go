@@ -493,14 +493,11 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 		err      error
 	)
 
-	// TODO: add support for FIXED_LEN_BYTE_ARRAY
-	switch *elem.Type {
+	typ := elem.GetType()
+
+	switch typ {
 	case parquet.Type_BYTE_ARRAY:
-		if lt := elem.GetLogicalType(); lt != nil && lt.IsSetSTRING() {
-			colStore, err = NewStringStore(parquet.Encoding_PLAIN, true)
-		} else {
-			colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
-		}
+		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
 	case parquet.Type_FLOAT:
 		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true)
 	case parquet.Type_DOUBLE:
@@ -516,10 +513,10 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, int(elem.GetTypeLength()))
 	default:
-		p.errorf("unsupported type %q when creating column store", elem.Type.String())
+		p.errorf("unsupported type %q when creating column store", typ.String())
 	}
 	if err != nil {
-		p.errorf("creating column store for type %q failed: %v", elem.Type.String(), err)
+		p.errorf("creating column store for type %q failed: %v", typ.String(), err)
 	}
 
 	return colStore

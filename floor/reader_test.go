@@ -305,8 +305,8 @@ func TestFillValue(t *testing.T) {
 
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), false, nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!", nil))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000), nil))
+	require.NoError(t, fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), []byte("hello world!"), nil))
+	require.Error(t, fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), int64(1000000), nil))
 
 	sd, err := goparquet.ParseSchemaDefinition(`message test {
 		required int32 date (DATE);

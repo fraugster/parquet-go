@@ -184,18 +184,6 @@ var (
 			},
 		},
 		{
-			name: "StringByteArrayFixedLen",
-			enc:  &stringEncoder{&byteArrayPlainEncoder{length: 3}},
-			dec:  &stringDecoder{&byteArrayPlainDecoder{length: 3}},
-			rand: func() interface{} {
-				return string([]byte{
-					byte(rand.Intn(94) + 32),
-					byte(rand.Intn(94) + 32),
-					byte(rand.Intn(94) + 32),
-				})
-			},
-		},
-		{
 			name: "ByteArrayPlain",
 			enc:  &byteArrayPlainEncoder{},
 			dec:  &byteArrayPlainDecoder{},
@@ -206,19 +194,6 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
-			},
-		},
-		{
-			name: "StringByteArrayPlain",
-			enc:  &stringEncoder{&byteArrayPlainEncoder{}},
-			dec:  &stringDecoder{&byteArrayPlainDecoder{}},
-			rand: func() interface{} {
-				l := rand.Intn(10) + 1 // no zero
-				ret := make([]byte, l)
-				for i := range ret {
-					ret[i] = byte(rand.Intn(94) + 32)
-				}
-				return string(ret)
 			},
 		},
 		{
@@ -245,20 +220,6 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
-			},
-		},
-		{
-			name: "UUID",
-			enc:  &uuidEncoder{},
-			dec:  &uuidDecoder{},
-			rand: func() interface{} {
-				uuid := make([]byte, 16)
-				for i := range uuid {
-					uuid[i] = byte(rand.Intn(256))
-				}
-				uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
-				uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-				return uuid
 			},
 		},
 	}
@@ -383,30 +344,6 @@ var (
 					}
 				}
 				return data
-			},
-		},
-		{
-			name:  "StringStore",
-			store: mustColumnStore(NewStringStore(parquet.Encoding_PLAIN, false)),
-			rand: func(n int) interface{} {
-				ret := make([]string, n)
-				for c := 0; c < n; c++ {
-					ret[c] = randStringRunes(rand.Intn(10))
-				}
-
-				return ret
-			},
-		},
-		{
-			name:  "ByteStore(UUIDStore)",
-			store: mustColumnStore(NewUUIDStore(parquet.Encoding_PLAIN, false)),
-			rand: func(n int) interface{} {
-				ret := make([][]byte, n)
-				for c := 0; c < n; c++ {
-					ret[c] = []byte(randStringRunes(rand.Intn(10)))
-				}
-
-				return ret
 			},
 		},
 		{

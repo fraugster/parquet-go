@@ -77,13 +77,13 @@ func TestDecodeStruct(t *testing.T) {
 		},
 		{
 			Input:          struct{ Foo string }{Foo: "bar"},
-			ExpectedOutput: map[string]interface{}{"foo": "bar"},
+			ExpectedOutput: map[string]interface{}{"foo": []byte("bar")},
 			ExpectErr:      false,
 			Schema:         `message test { required binary foo (STRING); }`,
 		},
 		{
 			Input:          struct{ Foo *string }{Foo: new(string)},
-			ExpectedOutput: map[string]interface{}{"foo": ""},
+			ExpectedOutput: map[string]interface{}{"foo": []byte("")},
 			ExpectErr:      false,
 			Schema:         `message test { optional binary foo (STRING); }`,
 		},
@@ -173,7 +173,7 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{
 				"foo": map[string]interface{}{
 					"key_value": []map[string]interface{}{
-						map[string]interface{}{"key": "hello", "value": int64(23)},
+						map[string]interface{}{"key": []byte("hello"), "value": int64(23)},
 					},
 				},
 			},
@@ -353,7 +353,7 @@ func TestWriteFile(t *testing.T) {
 	expectedData := []map[string]interface{}{
 		{
 			"foo": int64(23),
-			"bar": "hello!",
+			"bar": []byte("hello!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					map[string]interface{}{"element": int32(23)},
@@ -362,7 +362,7 @@ func TestWriteFile(t *testing.T) {
 		},
 		{
 			"foo": int64(42),
-			"bar": "world!",
+			"bar": []byte("world!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					map[string]interface{}{"element": int32(1)},
@@ -378,11 +378,11 @@ func TestWriteFile(t *testing.T) {
 		},
 		{
 			"foo": int64(750),
-			"bar": "empty",
+			"bar": []byte("empty"),
 		},
 		{
 			"foo": int64(1000),
-			"bar": "bye!",
+			"bar": []byte("bye!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					map[string]interface{}{"element": int32(2)},

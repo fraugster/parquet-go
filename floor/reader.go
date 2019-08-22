@@ -251,11 +251,11 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 	case reflect.Map:
 		return fillMap(value, data, schemaDef)
 	case reflect.String:
-		s, err := getStringValue(data)
+		s, err := getByteSliceValue(data)
 		if err != nil {
 			return err
 		}
-		value.SetString(s)
+		value.SetString(string(s))
 	case reflect.Struct:
 		structData, ok := data.(map[string]interface{})
 		if !ok {
@@ -380,10 +380,10 @@ func getBoolValue(data interface{}) (bool, error) {
 	return b, nil
 }
 
-func getStringValue(data interface{}) (string, error) {
-	s, ok := data.(string)
+func getByteSliceValue(data interface{}) ([]byte, error) {
+	s, ok := data.([]byte)
 	if !ok {
-		return "", fmt.Errorf("expected string, got %T", data)
+		return nil, fmt.Errorf("expected []byte, got %T", data)
 	}
 
 	return s, nil

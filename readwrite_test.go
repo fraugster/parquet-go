@@ -38,7 +38,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create fooStore")
 
-	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create barStore")
 
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
@@ -54,7 +54,7 @@ func TestWriteThenReadFile(t *testing.T) {
 			require.NoError(t, w.FlushRowGroup(), "%d. AddData failed", idx)
 		}
 
-		require.NoError(t, w.AddData(map[string]interface{}{"foo": int64(idx), "bar": "value" + fmt.Sprint(idx)}), "%d. AddData failed", idx)
+		require.NoError(t, w.AddData(map[string]interface{}{"foo": int64(idx), "bar": []byte("value" + fmt.Sprint(idx))}), "%d. AddData failed", idx)
 	}
 
 	assert.NoError(t, w.Close(), "Close failed")
@@ -141,7 +141,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create fooStore")
-	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create barStore")
 
 	require.NoError(t, w.AddGroup("baz", parquet.FieldRepetitionType_REPEATED))
@@ -190,7 +190,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 
 	blaStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create fooStore")
-	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create barStore")
 
 	require.NoError(t, w.AddGroup("foo", parquet.FieldRepetitionType_REPEATED))
@@ -202,7 +202,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 			"foo": []map[string]interface{}{
 				{
 					"bla": int64(23),
-					"bar": "foobar",
+					"bar": []byte("foobar"),
 				},
 			},
 		},
@@ -210,7 +210,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 			"foo": []map[string]interface{}{
 				{
 					"bla": int64(24),
-					"bar": "hello",
+					"bar": []byte("hello"),
 				},
 			},
 		},
@@ -221,7 +221,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 				},
 				{
 					"bla": int64(26),
-					"bar": "bye!",
+					"bar": []byte("bye!"),
 				},
 				{
 					"bla": int64(27),
@@ -263,7 +263,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create fooStore")
-	barStore, err := NewStringStore(parquet.Encoding_PLAIN, true)
+	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create barStore")
 	elementStore, err := NewInt32Store(parquet.Encoding_PLAIN, true)
 	require.NoError(t, err, "failed to create elementStore")
@@ -291,7 +291,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		},
 		{
 			"foo": int64(23),
-			"bar": "hello!",
+			"bar": []byte("hello!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					{"element": int32(23)},
@@ -300,7 +300,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		},
 		{
 			"foo": int64(42),
-			"bar": "world!",
+			"bar": []byte("world!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					{"element": int32(1)},
@@ -313,7 +313,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		},
 		{
 			"foo": int64(1000),
-			"bar": "bye!",
+			"bar": []byte("bye!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
 					{"element": int32(2)},
