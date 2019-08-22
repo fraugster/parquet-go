@@ -1,0 +1,4 @@
+message foo {
+  required int64 ts (TIMESTAMP(NANOS, true));
+  optional int32 date (DATE);
+}
