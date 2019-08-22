@@ -514,6 +514,8 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 	switch strings.ToUpper(typStr) {
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
+	case "DATE":
+		lt.DATE = parquet.NewDateType()
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
@@ -637,6 +639,10 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 			}
 			if !foundValue {
 				p.errorf("field %[1]s is missing %[1]s.key_value.value", col.element.Name)
+			}
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDATE()) || col.element.GetConvertedType() == parquet.ConvertedType_DATE:
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.element.Name)
 			}
 		}
 	}

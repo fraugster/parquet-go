@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
@@ -227,6 +228,26 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: nil,
 			ExpectErr:      true,
 			Schema:         `message test { required int32 bla; }`,
+		},
+		{
+			Input: struct {
+				Date time.Time
+			}{
+				Date: time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC),
+			},
+			ExpectedOutput: map[string]interface{}{"date": int32(9)},
+			ExpectErr:      false,
+			Schema:         `message test { required int32 date (DATE); }`,
+		},
+		{
+			Input: struct {
+				Date time.Time
+			}{
+				Date: time.Date(1970, 01, 12, 23, 59, 59, 0, time.UTC),
+			},
+			ExpectedOutput: map[string]interface{}{"date": int32(11)},
+			ExpectErr:      false,
+			Schema:         `message test { required int32 date (DATE); }`,
 		},
 	}
 

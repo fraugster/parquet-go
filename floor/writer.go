@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
@@ -105,6 +106,13 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 			return nil, nil
 		}
 		value = value.Elem()
+	}
+
+	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
+		if schemaDef.SchemaElement().LogicalType != nil && schemaDef.SchemaElement().GetLogicalType().IsSetDATE() {
+			days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
+			return days, nil
+		}
 	}
 
 	switch value.Kind() {

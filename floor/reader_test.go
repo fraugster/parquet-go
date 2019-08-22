@@ -4,6 +4,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
@@ -306,4 +307,10 @@ func TestFillValue(t *testing.T) {
 
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), "hello world!", nil))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf("")).Elem(), int64(1000000), nil))
+
+	date := time.Unix(0, 0)
+	sd, err := goparquet.ParseSchemaDefinition(`message test { required int32 date (DATE); }`)
+	require.NoError(t, err)
+	require.NoError(t, fillValue(reflect.ValueOf(&date).Elem(), int32(9), sd.SubSchema("date")))
+	require.Equal(t, date, time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC))
 }

@@ -188,6 +188,12 @@ func TestSchemaParser(t *testing.T) {
 				}
 			}
 		}`, true}, // bar.key_value has 2 children but child key is missing.
+		{`message foo {
+			required int32 date (DATE);
+		}`, false},
+		{`message foo {
+			required int64 date (DATE);
+		}`, true}, // date is annotated as DATE but data type is int64.
 	}
 
 	for idx, tt := range testData {

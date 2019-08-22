@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/fraugster/parquet-go/parquet"
 
@@ -175,6 +176,19 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
+	}
+
+	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
+		if schemaDef.SchemaElement().LogicalType != nil && schemaDef.SchemaElement().GetLogicalType().IsSetDATE() {
+			i, err := getIntValue(data)
+			if err != nil {
+				return err
+			}
+
+			date := time.Unix(0, 0).UTC().Add(24 * time.Hour * time.Duration(i))
+			value.Set(reflect.ValueOf(date))
+			return nil
+		}
 	}
 
 	switch value.Kind() {
