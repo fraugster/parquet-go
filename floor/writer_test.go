@@ -413,6 +413,8 @@ func TestWriteReadByteArrays(t *testing.T) {
 		`message test_msg {
 			required fixed_len_byte_array(4) foo;
 			optional fixed_len_byte_array(4) bar;
+			required binary baz;
+			optional binary quux;
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -427,14 +429,16 @@ func TestWriteReadByteArrays(t *testing.T) {
 	require.NoError(t, err, "creating new file writer failed")
 
 	type testData struct {
-		Foo [4]byte
-		Bar []byte
+		Foo  [4]byte
+		Bar  []byte
+		Baz  []byte
+		Quux []byte
 	}
 
 	data := []testData{
-		{Foo: [4]byte{0, 1, 2, 3}, Bar: []byte{4, 5, 6, 7}},
-		{Foo: [4]byte{8, 9, 10, 11}},
-		{Foo: [4]byte{12, 13, 14, 15}, Bar: []byte{16, 17, 18, 19}},
+		{Foo: [4]byte{0, 1, 2, 3}, Bar: []byte{4, 5, 6, 7}, Baz: []byte{99}, Quux: []byte{100, 101}},
+		{Foo: [4]byte{8, 9, 10, 11}, Baz: []byte("hello world!")},
+		{Foo: [4]byte{12, 13, 14, 15}, Bar: []byte{16, 17, 18, 19}, Baz: []byte{155, 156, 157, 158, 159, 160}, Quux: []byte{180, 181, 182, 183}},
 	}
 
 	for idx, record := range data {
