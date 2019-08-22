@@ -201,9 +201,25 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required int64 ts (TIMESTAMP(MILLIS, true));
 		}`, false},
+		// 40.
+		{`message foo {
+			required int64 ts (TIMESTAMP(MICROS, false));
+		}`, false},
+		{`message foo {
+			required int64 ts (TIMESTAMP(NANOS, false));
+		}`, false},
+		{`message foo {
+			required int32 ts (TIMESTAMP(NANOS, false));
+		}`, true}, // all TIMESTAMPs must be int64.
 		{`message foo {
 			required int64 ts (TIMESTAMP(,));
 		}`, true}, // invalid annotation syntax for TIMESTAMP.
+		{`message foo {
+			required int64 ts (TIMESTAMP(FOO,false));
+		}`, true}, // invalid TIMESTAMP unit.
+		{`message foo {
+			required int64 ts (TIMESTAMP(MILLIS,bla));
+		}`, true}, // invalid TIMESTAMP isAdjustedToUTC.
 	}
 
 	for idx, tt := range testData {
