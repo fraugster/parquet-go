@@ -310,9 +310,9 @@ func TestFillValue(t *testing.T) {
 
 	sd, err := goparquet.ParseSchemaDefinition(`message test {
 		required int32 date (DATE);
-		required int64 tsnano (TIMESTAMP(isAdjustedToUTC=true, unit=NANOS));
-		required int64 tsmicro (TIMESTAMP(isAdjustedToUTC=true, unit=MICROS));
-		required int64 tsmilli (TIMESTAMP(isAdjustedToUTC=true, unit=MILLIS));
+		required int64 tsnano (TIMESTAMP(NANOS, true));
+		required int64 tsmicro (TIMESTAMP(MICROS, true));
+		required int64 tsmilli (TIMESTAMP(MILLIS, true));
 	}`)
 	require.NoError(t, err)
 

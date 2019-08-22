@@ -257,7 +257,7 @@ func TestDecodeStruct(t *testing.T) {
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(23000)},
 			ExpectErr:      false,
-			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=MILLIS)); }`,
+			Schema:         `message test { required int64 ts (TIMESTAMP(MILLIS, false)); }`,
 		},
 		{
 			Input: struct {
@@ -267,7 +267,7 @@ func TestDecodeStruct(t *testing.T) {
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(24000000)},
 			ExpectErr:      false,
-			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=MICROS)); }`,
+			Schema:         `message test { required int64 ts (TIMESTAMP(MICROS, false)); }`,
 		},
 		{
 			Input: struct {
@@ -277,7 +277,7 @@ func TestDecodeStruct(t *testing.T) {
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(25000002000)},
 			ExpectErr:      false,
-			Schema:         `message test { required int64 ts (TIMESTAMP(isAdjustedToUTC=false, unit=NANOS)); }`,
+			Schema:         `message test { required int64 ts (TIMESTAMP(NANOS, false)); }`,
 		},
 	}
 
@@ -306,6 +306,7 @@ func TestWriteFile(t *testing.T) {
 					required int32 element;
 				}
 			}
+			optional int64 ts (TIMESTAMP(NANOS, false));
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 

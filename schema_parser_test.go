@@ -199,7 +199,7 @@ func TestSchemaParser(t *testing.T) {
 			required int64 date (DATE);
 		}`, true}, // date is annotated as DATE but data type is int64.
 		{`message foo {
-			required int64 ts (TIMESTAMP(isAdjustedToUTC=true, unit=MILLIS));
+			required int64 ts (TIMESTAMP(MILLIS, true));
 		}`, false},
 		{`message foo {
 			required int64 ts (TIMESTAMP(,));

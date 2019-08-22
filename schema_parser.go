@@ -251,7 +251,7 @@ func lexIdentifier(l *schemaLexer) stateFn {
 loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNum(r), r == '=': // the = is there to accept it as part of the identifiers being read within type annotations.
+		case isAlphaNum(r): // the = is there to accept it as part of the identifiers being read within type annotations.
 			// absorb.
 		default:
 			l.backup()
@@ -540,32 +540,25 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		lt.DATE = parquet.NewDateType()
 	case "TIMESTAMP":
 		lt.TIMESTAMP = parquet.NewTimestampType()
-		for _, ann := range annotations {
-			// TODO: this is ugly and probably slightly incorrect. Clean it up.
-			if strings.HasPrefix(ann, "isAdjustedToUTC=") {
-				switch {
-				case strings.HasSuffix(ann, "=true"):
-					lt.TIMESTAMP.IsAdjustedToUTC = true
-				case strings.HasSuffix(ann, "=false"):
-					lt.TIMESTAMP.IsAdjustedToUTC = false
-				default:
-					p.errorf("invalid annotation %q", ann)
-				}
-			} else if strings.HasPrefix(ann, "unit=") {
-				lt.TIMESTAMP.Unit = parquet.NewTimeUnit()
-				switch {
-				case strings.HasSuffix(ann, "=MILLIS"):
-					lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
-				case strings.HasSuffix(ann, "=MICROS"):
-					lt.TIMESTAMP.Unit.MICROS = parquet.NewMicroSeconds()
-				case strings.HasSuffix(ann, "=NANOS"):
-					lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
-				default:
-					p.errorf("invalid annotation %q", ann)
-				}
-			} else {
-				p.errorf("unsupported annotation %q", ann)
-			}
+		if len(annotations) != 2 {
+			p.errorf("TIMESTAMP requires two annotations: unit, isAdjustedToUTC")
+		}
+		lt.TIMESTAMP.Unit = parquet.NewTimeUnit()
+		switch annotations[0] {
+		case "MILLIS":
+			lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
+		case "MICROS":
+			lt.TIMESTAMP.Unit.MICROS = parquet.NewMicroSeconds()
+		case "NANOS":
+			lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
+		default:
+			p.errorf("unknown unit annotation %q for TIMESTAMP", annotations[0])
+		}
+		switch annotations[1] {
+		case "true", "false":
+			lt.TIMESTAMP.IsAdjustedToUTC, _ = strconv.ParseBool(annotations[1])
+		default:
+			p.errorf("invalid isAdjustedToUTC annotation %q for TIMESTAMP", annotations[1])
 		}
 	default:
 		p.errorf("unsupported logical type %q", typStr)
