@@ -585,6 +585,10 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		}
 	case "UUID":
 		lt.UUID = parquet.NewUUIDType()
+	case "ENUM":
+		lt.ENUM = parquet.NewEnumType()
+	case "JSON":
+		lt.JSON = parquet.NewJsonType()
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
@@ -711,6 +715,18 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
 			if col.element.GetType() != parquet.Type_INT64 {
 				p.errorf("field %s is annotated as TIMESTAMP but is not an int64", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetUUID():
+			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 16 {
+				p.errorf("field %s is annotated as UUID but is not a fixed_len_byte_array(16)", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetENUM():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as ENUM but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetJSON():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
 			}
 		}
 	}

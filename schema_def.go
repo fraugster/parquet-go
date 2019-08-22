@@ -168,6 +168,10 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 		return fmt.Sprintf("TIMESTAMP(%s, %t)", unit, t.TIMESTAMP.IsAdjustedToUTC)
 	case t.IsSetUUID():
 		return "UUID"
+	case t.IsSetENUM():
+		return "ENUM"
+	case t.IsSetJSON():
+		return "JSON"
 	default:
 		return "BUG(UNKNOWN)"
 	}
