@@ -112,6 +112,15 @@ func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
 type int32Store struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max int32
+
+	*ColumnParameters
+}
+
+func (is *int32Store) params() *ColumnParameters {
+	if is.ColumnParameters == nil {
+		panic("ColumnParameters is nil")
+	}
+	return is.ColumnParameters
 }
 
 func (*int32Store) sizeOf(v interface{}) int {
@@ -122,28 +131,8 @@ func (is *int32Store) parquetType() parquet.Type {
 	return parquet.Type_INT32
 }
 
-func (is *int32Store) typeLen() *int32 {
-	return nil
-}
-
 func (is *int32Store) repetitionType() parquet.FieldRepetitionType {
 	return is.repTyp
-}
-
-func (is *int32Store) convertedType() *parquet.ConvertedType {
-	return nil
-}
-
-func (is *int32Store) scale() *int32 {
-	return nil
-}
-
-func (is *int32Store) precision() *int32 {
-	return nil
-}
-
-func (is *int32Store) logicalType() *parquet.LogicalType {
-	return nil
 }
 
 func (is *int32Store) reset(rep parquet.FieldRepetitionType) {

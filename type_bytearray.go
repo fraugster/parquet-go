@@ -332,7 +332,14 @@ type byteArrayStore struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max []byte
 
-	length int
+	*ColumnParameters
+}
+
+func (is *byteArrayStore) params() *ColumnParameters {
+	if is.ColumnParameters == nil {
+		panic("ColumnParameters is nil")
+	}
+	return is.ColumnParameters
 }
 
 func (is *byteArrayStore) sizeOf(v interface{}) int {
@@ -340,38 +347,14 @@ func (is *byteArrayStore) sizeOf(v interface{}) int {
 }
 
 func (is *byteArrayStore) parquetType() parquet.Type {
-	if is.length > 0 {
+	if is.TypeLength != nil && *is.TypeLength > 0 {
 		return parquet.Type_FIXED_LEN_BYTE_ARRAY
 	}
 	return parquet.Type_BYTE_ARRAY
 }
 
-func (is *byteArrayStore) typeLen() *int32 {
-	if is.length > 0 {
-		t := int32(is.length)
-		return &t
-	}
-	return nil
-}
-
 func (is *byteArrayStore) repetitionType() parquet.FieldRepetitionType {
 	return is.repTyp
-}
-
-func (is *byteArrayStore) convertedType() *parquet.ConvertedType {
-	return nil
-}
-
-func (is *byteArrayStore) scale() *int32 {
-	return nil
-}
-
-func (is *byteArrayStore) precision() *int32 {
-	return nil
-}
-
-func (is *byteArrayStore) logicalType() *parquet.LogicalType {
-	return nil
 }
 
 func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
@@ -390,8 +373,8 @@ func (is *byteArrayStore) minValue() []byte {
 }
 
 func (is *byteArrayStore) setMinMax(j []byte) error {
-	if is.length > 0 && len(j) != is.length {
-		return errors.Errorf("the size of data should be %d but is %d", is.length, len(j))
+	if is.TypeLength != nil && *is.TypeLength > 0 && int32(len(j)) != *is.TypeLength {
+		return errors.Errorf("the size of data should be %d but is %d", *is.TypeLength, len(j))
 	}
 	// For nil value there is no need to set the min/max
 	if j == nil {

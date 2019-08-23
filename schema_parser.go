@@ -376,6 +376,8 @@ func (p *schemaParser) parseColumnDefinition() *column {
 		p.errorf("invalid field repetition type %q", p.token.val)
 	}
 
+	params := &ColumnParameters{}
+
 	p.next()
 	if p.token.typ == itemGroup {
 
@@ -385,12 +387,11 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.element.ConvertedType = p.parseConvertedType()
+			params.ConvertedType = p.parseConvertedType()
 			p.next()
 		}
 
 		col.children = p.parseMessageBody()
-		col.element.NumChildren = int32Ptr(int32(len(col.children)))
 
 		p.expect(itemRightBrace)
 	} else {
@@ -409,7 +410,7 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 			byteArraySize := int32(i)
 
-			col.element.TypeLength = &byteArraySize
+			params.TypeLength = &byteArraySize
 
 			p.next()
 			p.expect(itemRightParen)
@@ -421,23 +422,23 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.element.LogicalType = p.parseLogicalType()
+			params.LogicalType = p.parseLogicalType()
 			p.next()
 		}
 
 		if p.token.typ == itemEqual {
-			col.element.FieldID = p.parseFieldID()
+			params.FieldID = p.parseFieldID()
 			p.next()
 		}
 
-		col.data = p.getColumnStore(col.element)
+		col.data = p.getColumnStore(col.element, params)
 		col.data.reset(col.rep)
 
 		p.expect(itemSemicolon)
 	}
 
-	col.element.Name = col.name
-	col.element.RepetitionType = parquet.FieldRepetitionTypePtr(col.rep)
+	col.params = params
+	col.element = col.buildElement()
 
 	return col
 }
@@ -483,7 +484,7 @@ func (p *schemaParser) getTokenType() *parquet.Type {
 	}
 }
 
-func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore {
+func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) *ColumnStore {
 	if elem.Type == nil {
 		return nil
 	}
@@ -497,21 +498,21 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 
 	switch typ {
 	case parquet.Type_BYTE_ARRAY:
-		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_FLOAT:
-		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_DOUBLE:
-		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_BOOLEAN:
-		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN)
+		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN, params)
 	case parquet.Type_INT32:
-		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_INT64:
-		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_INT96:
-		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, int(elem.GetTypeLength()))
+		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, params)
 	default:
 		p.errorf("unsupported type %q when creating column store", typ.String())
 	}

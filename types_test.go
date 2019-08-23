@@ -291,7 +291,7 @@ var (
 	stFixtures = []storeFixtures{
 		{
 			name:  "Int32Store",
-			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]int32, n)
 				for i := range ret {
@@ -302,7 +302,7 @@ var (
 		},
 		{
 			name:  "Int64Store",
-			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]int64, n)
 				for i := range ret {
@@ -313,7 +313,7 @@ var (
 		},
 		{
 			name:  "Float32Store",
-			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]float32, n)
 				for i := range ret {
@@ -324,7 +324,7 @@ var (
 		},
 		{
 			name:  "Float64Store",
-			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]float64, n)
 				for i := range ret {
@@ -335,7 +335,7 @@ var (
 		},
 		{
 			name:  "Int96Store",
-			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				var data = make([]Int96, n)
 				for c := 0; c < n; c++ {
@@ -348,7 +348,7 @@ var (
 		},
 		{
 			name:  "BooleanStore",
-			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN)),
+			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]bool, n)
 				for i := range ret {
