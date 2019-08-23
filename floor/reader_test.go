@@ -290,6 +290,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 			required fixed_len_byte_array(16) theid (UUID);
 			required binary clientstr (ENUM);
 			required binary client (ENUM);
+			required binary datastr (JSON);
+			required binary data (JSON);
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -307,6 +309,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 		TheID     [16]byte
 		ClientStr string
 		Client    []byte
+		DataStr   string
+		Data      []byte
 	}
 
 	testData := []testMsg{
@@ -314,6 +318,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 			TheID:     [16]byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x0A, 0x0B, 0x0C, 0x0E, 0x0F, 0x10},
 			ClientStr: "hello",
 			Client:    []byte("world"),
+			DataStr:   `{"foo":"bar","baz":23}`,
+			Data:      []byte(`{"quux":{"foo":"bar"}}`),
 		},
 	}
 
