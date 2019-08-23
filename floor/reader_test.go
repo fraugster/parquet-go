@@ -282,6 +282,75 @@ func TestReadWriteArray(t *testing.T) {
 	require.NoError(t, hlReader.Close())
 }
 
+func TestReadWriteSpecialTypes(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required fixed_len_byte_array(16) theid (UUID);
+			required binary clientstr (ENUM);
+			required binary client (ENUM);
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	hlWriter, err := NewFileWriter(
+		"files/specialtypes.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err)
+
+	type testMsg struct {
+		TheID     [16]byte
+		ClientStr string
+		Client    []byte
+	}
+
+	testData := []testMsg{
+		{
+			TheID:     [16]byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x0A, 0x0B, 0x0C, 0x0E, 0x0F, 0x10},
+			ClientStr: "hello",
+			Client:    []byte("world"),
+		},
+	}
+
+	for _, tt := range testData {
+		require.NoError(t, hlWriter.Write(tt))
+	}
+	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/specialtypes.parquet")
+	require.NoError(t, err)
+
+	count := 0
+
+	var result []testMsg
+
+	for hlReader.Next() {
+		var msg testMsg
+
+		require.NoError(t, hlReader.Scan(&msg), "%d. Scan failed", count)
+		t.Logf("%d. data = %#v", count, hlReader.data)
+
+		result = append(result, msg)
+
+		count++
+	}
+
+	require.NoError(t, hlReader.Err(), "hlReader returned an error")
+
+	t.Logf("count = %d", count)
+
+	for idx, elem := range result {
+		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
+	}
+
+	require.NoError(t, hlReader.Close())
+}
+
 func TestFillValue(t *testing.T) {
 	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false, nil))
 	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23, nil))
