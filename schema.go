@@ -224,8 +224,8 @@ func (r *schema) ensureRoot() {
 	if r.root == nil {
 		r.root = &column{
 			index:    0,
-			name:     "",
-			flatName: "",
+			name:     "msg", // TODO: provide way of overriding this.
+			flatName: "msg",
 			data:     nil,
 			children: []*column{},
 			rep:      0,

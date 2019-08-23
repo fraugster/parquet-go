@@ -70,7 +70,9 @@ func printCols(w io.Writer, cols []*column, indent int) {
 	for _, col := range cols {
 		printIndent(w, indent)
 
-		switch col.element.GetRepetitionType() {
+		elem := col.Element()
+
+		switch elem.GetRepetitionType() {
 		case parquet.FieldRepetitionType_REPEATED:
 			fmt.Fprintf(w, "repeated")
 		case parquet.FieldRepetitionType_OPTIONAL:
@@ -80,10 +82,10 @@ func printCols(w io.Writer, cols []*column, indent int) {
 		}
 		fmt.Fprintf(w, " ")
 
-		if col.element.Type == nil {
-			fmt.Fprintf(w, "group %s", col.element.GetName())
-			if col.element.ConvertedType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(col.element.GetConvertedType()))
+		if elem.Type == nil {
+			fmt.Fprintf(w, "group %s", elem.GetName())
+			if elem.ConvertedType != nil {
+				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(elem.GetConvertedType()))
 			}
 			fmt.Fprintf(w, " {\n")
 			printCols(w, col.children, indent+2)
@@ -91,13 +93,13 @@ func printCols(w io.Writer, cols []*column, indent int) {
 			printIndent(w, indent)
 			fmt.Fprintf(w, "}\n")
 		} else {
-			typ := getSchemaType(col.element)
-			fmt.Fprintf(w, "%s %s", typ, col.element.GetName())
-			if col.element.LogicalType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaLogicalType(col.element.GetLogicalType()))
+			typ := getSchemaType(elem)
+			fmt.Fprintf(w, "%s %s", typ, elem.GetName())
+			if elem.LogicalType != nil {
+				fmt.Fprintf(w, " (%s)", getSchemaLogicalType(elem.GetLogicalType()))
 			}
-			if col.element.FieldID != nil {
-				fmt.Fprintf(w, " = %d", col.element.GetFieldID())
+			if elem.FieldID != nil {
+				fmt.Fprintf(w, " = %d", elem.GetFieldID())
 			}
 			fmt.Fprintf(w, ";\n")
 		}
