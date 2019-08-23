@@ -25,7 +25,7 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_BYTE_ARRAY:
-		var ret bytesArrayEncoder
+		var ret valuesEncoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
 			ret = &byteArrayPlainEncoder{}
@@ -42,7 +42,7 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		var ret bytesArrayEncoder
+		var ret valuesEncoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
 			if typ.TypeLength == nil {

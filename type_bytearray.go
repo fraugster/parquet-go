@@ -10,27 +10,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-type bytesArrayDecoder interface {
-	valuesDecoder
-	// just a dummy func to make sure the type is really byte decoder on compile time
-	// should panic on call
-	bytesArray()
-}
-
-type bytesArrayEncoder interface {
-	valuesEncoder
-
-	bytesArray()
-}
-
 type byteArrayPlainDecoder struct {
 	r io.Reader
 	// if the length is set, then this is a fix size array decoder, unless it reads the len first
 	length int
-}
-
-func (b *byteArrayPlainDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (b *byteArrayPlainDecoder) init(r io.Reader) error {
@@ -75,10 +58,6 @@ type byteArrayPlainEncoder struct {
 	length int
 }
 
-func (b *byteArrayPlainEncoder) bytesArray() {
-	panic("should not call me")
-}
-
 func (b *byteArrayPlainEncoder) init(w io.Writer) error {
 	b.w = w
 
@@ -118,10 +97,6 @@ type byteArrayDeltaLengthDecoder struct {
 	r        io.Reader
 	position int
 	lens     []int32
-}
-
-func (b *byteArrayDeltaLengthDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
@@ -169,10 +144,6 @@ type byteArrayDeltaLengthEncoder struct {
 	lens []interface{}
 }
 
-func (b *byteArrayDeltaLengthEncoder) bytesArray() {
-	panic("should not call me")
-}
-
 func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
 	b.w = w
 	b.buf = &bytes.Buffer{}
@@ -218,10 +189,6 @@ type byteArrayDeltaDecoder struct {
 	suffixDecoder byteArrayDeltaLengthDecoder
 	prefixLens    []int32
 	previousValue []byte
-}
-
-func (d *byteArrayDeltaDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
@@ -278,10 +245,6 @@ type byteArrayDeltaEncoder struct {
 	previousValue []byte
 
 	values *byteArrayDeltaLengthEncoder
-}
-
-func (b *byteArrayDeltaEncoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (b *byteArrayDeltaEncoder) init(w io.Writer) error {
