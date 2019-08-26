@@ -57,6 +57,15 @@ func (d *doublePlainEncoder) encodeValues(values []interface{}) error {
 type doubleStore struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max float64
+
+	*ColumnParameters
+}
+
+func (f *doubleStore) params() *ColumnParameters {
+	if f.ColumnParameters == nil {
+		panic("ColumnParameters is nil")
+	}
+	return f.ColumnParameters
 }
 
 func (*doubleStore) sizeOf(v interface{}) int {
@@ -67,28 +76,8 @@ func (f *doubleStore) parquetType() parquet.Type {
 	return parquet.Type_DOUBLE
 }
 
-func (f *doubleStore) typeLen() *int32 {
-	return nil
-}
-
 func (f *doubleStore) repetitionType() parquet.FieldRepetitionType {
 	return f.repTyp
-}
-
-func (f *doubleStore) convertedType() *parquet.ConvertedType {
-	return nil
-}
-
-func (f *doubleStore) scale() *int32 {
-	return nil
-}
-
-func (f *doubleStore) precision() *int32 {
-	return nil
-}
-
-func (f *doubleStore) logicalType() *parquet.LogicalType {
-	return nil
 }
 
 func (f *doubleStore) reset(rep parquet.FieldRepetitionType) {

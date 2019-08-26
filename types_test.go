@@ -184,18 +184,6 @@ var (
 			},
 		},
 		{
-			name: "StringByteArrayFixedLen",
-			enc:  &stringEncoder{&byteArrayPlainEncoder{length: 3}},
-			dec:  &stringDecoder{&byteArrayPlainDecoder{length: 3}},
-			rand: func() interface{} {
-				return string([]byte{
-					byte(rand.Intn(94) + 32),
-					byte(rand.Intn(94) + 32),
-					byte(rand.Intn(94) + 32),
-				})
-			},
-		},
-		{
 			name: "ByteArrayPlain",
 			enc:  &byteArrayPlainEncoder{},
 			dec:  &byteArrayPlainDecoder{},
@@ -206,19 +194,6 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
-			},
-		},
-		{
-			name: "StringByteArrayPlain",
-			enc:  &stringEncoder{&byteArrayPlainEncoder{}},
-			dec:  &stringDecoder{&byteArrayPlainDecoder{}},
-			rand: func() interface{} {
-				l := rand.Intn(10) + 1 // no zero
-				ret := make([]byte, l)
-				for i := range ret {
-					ret[i] = byte(rand.Intn(94) + 32)
-				}
-				return string(ret)
 			},
 		},
 		{
@@ -245,20 +220,6 @@ var (
 					ret[i] = byte(rand.Intn(256))
 				}
 				return ret
-			},
-		},
-		{
-			name: "UUID",
-			enc:  &uuidEncoder{},
-			dec:  &uuidDecoder{},
-			rand: func() interface{} {
-				uuid := make([]byte, 16)
-				for i := range uuid {
-					uuid[i] = byte(rand.Intn(256))
-				}
-				uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
-				uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-				return uuid
 			},
 		},
 	}
@@ -330,7 +291,7 @@ var (
 	stFixtures = []storeFixtures{
 		{
 			name:  "Int32Store",
-			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]int32, n)
 				for i := range ret {
@@ -341,7 +302,7 @@ var (
 		},
 		{
 			name:  "Int64Store",
-			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]int64, n)
 				for i := range ret {
@@ -352,7 +313,7 @@ var (
 		},
 		{
 			name:  "Float32Store",
-			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]float32, n)
 				for i := range ret {
@@ -363,7 +324,7 @@ var (
 		},
 		{
 			name:  "Float64Store",
-			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]float64, n)
 				for i := range ret {
@@ -374,7 +335,7 @@ var (
 		},
 		{
 			name:  "Int96Store",
-			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false)),
+			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				var data = make([]Int96, n)
 				for c := 0; c < n; c++ {
@@ -386,32 +347,8 @@ var (
 			},
 		},
 		{
-			name:  "StringStore",
-			store: mustColumnStore(NewStringStore(parquet.Encoding_PLAIN, false)),
-			rand: func(n int) interface{} {
-				ret := make([]string, n)
-				for c := 0; c < n; c++ {
-					ret[c] = randStringRunes(rand.Intn(10))
-				}
-
-				return ret
-			},
-		},
-		{
-			name:  "ByteStore(UUIDStore)",
-			store: mustColumnStore(NewUUIDStore(parquet.Encoding_PLAIN, false)),
-			rand: func(n int) interface{} {
-				ret := make([][]byte, n)
-				for c := 0; c < n; c++ {
-					ret[c] = []byte(randStringRunes(rand.Intn(10)))
-				}
-
-				return ret
-			},
-		},
-		{
 			name:  "BooleanStore",
-			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN)),
+			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN, &ColumnParameters{})),
 			rand: func(n int) interface{} {
 				ret := make([]bool, n)
 				for i := range ret {

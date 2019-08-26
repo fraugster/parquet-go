@@ -13,13 +13,12 @@ import (
 
 type item struct {
 	typ  itemType
-	pos  Pos
+	pos  pos
 	val  string
 	line int
 }
 
-// Pos describes a position
-type Pos int
+type pos int
 
 func (i item) String() string {
 	switch {
@@ -45,6 +44,7 @@ const (
 	itemRightBrace
 	itemEqual
 	itemSemicolon
+	itemComma
 	itemNumber
 	itemIdentifier
 	itemKeyword
@@ -54,6 +54,34 @@ const (
 	itemRequired
 	itemGroup
 )
+
+func (i itemType) String() string {
+	typeNames := map[itemType]string{
+		itemError:      "error",
+		itemEOF:        "EOF",
+		itemLeftParen:  "(",
+		itemRightParen: ")",
+		itemLeftBrace:  "{",
+		itemRightBrace: "}",
+		itemEqual:      "=",
+		itemSemicolon:  ";",
+		itemComma:      ",",
+		itemNumber:     "number",
+		itemIdentifier: "identifier",
+		itemKeyword:    "<keyword>",
+		itemMessage:    "message",
+		itemRepeated:   "repeated",
+		itemOptional:   "optional",
+		itemRequired:   "required",
+		itemGroup:      "group",
+	}
+
+	n, ok := typeNames[i]
+	if !ok {
+		return fmt.Sprintf("<type:%d>", int(i))
+	}
+	return n
+}
 
 var key = map[string]itemType{
 	"message":  itemMessage,
@@ -69,9 +97,9 @@ type stateFn func(*schemaLexer) stateFn
 
 type schemaLexer struct {
 	input     string
-	pos       Pos
-	start     Pos
-	width     Pos
+	pos       pos
+	start     pos
+	width     pos
 	items     chan item
 	line      int
 	startLine int
@@ -84,7 +112,7 @@ func (l *schemaLexer) next() rune {
 	}
 
 	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.width = Pos(w)
+	l.width = pos(w)
 	l.pos += l.width
 	if r == '\n' {
 		l.line++
@@ -177,6 +205,8 @@ func lexText(l *schemaLexer) stateFn {
 		l.emit(itemEqual)
 	case r == ';':
 		l.emit(itemSemicolon)
+	case r == ',':
+		l.emit(itemComma)
 	case isAlpha(r):
 		return lexIdentifier
 	case r == '\n': // ignore newlines
@@ -221,7 +251,7 @@ func lexIdentifier(l *schemaLexer) stateFn {
 loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNum(r):
+		case isAlphaNum(r): // the = is there to accept it as part of the identifiers being read within type annotations.
 			// absorb.
 		default:
 			l.backup()
@@ -263,6 +293,8 @@ func (p *schemaParser) parse() (err error) {
 		fixFlatName("", c)
 	}
 
+	p.validateLogicalTypes(p.root)
+
 	return nil
 }
 
@@ -283,13 +315,15 @@ func (p *schemaParser) errorf(msg string, args ...interface{}) {
 
 func (p *schemaParser) expect(typ itemType) {
 	if p.token.typ != typ {
-		p.errorf("expected token type %v, got %v instead", typ, p.token)
+		//log.Printf("expected %s, got %s instead", typ, p.token)
+		p.errorf("expected %s, got %s instead", typ, p.token)
 	}
-	//log.Printf("expect %d successful, token = %v", typ, p.token)
+	//log.Printf("expect %s successful, token = %v", typ, p.token)
 }
 
 func (p *schemaParser) next() {
 	p.token = p.l.nextItem()
+	//log.Printf("next token: %s", p.token)
 }
 
 func (p *schemaParser) parseMessage() {
@@ -314,8 +348,10 @@ func (p *schemaParser) parseMessage() {
 
 func (p *schemaParser) parseMessageBody() []*column {
 	var cols []*column
+	p.expect(itemLeftBrace)
 	for {
 		p.next()
+		//log.Printf("token = %s", p.token)
 		if p.token.typ == itemRightBrace {
 			return cols
 		}
@@ -340,6 +376,8 @@ func (p *schemaParser) parseColumnDefinition() *column {
 		p.errorf("invalid field repetition type %q", p.token.val)
 	}
 
+	params := &ColumnParameters{}
+
 	p.next()
 	if p.token.typ == itemGroup {
 
@@ -349,18 +387,34 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.element.ConvertedType = p.parseConvertedType()
+			params.ConvertedType = p.parseConvertedType()
+			p.next()
 		}
-
-		p.next()
-		p.expect(itemLeftBrace)
 
 		col.children = p.parseMessageBody()
 
 		p.expect(itemRightBrace)
 	} else {
 		col.element.Type = p.getTokenType()
-		col.data = p.getColumnStore(col.element)
+
+		if col.element.GetType() == parquet.Type_FIXED_LEN_BYTE_ARRAY {
+			p.next()
+			p.expect(itemLeftParen)
+			p.next()
+			p.expect(itemNumber)
+
+			i, err := strconv.ParseInt(p.token.val, 10, 32)
+			if err != nil || i < 0 {
+				p.errorf("invalid fixed_len_byte_array length %q", p.token.val)
+			}
+
+			byteArraySize := int32(i)
+
+			params.TypeLength = &byteArraySize
+
+			p.next()
+			p.expect(itemRightParen)
+		}
 
 		p.next()
 		p.expect(itemIdentifier)
@@ -368,26 +422,33 @@ func (p *schemaParser) parseColumnDefinition() *column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			col.element.ConvertedType = p.parseConvertedType()
+			params.LogicalType = p.parseLogicalType()
 			p.next()
 		}
 
 		if p.token.typ == itemEqual {
-			col.element.FieldID = p.parseFieldID()
+			params.FieldID = p.parseFieldID()
 			p.next()
 		}
+
+		col.data = p.getColumnStore(col.element, params)
+		col.data.reset(col.rep)
 
 		p.expect(itemSemicolon)
 	}
 
-	col.element.Name = col.name
-	col.element.RepetitionType = parquet.FieldRepetitionTypePtr(col.rep)
+	col.params = params
+	col.element = col.buildElement()
 
 	return col
 }
 
+func int32Ptr(i int32) *int32 {
+	return &i
+}
+
 func (p *schemaParser) isValidType(typ string) {
-	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96"} // TODO: add more.
+	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"} // TODO: add more.
 	for _, vt := range validTypes {
 		if vt == typ {
 			return
@@ -415,13 +476,15 @@ func (p *schemaParser) getTokenType() *parquet.Type {
 		return parquet.TypePtr(parquet.Type_INT64)
 	case "int96":
 		return parquet.TypePtr(parquet.Type_INT96)
+	case "fixed_len_byte_array":
+		return parquet.TypePtr(parquet.Type_FIXED_LEN_BYTE_ARRAY)
 	default:
 		p.errorf("unsupported type %q", p.token.val)
 		return nil
 	}
 }
 
-func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore {
+func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) *ColumnStore {
 	if elem.Type == nil {
 		return nil
 	}
@@ -431,30 +494,104 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement) *ColumnStore 
 		err      error
 	)
 
-	// TODO: add support for FIXED_LEN_BYTE_ARRAY
-	switch *elem.Type {
+	typ := elem.GetType()
+
+	switch typ {
 	case parquet.Type_BYTE_ARRAY:
-		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_FLOAT:
-		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_DOUBLE:
-		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true)
+		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_BOOLEAN:
-		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN)
+		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN, params)
 	case parquet.Type_INT32:
-		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_INT64:
-		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true, params)
 	case parquet.Type_INT96:
-		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true)
+		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, params)
 	default:
-		p.errorf("unsupported type %q", elem.Type.String())
+		p.errorf("unsupported type %q when creating column store", typ.String())
 	}
 	if err != nil {
-		p.errorf("creating column store for type %q failed: %v", elem.Type.String(), err)
+		p.errorf("creating column store for type %q failed: %v", typ.String(), err)
 	}
 
 	return colStore
+}
+
+func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
+	p.expect(itemLeftParen)
+	p.next()
+	p.expect(itemIdentifier)
+
+	typStr := p.token.val
+
+	lt := parquet.NewLogicalType()
+
+	p.next()
+
+	var annotations []string
+
+	if p.token.typ == itemLeftParen {
+		p.next()
+		for p.token.typ != itemRightParen {
+			p.expect(itemIdentifier)
+			annotations = append(annotations, p.token.val)
+			p.next()
+			switch p.token.typ {
+			case itemComma, itemRightParen:
+				// they are expected, nothing to do.
+			default:
+				p.errorf("unexpected %s", p.token)
+			}
+			p.next()
+		}
+	}
+
+	p.expect(itemRightParen)
+
+	switch strings.ToUpper(typStr) {
+	case "STRING":
+		lt.STRING = parquet.NewStringType()
+	case "DATE":
+		lt.DATE = parquet.NewDateType()
+	case "TIMESTAMP":
+		lt.TIMESTAMP = parquet.NewTimestampType()
+		if len(annotations) != 2 {
+			p.errorf("TIMESTAMP requires two annotations: unit, isAdjustedToUTC")
+		}
+		lt.TIMESTAMP.Unit = parquet.NewTimeUnit()
+		switch annotations[0] {
+		case "MILLIS":
+			lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
+		case "MICROS":
+			lt.TIMESTAMP.Unit.MICROS = parquet.NewMicroSeconds()
+		case "NANOS":
+			lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
+		default:
+			p.errorf("unknown unit annotation %q for TIMESTAMP", annotations[0])
+		}
+		switch annotations[1] {
+		case "true", "false":
+			lt.TIMESTAMP.IsAdjustedToUTC, _ = strconv.ParseBool(annotations[1])
+		default:
+			p.errorf("invalid isAdjustedToUTC annotation %q for TIMESTAMP", annotations[1])
+		}
+	case "UUID":
+		lt.UUID = parquet.NewUUIDType()
+	case "ENUM":
+		lt.ENUM = parquet.NewEnumType()
+	case "JSON":
+		lt.JSON = parquet.NewJsonType()
+	default:
+		p.errorf("unsupported logical type %q", typStr)
+	}
+
+	return lt
 }
 
 func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
@@ -501,5 +638,98 @@ func fixFlatName(prefix string, col *column) {
 
 	for _, c := range col.children {
 		fixFlatName(flatName, c)
+	}
+}
+
+func (p *schemaParser) validateLogicalTypes(col *column) {
+	if col.element != nil && (col.element.LogicalType != nil || col.element.ConvertedType != nil) {
+		switch {
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetLIST()) || col.element.GetConvertedType() == parquet.ConvertedType_LIST:
+			// TODO: add support for backward compatibility:
+			// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
+			if col.element.Type != nil {
+				p.errorf("field %s is not a group but annotated as LIST", col.element.Name)
+			}
+			if rep := col.element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("field %s is a LIST but has repetition type %s", col.element.Name, rep)
+			}
+			if len(col.children) != 1 {
+				p.errorf("field %s is a LIST but has %d children", len(col.children))
+			}
+			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("field %s is a LIST but its child is not a repeated group", col.element.Name)
+			}
+			if col.children[0].name != "list" {
+				p.errorf("field %s is a LIST but its child is not named \"list\"", col.element.Name)
+			}
+			if len(col.children[0].children) != 1 {
+				p.errorf("field %s.list has %d children", col.element.Name)
+			}
+			if col.children[0].children[0].element.Name != "element" {
+				p.errorf("%s.list has a child but it's called %q, not \"element\"", col.element.Name, col.children[0].children[0].element.Name)
+			}
+			if rep := col.children[0].children[0].element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("%s.list.element has disallowed repetition type %s", col.element.Name, rep)
+			}
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetMAP()) || col.element.GetConvertedType() == parquet.ConvertedType_MAP:
+			if col.element.Type != nil {
+				p.errorf("field %s is not a group but annotated as MAP", col.element.Name)
+			}
+			if len(col.children) != 1 {
+				p.errorf("field %s is a MAP but has %d children", len(col.children))
+			}
+			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("filed %s is a MAP but its child is not a repeated group", col.element.Name)
+			}
+			if col.children[0].name != "key_value" {
+				p.errorf("field %s is a MAP but its child is not named \"key_value\"", col.element.Name)
+			}
+			foundKey := false
+			foundValue := false
+			for _, c := range col.children[0].children {
+				switch c.element.Name {
+				case "key":
+					if c.element.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
+						p.errorf("field %s.key_value.key is not of repetition type \"required\"", col.element.Name)
+					}
+					foundKey = true
+				case "value":
+					foundValue = true
+					// nothing else to check.
+				default:
+					p.errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.element.Name, c.element.Name)
+				}
+			}
+			if !foundKey {
+				p.errorf("field %[1]s is missing %[1]s.key_value.key", col.element.Name)
+			}
+			if !foundValue {
+				p.errorf("field %[1]s is missing %[1]s.key_value.value", col.element.Name)
+			}
+		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDATE()) || col.element.GetConvertedType() == parquet.ConvertedType_DATE:
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP but is not an int64", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetUUID():
+			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 16 {
+				p.errorf("field %s is annotated as UUID but is not a fixed_len_byte_array(16)", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetENUM():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as ENUM but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetJSON():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
+			}
+		}
+	}
+
+	for _, c := range col.children {
+		p.validateLogicalTypes(c)
 	}
 }

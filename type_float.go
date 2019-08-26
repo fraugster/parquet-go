@@ -58,6 +58,15 @@ func (d *floatPlainEncoder) encodeValues(values []interface{}) error {
 type floatStore struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max float32
+
+	*ColumnParameters
+}
+
+func (f *floatStore) params() *ColumnParameters {
+	if f.ColumnParameters == nil {
+		panic("ColumnParameters is nil")
+	}
+	return f.ColumnParameters
 }
 
 func (*floatStore) sizeOf(v interface{}) int {
@@ -68,28 +77,8 @@ func (f *floatStore) parquetType() parquet.Type {
 	return parquet.Type_FLOAT
 }
 
-func (f *floatStore) typeLen() *int32 {
-	return nil
-}
-
 func (f *floatStore) repetitionType() parquet.FieldRepetitionType {
 	return f.repTyp
-}
-
-func (f *floatStore) convertedType() *parquet.ConvertedType {
-	return nil
-}
-
-func (f *floatStore) scale() *int32 {
-	return nil
-}
-
-func (f *floatStore) precision() *int32 {
-	return nil
-}
-
-func (f *floatStore) logicalType() *parquet.LogicalType {
-	return nil
 }
 
 func (f *floatStore) reset(rep parquet.FieldRepetitionType) {

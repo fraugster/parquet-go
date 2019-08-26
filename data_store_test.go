@@ -11,7 +11,7 @@ import (
 )
 
 func newIntStore() *ColumnStore {
-	d := newStore(&int32Store{}, parquet.Encoding_PLAIN, false)
+	d := newStore(&int32Store{ColumnParameters: &ColumnParameters{}}, parquet.Encoding_PLAIN, false)
 	return d
 }
 
@@ -384,7 +384,7 @@ func TestTwitterBlog(t *testing.T) {
 }
 
 func TestEmptyParent(t *testing.T) {
-	elementStore, err := NewInt32Store(parquet.Encoding_PLAIN, true)
+	elementStore, err := NewInt32Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create elementStore")
 
 	elementCol := NewDataColumn(elementStore, parquet.FieldRepetitionType_REQUIRED)

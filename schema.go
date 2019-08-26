@@ -1,9 +1,6 @@
 package go_parquet
 
 import (
-	"bytes"
-	"fmt"
-	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -36,6 +33,8 @@ type column struct {
 	parent int // one of noParent, listParent, mapParent
 	// for the reader we should read this element from the meta, for the writer we need to build this element
 	element *parquet.SchemaElement
+
+	params *ColumnParameters
 }
 
 func (c *column) getSchemaArray() []*parquet.SchemaElement {
@@ -89,34 +88,22 @@ func (c *column) buildElement() *parquet.SchemaElement {
 	elem := &parquet.SchemaElement{
 		RepetitionType: &rep,
 		Name:           c.name,
-		FieldID:        nil, // Not sure about this field
+	}
+
+	if c.params != nil {
+		elem.FieldID = c.params.FieldID
+		elem.ConvertedType = c.params.ConvertedType
+		elem.LogicalType = c.params.LogicalType
 	}
 
 	if c.data != nil {
 		t := c.data.parquetType()
 		elem.Type = &t
-		elem.TypeLength = c.data.typeLen()
-		elem.ConvertedType = c.data.convertedType()
-		elem.Scale = c.data.scale()
-		elem.Precision = c.data.precision()
-		elem.LogicalType = c.data.logicalType()
+		elem.TypeLength = c.params.TypeLength
+		elem.Scale = c.params.Scale
+		elem.Precision = c.params.Precision
 	} else {
 		nc := int32(len(c.children))
-		switch c.parent {
-		case listParent:
-			ct := parquet.ConvertedType_LIST
-			elem.ConvertedType = &ct
-			elem.LogicalType = &parquet.LogicalType{
-				LIST: &parquet.ListType{},
-			}
-		case mapParent:
-			ct := parquet.ConvertedType_MAP
-			elem.ConvertedType = &ct
-			elem.LogicalType = &parquet.LogicalType{
-				MAP: &parquet.MapType{},
-			}
-		}
-
 		elem.NumChildren = &nc
 	}
 
@@ -237,8 +224,8 @@ func (r *schema) ensureRoot() {
 	if r.root == nil {
 		r.root = &column{
 			index:    0,
-			name:     "",
-			flatName: "",
+			name:     "msg", // TODO: provide way of overriding this.
+			flatName: "msg",
 			data:     nil,
 			children: []*column{},
 			rep:      0,
@@ -342,6 +329,24 @@ func (r *schema) sortIndex() {
 	fn(&r.root.children)
 }
 
+func (r *schema) SetSchemaDefinition(sd *SchemaDefinition) {
+	r.root = sd.col
+
+	for _, c := range r.root.children {
+		recursiveFix(c, "", 0, 0)
+	}
+}
+
+// ColumnParameters contains common parameters related to a column.
+type ColumnParameters struct {
+	LogicalType   *parquet.LogicalType
+	ConvertedType *parquet.ConvertedType
+	TypeLength    *int32
+	FieldID       *int32
+	Scale         *int32
+	Precision     *int32
+}
+
 // NewDataColumn create new column, not a group
 func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) Column {
 	store.reset(rep)
@@ -349,6 +354,7 @@ func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) Column {
 		data:     store,
 		children: nil,
 		rep:      rep,
+		params:   store.typedColumnStore.params(),
 	}
 }
 
@@ -373,10 +379,16 @@ func NewListColumn(element Column, rep parquet.FieldRepetitionType) (Column, err
 				children: []*column{c},
 			},
 		},
+		params: &ColumnParameters{
+			LogicalType: &parquet.LogicalType{
+				LIST: parquet.NewListType(),
+			},
+			ConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_LIST),
+		},
 	}, nil
 }
 
-// NewListColumn return a new LIST in parquet file
+// NewMapColumn return a new MAP in parquet file
 func NewMapColumn(key, value Column, rep parquet.FieldRepetitionType) (Column, error) {
 	// the higher level element doesn't need name, but all lower level does.
 	k, ok := key.(*column)
@@ -408,7 +420,16 @@ func NewMapColumn(key, value Column, rep parquet.FieldRepetitionType) (Column, e
 					k,
 					v,
 				},
+				params: &ColumnParameters{
+					ConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_MAP_KEY_VALUE),
+				},
 			},
+		},
+		params: &ColumnParameters{
+			LogicalType: &parquet.LogicalType{
+				MAP: parquet.NewMapType(),
+			},
+			ConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_MAP),
 		},
 	}, nil
 }
@@ -420,6 +441,7 @@ func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 		children: []*column{},
 		data:     nil,
 		rep:      rep,
+		params:   &ColumnParameters{},
 	})
 }
 
@@ -777,99 +799,10 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	return nil
 }
 
-func printIndent(w io.Writer, indent int) {
-	for i := 0; i < indent; i++ {
-		fmt.Fprintf(w, " ")
+func (r *schema) GetSchemaDefinition() *SchemaDefinition {
+	return &SchemaDefinition{
+		col: r.root,
 	}
-}
-
-func printCols(w io.Writer, cols []*column, indent int) {
-	for _, col := range cols {
-		printIndent(w, indent)
-
-		switch col.element.GetRepetitionType() {
-		case parquet.FieldRepetitionType_REPEATED:
-			fmt.Fprintf(w, "repeated")
-		case parquet.FieldRepetitionType_OPTIONAL:
-			fmt.Fprintf(w, "optional")
-		case parquet.FieldRepetitionType_REQUIRED:
-			fmt.Fprintf(w, "required")
-		}
-		fmt.Fprintf(w, " ")
-
-		if col.element.Type == nil {
-			fmt.Fprintf(w, "group %s", col.element.GetName())
-			if col.element.ConvertedType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(col.element.GetConvertedType()))
-			}
-			fmt.Fprintf(w, " {\n")
-			printCols(w, col.children, indent+2)
-
-			printIndent(w, indent)
-			fmt.Fprintf(w, "}\n")
-		} else {
-			typ := getSchemaType(col.element.GetType())
-			fmt.Fprintf(w, "%s %s", typ, col.element.GetName())
-			if col.element.ConvertedType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(col.element.GetConvertedType()))
-			}
-			if col.element.FieldID != nil {
-				fmt.Fprintf(w, " = %d", col.element.GetFieldID())
-			}
-			fmt.Fprintf(w, ";\n")
-		}
-	}
-}
-
-func getSchemaType(t parquet.Type) string {
-	switch t {
-
-	case parquet.Type_BYTE_ARRAY:
-		return "binary"
-	case parquet.Type_FLOAT:
-		return "float"
-	case parquet.Type_DOUBLE:
-		return "double"
-	case parquet.Type_BOOLEAN:
-		return "boolean"
-	case parquet.Type_INT32:
-		return "int32"
-	case parquet.Type_INT64:
-		return "int64"
-	case parquet.Type_INT96:
-		return "int96"
-	}
-	return fmt.Sprintf("UT:%s", t)
-}
-
-func getSchemaConvertedType(t parquet.ConvertedType) string {
-	switch t {
-	case parquet.ConvertedType_UTF8:
-		return "STRING"
-	case parquet.ConvertedType_LIST:
-		return "LIST"
-	case parquet.ConvertedType_MAP:
-		return "MAP"
-	case parquet.ConvertedType_MAP_KEY_VALUE:
-		return "MAP_KEY_VALUE"
-	}
-	return fmt.Sprintf("UC:%s", t)
-}
-
-func (r *schema) String() string {
-	if r.root == nil {
-		return "<nil>"
-	}
-
-	buf := new(bytes.Buffer)
-
-	fmt.Fprintf(buf, "message %s {\n", r.root.Name())
-
-	printCols(buf, r.root.children, 2)
-
-	fmt.Fprintf(buf, "}\n")
-
-	return buf.String()
 }
 
 // DataSize return the size of data stored in the schema right now
@@ -893,13 +826,14 @@ type schemaCommon interface {
 	// Return a column by its name
 	GetColumnByName(path string) Column
 
-	// String returns the string representation of the schema
-	String() string
+	// GetSchemaDefinition returns the schema definition.
+	GetSchemaDefinition() *SchemaDefinition
 
 	NumRecords() int64
 	// Internal functions
 	resetData()
 	getSchemaArray() []*parquet.SchemaElement
+	SetSchemaDefinition(*SchemaDefinition)
 }
 
 // SchemaReader is a reader for the schema in file
@@ -934,6 +868,12 @@ func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
 			maxR:     0,
 			maxD:     0,
 			element:  meta.Schema[0],
+			params: &ColumnParameters{
+				LogicalType:   meta.Schema[0].LogicalType,
+				ConvertedType: meta.Schema[0].ConvertedType,
+				TypeLength:    meta.Schema[0].TypeLength,
+				FieldID:       meta.Schema[0].FieldID,
+			},
 		},
 	}
 	err := s.readSchema(meta.Schema[1:])

@@ -91,6 +91,12 @@ func MaxRowGroupSize(size int64) FileWriterOption {
 	}
 }
 
+func UseSchemaDefinition(sd *SchemaDefinition) FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.SetSchemaDefinition(sd)
+	}
+}
+
 // FlushRowGroup is to write the row group into the file
 func (fw *FileWriter) FlushRowGroup() error {
 	// Write the entire row group

@@ -1,0 +1,4 @@
+message foo {
+  required fixed_len_byte_array(16) theid (UUID);
+  optional binary data;
+}

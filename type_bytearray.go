@@ -10,27 +10,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-type bytesArrayDecoder interface {
-	valuesDecoder
-	// just a dummy func to make sure the type is really byte decoder on compile time
-	// should panic on call
-	bytesArray()
-}
-
-type bytesArrayEncoder interface {
-	valuesEncoder
-
-	bytesArray()
-}
-
 type byteArrayPlainDecoder struct {
 	r io.Reader
 	// if the length is set, then this is a fix size array decoder, unless it reads the len first
 	length int
-}
-
-func (b *byteArrayPlainDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (b *byteArrayPlainDecoder) init(r io.Reader) error {
@@ -75,10 +58,6 @@ type byteArrayPlainEncoder struct {
 	length int
 }
 
-func (b *byteArrayPlainEncoder) bytesArray() {
-	panic("should not call me")
-}
-
 func (b *byteArrayPlainEncoder) init(w io.Writer) error {
 	b.w = w
 
@@ -118,10 +97,6 @@ type byteArrayDeltaLengthDecoder struct {
 	r        io.Reader
 	position int
 	lens     []int32
-}
-
-func (b *byteArrayDeltaLengthDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (b *byteArrayDeltaLengthDecoder) init(r io.Reader) error {
@@ -169,10 +144,6 @@ type byteArrayDeltaLengthEncoder struct {
 	lens []interface{}
 }
 
-func (b *byteArrayDeltaLengthEncoder) bytesArray() {
-	panic("should not call me")
-}
-
 func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
 	b.w = w
 	b.buf = &bytes.Buffer{}
@@ -218,10 +189,6 @@ type byteArrayDeltaDecoder struct {
 	suffixDecoder byteArrayDeltaLengthDecoder
 	prefixLens    []int32
 	previousValue []byte
-}
-
-func (d *byteArrayDeltaDecoder) bytesArray() {
-	panic("should not call me")
 }
 
 func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
@@ -280,10 +247,6 @@ type byteArrayDeltaEncoder struct {
 	values *byteArrayDeltaLengthEncoder
 }
 
-func (b *byteArrayDeltaEncoder) bytesArray() {
-	panic("should not call me")
-}
-
 func (b *byteArrayDeltaEncoder) init(w io.Writer) error {
 	b.w = w
 	b.prefixLens = nil
@@ -332,7 +295,14 @@ type byteArrayStore struct {
 	repTyp   parquet.FieldRepetitionType
 	min, max []byte
 
-	length int
+	*ColumnParameters
+}
+
+func (is *byteArrayStore) params() *ColumnParameters {
+	if is.ColumnParameters == nil {
+		panic("ColumnParameters is nil")
+	}
+	return is.ColumnParameters
 }
 
 func (is *byteArrayStore) sizeOf(v interface{}) int {
@@ -340,38 +310,14 @@ func (is *byteArrayStore) sizeOf(v interface{}) int {
 }
 
 func (is *byteArrayStore) parquetType() parquet.Type {
-	if is.length > 0 {
+	if is.TypeLength != nil && *is.TypeLength > 0 {
 		return parquet.Type_FIXED_LEN_BYTE_ARRAY
 	}
 	return parquet.Type_BYTE_ARRAY
 }
 
-func (is *byteArrayStore) typeLen() *int32 {
-	if is.length > 0 {
-		t := int32(is.length)
-		return &t
-	}
-	return nil
-}
-
 func (is *byteArrayStore) repetitionType() parquet.FieldRepetitionType {
 	return is.repTyp
-}
-
-func (is *byteArrayStore) convertedType() *parquet.ConvertedType {
-	return nil
-}
-
-func (is *byteArrayStore) scale() *int32 {
-	return nil
-}
-
-func (is *byteArrayStore) precision() *int32 {
-	return nil
-}
-
-func (is *byteArrayStore) logicalType() *parquet.LogicalType {
-	return nil
 }
 
 func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
@@ -390,8 +336,8 @@ func (is *byteArrayStore) minValue() []byte {
 }
 
 func (is *byteArrayStore) setMinMax(j []byte) error {
-	if is.length > 0 && len(j) != is.length {
-		return errors.Errorf("the size of data should be %d but is %d", is.length, len(j))
+	if is.TypeLength != nil && *is.TypeLength > 0 && int32(len(j)) != *is.TypeLength {
+		return errors.Errorf("the size of data should be %d but is %d", *is.TypeLength, len(j))
 	}
 	// For nil value there is no need to set the min/max
 	if j == nil {

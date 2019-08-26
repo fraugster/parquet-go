@@ -15,10 +15,6 @@ type dictDecoder struct {
 	keys decoder
 }
 
-func (d *dictDecoder) bytesArray() {
-	panic("should not call me")
-}
-
 // just for tests
 func (d *dictDecoder) setValues(v []interface{}) {
 	d.values = v
@@ -163,10 +159,6 @@ func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 type dictEncoder struct {
 	w io.Writer
 	dictStore
-}
-
-func (d *dictEncoder) bytesArray() {
-	panic("do not call me")
 }
 
 func (d *dictEncoder) Close() error {

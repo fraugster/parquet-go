@@ -67,12 +67,8 @@ type dictValuesEncoder interface {
 // parquetColumn is to convert a store to a parquet.SchemaElement
 type parquetColumn interface {
 	parquetType() parquet.Type
-	typeLen() *int32
 	repetitionType() parquet.FieldRepetitionType
-	convertedType() *parquet.ConvertedType
-	scale() *int32
-	precision() *int32
-	logicalType() *parquet.LogicalType
+	params() *ColumnParameters
 }
 
 type typedColumnStore interface {

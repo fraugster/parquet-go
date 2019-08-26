@@ -1,0 +1,8 @@
+message foo {
+  optional group bar (MAP) {
+    repeated group key_value {
+      required int32 key;
+      required int32 value;
+    }
+  }
+}

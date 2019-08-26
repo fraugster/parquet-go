@@ -25,7 +25,7 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_BYTE_ARRAY:
-		var ret bytesArrayEncoder
+		var ret valuesEncoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
 			ret = &byteArrayPlainEncoder{}
@@ -37,33 +37,14 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 			ret = &dictEncoder{dictStore: *store}
 		}
 
-		if ret == nil {
-			break
+		if ret != nil {
+			return ret, nil
 		}
-
-		if typ.ConvertedType != nil {
-			// Should convert to string? enums are not supported in go, so they are simply string
-			// TODO : ENUM decoder/encoder
-			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-				return &stringEncoder{bytesArrayEncoder: ret}, nil
-			}
-		}
-
-		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
-			return &stringEncoder{bytesArrayEncoder: ret}, nil
-		}
-
-		return ret, nil
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		var ret bytesArrayEncoder
+		var ret valuesEncoder
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			// Not sure if this is the only case
-			if typ.LogicalType != nil && typ.LogicalType.UUID != nil {
-				return &uuidEncoder{}, nil
-			}
-
 			if typ.TypeLength == nil {
 				return nil, errors.Errorf("type %s with nil type len", typ.Type)
 			}
@@ -76,22 +57,10 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 				dictStore: *store,
 			}
 		}
-		if ret == nil {
-			break
+		if ret != nil {
+			return ret, nil
 		}
 
-		if typ.ConvertedType != nil {
-			// Should convert to string? enums are not supported in go, so they are simply string
-			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-				return &stringEncoder{bytesArrayEncoder: ret}, nil
-			}
-		}
-
-		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
-			return &stringEncoder{bytesArrayEncoder: ret}, nil
-		}
-
-		return ret, nil
 	case parquet.Type_FLOAT:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
@@ -174,32 +143,12 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	switch *typ.Type {
 	case parquet.Type_BYTE_ARRAY:
-		ret := &byteArrayPlainEncoder{}
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-				return &stringEncoder{bytesArrayEncoder: ret}, nil
-			}
-		}
-
-		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
-			return &stringEncoder{bytesArrayEncoder: ret}, nil
-		}
-		return ret, nil
+		return &byteArrayPlainEncoder{}, nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
 			return nil, errors.Errorf("type %s with nil type len", typ)
 		}
-		ret := &byteArrayPlainEncoder{length: int(*typ.TypeLength)}
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UTF8 || *typ.ConvertedType == parquet.ConvertedType_ENUM {
-				return &stringEncoder{bytesArrayEncoder: ret}, nil
-			}
-		}
-
-		if typ.LogicalType != nil && (typ.LogicalType.STRING != nil || typ.LogicalType.ENUM != nil) {
-			return &stringEncoder{bytesArrayEncoder: ret}, nil
-		}
-		return ret, nil
+		return &byteArrayPlainEncoder{length: int(*typ.TypeLength)}, nil
 	case parquet.Type_FLOAT:
 		return &floatPlainEncoder{}, nil
 	case parquet.Type_DOUBLE:
