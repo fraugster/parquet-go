@@ -1,9 +1,7 @@
 package floor
 
 import (
-	"fmt"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -284,12 +282,14 @@ func TestDecodeStruct(t *testing.T) {
 	for idx, tt := range testData {
 		sd, err := goparquet.ParseSchemaDefinition(tt.Schema)
 		assert.NoError(t, err, "%d. parsing schema failed", idx)
-		output, err := decodeStruct(reflect.ValueOf(tt.Input), sd)
+		obj := newObject()
+		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
+		err = m.Marshal(obj)
 		if tt.ExpectErr {
 			assert.Error(t, err, "%d. expected error, but found none", idx)
 		} else {
 			assert.NoError(t, err, "%d. expected no error, but found one", idx)
-			assert.Equal(t, tt.ExpectedOutput, output, "%d. output mismatch", idx)
+			assert.Equal(t, tt.ExpectedOutput, obj.getData(), "%d. output mismatch", idx)
 		}
 	}
 }
@@ -333,8 +333,6 @@ func TestWriteFile(t *testing.T) {
 	}
 
 	for idx, d := range data {
-		ds, _ := decodeStruct(reflect.ValueOf(d), sd)
-		t.Logf("%d. decodeStruct output = %s", idx, fmt.Sprintf("%#v", ds))
 		require.NoError(t, hlWriter.Write(d), "%d. Write failed", idx)
 	}
 
