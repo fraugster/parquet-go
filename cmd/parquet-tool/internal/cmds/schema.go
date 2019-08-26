@@ -12,6 +12,7 @@ import (
 func init() {
 	rootCmd.AddCommand(schemaCmd)
 }
+// TODO: add support for detailed schema (-d)
 
 var schemaCmd = &cobra.Command{
 	Use:   "schema file-name.parquet",

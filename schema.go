@@ -7,8 +7,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// TODO: Add MAP and LIST support
-
 // TODO: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple
 // reader but its better to add concurrency support to the file reader itself
 // TODO: add validation so every parent at least have one child.
