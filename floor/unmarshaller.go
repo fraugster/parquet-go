@@ -5,13 +5,6 @@ import (
 	"fmt"
 )
 
-var (
-	// ErrFieldNotFound indicates that the requested field could not be found.
-	ErrFieldNotFound = errors.New("field not found")
-
-	errFieldIsNotGroup = errors.New("field is not a group")
-)
-
 // Unmarshaller is the interface necessary for objects to
 // be unmarshalled.
 type Unmarshaller interface {
@@ -56,7 +49,7 @@ type UnmarshalMap interface {
 func (o *object) GetField(field string) (UnmarshalElement, error) {
 	fieldData, ok := o.data[field]
 	if !ok {
-		return nil, ErrFieldNotFound
+		return nil, fmt.Errorf("field %q not found", field)
 	}
 
 	return &unmarshElem{data: fieldData}, nil
@@ -69,7 +62,7 @@ type unmarshElem struct {
 func (e *unmarshElem) Group() (UnmarshalObject, error) {
 	data, ok := e.data.(map[string]interface{})
 	if !ok {
-		return nil, errFieldIsNotGroup
+		return nil, errors.New("field is not a group")
 	}
 
 	return &object{data: data}, nil
