@@ -125,6 +125,10 @@ func (r *Reader) init() {
 // structure of obj doesn't fit the data. obj needs to be
 // a pointer to an object.
 func (r *Reader) Scan(obj interface{}) error {
+	if um, ok := obj.(Unmarshaller); ok {
+		return um.Unmarshal(newObjectWithData(r.data))
+	}
+
 	objValue := reflect.ValueOf(obj)
 
 	if objValue.Kind() != reflect.Ptr {

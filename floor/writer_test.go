@@ -460,7 +460,7 @@ func TestWriteReadByteArrays(t *testing.T) {
 	require.Equal(t, data, readData, "data written and read back doesn't match")
 }
 
-func TestWriteFileWithMarshaller(t *testing.T) {
+func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
 	sd, err := goparquet.ParseSchemaDefinition(
@@ -480,16 +480,58 @@ func TestWriteFileWithMarshaller(t *testing.T) {
 	)
 	require.NoError(t, err, "creating new file writer failed")
 
-	testData := &marshTestRecord{}
+	testData := &marshTestRecord{foo: "hello world!", bar: 1234567}
 	require.NoError(t, hlWriter.Write(testData), "writing object using marshaller failed")
 
 	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/marshaller.parquet")
+	require.NoError(t, err, "opening file failed")
+
+	require.True(t, hlReader.Next())
+
+	readData := &marshTestRecord{}
+	require.NoError(t, hlReader.Scan(readData))
+
+	require.Equal(t, testData, readData, "written and read data don't match")
+	require.NoError(t, hlReader.Close())
 }
 
-type marshTestRecord struct{}
+type marshTestRecord struct {
+	foo string
+	bar int64
+}
 
 func (r *marshTestRecord) Marshal(obj MarshalObject) error {
-	obj.AddField("foo").SetByteArray([]byte("hello world!"))
-	obj.AddField("bar").SetInt64(1234567)
+	obj.AddField("foo").SetByteArray([]byte(r.foo))
+	obj.AddField("bar").SetInt64(r.bar)
+	return nil
+}
+
+func (r *marshTestRecord) Unmarshal(obj UnmarshalObject) error {
+	foo, err := obj.GetField("foo")
+	if err != nil {
+		return err
+	}
+
+	fooValue, err := foo.ByteArray()
+	if err != nil {
+		return err
+	}
+
+	r.foo = string(fooValue)
+
+	bar, err := obj.GetField("bar")
+	if err != nil {
+		return err
+	}
+
+	barValue, err := bar.Int64()
+	if err != nil {
+		return err
+	}
+
+	r.bar = barValue
+
 	return nil
 }

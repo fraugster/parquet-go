@@ -55,6 +55,12 @@ func newObject() *object {
 	}
 }
 
+func newObjectWithData(data map[string]interface{}) *object {
+	return &object{
+		data: data,
+	}
+}
+
 func (o *object) getData() map[string]interface{} {
 	return o.data
 }
