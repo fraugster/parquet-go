@@ -123,13 +123,24 @@ func (r *Reader) init() {
 // Scan fills obj with the data from the record last fetched.
 // Returns an error if there is no data available or if the
 // structure of obj doesn't fit the data. obj needs to be
-// a pointer to an object.
+// a pointer to an object, or alternatively implement the
+// Unmarshaller interface.
 func (r *Reader) Scan(obj interface{}) error {
-	if um, ok := obj.(Unmarshaller); ok {
-		return um.Unmarshal(newObjectWithData(r.data))
+	um, ok := obj.(Unmarshaller)
+	if !ok {
+		um = &reflectUnmarshaller{obj: obj, schemaDef: r.r.GetSchemaDefinition()}
 	}
 
-	objValue := reflect.ValueOf(obj)
+	return um.Unmarshal(newObjectWithData(r.data))
+}
+
+type reflectUnmarshaller struct {
+	obj       interface{}
+	schemaDef *goparquet.SchemaDefinition
+}
+
+func (um *reflectUnmarshaller) Unmarshal(record UnmarshalObject) error {
+	objValue := reflect.ValueOf(um.obj)
 
 	if objValue.Kind() != reflect.Ptr {
 		return errors.New("you didn't provide a pointer to an object") // TODO: improve error message
@@ -140,16 +151,14 @@ func (r *Reader) Scan(obj interface{}) error {
 		return errors.New("provided object is not a struct")
 	}
 
-	schemaDef := r.r.GetSchemaDefinition()
-
-	if err := fillStruct(objValue, r.data, schemaDef); err != nil {
+	if err := um.fillStruct(objValue, record, um.schemaDef); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func fillStruct(value reflect.Value, data map[string]interface{}, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalObject, schemaDef *goparquet.SchemaDefinition) error {
 	typ := value.Type()
 
 	numFields := typ.NumField()
@@ -160,15 +169,15 @@ func fillStruct(value reflect.Value, data map[string]interface{}, schemaDef *gop
 
 		fieldSchemaDef := schemaDef.SubSchema(fieldName)
 
-		fieldData, ok := data[fieldName]
-		if !ok {
+		fieldData, err := record.GetField(fieldName)
+		if err != nil {
 			if elem := fieldSchemaDef.SchemaElement(); elem.GetRepetitionType() == parquet.FieldRepetitionType_REQUIRED {
 				return fmt.Errorf("field %s is %s but couldn't be found in data", fieldName, elem.GetRepetitionType())
 			}
 			continue
 		}
 
-		if err := fillValue(fieldValue, fieldData, fieldSchemaDef); err != nil {
+		if err := um.fillValue(fieldValue, fieldData, fieldSchemaDef); err != nil {
 			return err
 		}
 	}
@@ -176,7 +185,7 @@ func fillStruct(value reflect.Value, data map[string]interface{}, schemaDef *gop
 	return nil
 }
 
-func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillValue(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
@@ -224,7 +233,7 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 
 	switch value.Kind() {
 	case reflect.Bool:
-		b, err := getBoolValue(data)
+		b, err := data.Bool()
 		if err != nil {
 			return err
 		}
@@ -249,23 +258,23 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 		value.SetFloat(f)
 	case reflect.Array, reflect.Slice:
 		if value.Type().Elem().Kind() == reflect.Uint8 {
-			return fillByteArrayOrSlice(value, data, schemaDef)
+			return um.fillByteArrayOrSlice(value, data, schemaDef)
 		}
-		return fillArrayOrSlice(value, data, schemaDef)
+		return um.fillArrayOrSlice(value, data, schemaDef)
 	case reflect.Map:
-		return fillMap(value, data, schemaDef)
+		return um.fillMap(value, data, schemaDef)
 	case reflect.String:
-		s, err := getByteSliceValue(data)
+		s, err := data.ByteArray()
 		if err != nil {
 			return err
 		}
 		value.SetString(string(s))
 	case reflect.Struct:
-		structData, ok := data.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected map[string]interface{} to fill struct, got %T", data)
+		groupData, err := data.Group()
+		if err != nil {
+			return err
 		}
-		if err := fillStruct(value, structData, schemaDef); err != nil {
+		if err := um.fillStruct(value, groupData, schemaDef); err != nil {
 			return err
 		}
 	default:
@@ -275,42 +284,40 @@ func fillValue(value reflect.Value, data interface{}, schemaDef *goparquet.Schem
 	return nil
 }
 
-func fillMap(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillMap(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
 		return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
 	}
 
-	mapData, ok := data.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected map[string]interface{} to fill map, got %T", data)
+	keyValueList, err := data.Map()
+	if err != nil {
+		return err
 	}
-	keyValueList, ok := mapData["key_value"].([]map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected key_value child of type []map[string]interface{}, got %T", mapData["key_value"])
-	}
+
 	value.Set(reflect.MakeMap(value.Type()))
 
 	keyValueSchemaDef := schemaDef.SubSchema("key_value")
 	keySchemaDef := keyValueSchemaDef.SubSchema("key")
 	valueSchemaDef := keyValueSchemaDef.SubSchema("value")
 
-	for _, keyValueMap := range keyValueList {
-		keyData, ok := keyValueMap["key"]
-		if !ok {
-			return errors.New("got key_value element without key")
+	for keyValueList.Next() {
+		key, err := keyValueList.Key()
+		if err != nil {
+			return err
+		}
+
+		valueData, err := keyValueList.Value()
+		if err != nil {
+			return err
 		}
 
 		keyValue := reflect.New(value.Type().Key()).Elem()
-		if err := fillValue(keyValue, keyData, keySchemaDef); err != nil {
+		if err := um.fillValue(keyValue, key, keySchemaDef); err != nil {
 			return fmt.Errorf("couldn't fill key with key data: %v", err)
 		}
 
-		valueData, ok := keyValueMap["value"]
-		if !ok {
-			return errors.New("got key_value element without value")
-		}
 		valueValue := reflect.New(value.Type().Elem()).Elem()
-		if err := fillValue(valueValue, valueData, valueSchemaDef); err != nil {
+		if err := um.fillValue(valueValue, valueData, valueSchemaDef); err != nil {
 			return fmt.Errorf("couldn't fill value with value data: %v", err)
 		}
 
@@ -320,10 +327,10 @@ func fillMap(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaD
 	return nil
 }
 
-func fillByteArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
-	byteSlice, ok := data.([]byte)
-	if !ok {
-		return errors.New("data is not []byte")
+func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+	byteSlice, err := data.ByteArray()
+	if err != nil {
+		return err
 	}
 	if value.Kind() == reflect.Slice {
 		value.Set(reflect.MakeSlice(value.Type(), len(byteSlice), len(byteSlice)))
@@ -337,27 +344,27 @@ func fillByteArrayOrSlice(value reflect.Value, data interface{}, schemaDef *gopa
 	return nil
 }
 
-func fillArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
 		return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
 
-	listData, ok := data.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected map[string]interface{} to fill list, got %T", data)
+	elemList, err := data.List()
+	if err != nil {
+		return err
 	}
-	elemList, ok := listData["list"].([]map[string]interface{})
-	if !ok {
-		return fmt.Errorf("expected list child of type []map[string]interface{}, got %T", listData["list"])
-	}
-	elementList := []interface{}{}
-	for _, elemMap := range elemList {
-		elem, ok := elemMap["element"]
-		if !ok {
-			return errors.New("got list element without element child")
+
+	elementList := []UnmarshalElement{}
+
+	for elemList.Next() {
+		elemValue, err := elemList.Value()
+		if err != nil {
+			return err
 		}
-		elementList = append(elementList, elem)
+
+		elementList = append(elementList, elemValue)
 	}
+
 	if value.Kind() == reflect.Slice {
 		value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
 	}
@@ -367,7 +374,7 @@ func fillArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparque
 
 	for idx, elem := range elementList {
 		if idx < value.Len() {
-			if err := fillValue(value.Index(idx), elem, elemSchemaDef); err != nil {
+			if err := um.fillValue(value.Index(idx), elem, elemSchemaDef); err != nil {
 				return err
 			}
 		}
@@ -376,49 +383,31 @@ func fillArrayOrSlice(value reflect.Value, data interface{}, schemaDef *goparque
 	return nil
 }
 
-func getBoolValue(data interface{}) (bool, error) {
-	b, ok := data.(bool)
-	if !ok {
-		return false, fmt.Errorf("expected bool, got %T", data)
+func getIntValue(data UnmarshalElement) (int64, error) {
+	i32, err := data.Int32()
+	if err == nil {
+		return int64(i32), nil
 	}
-	return b, nil
+
+	i64, err := data.Int64()
+	if err == nil {
+		return i64, nil
+	}
+	return 0, err
 }
 
-func getByteSliceValue(data interface{}) ([]byte, error) {
-	s, ok := data.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("expected []byte, got %T", data)
+func getFloatValue(data UnmarshalElement) (float64, error) {
+	f32, err := data.Float32()
+	if err == nil {
+		return float64(f32), nil
 	}
 
-	return s, nil
-}
-
-func getIntValue(data interface{}) (int64, error) {
-	switch x := data.(type) {
-	case int:
-		return int64(x), nil
-	case int8:
-		return int64(x), nil
-	case int16:
-		return int64(x), nil
-	case int32:
-		return int64(x), nil
-	case int64:
-		return x, nil
-	default:
-		return 0, fmt.Errorf("expected integer, got %T", data)
+	f64, err := data.Float64()
+	if err == nil {
+		return f64, nil
 	}
-}
 
-func getFloatValue(data interface{}) (float64, error) {
-	switch x := data.(type) {
-	case float32:
-		return float64(x), nil
-	case float64:
-		return x, nil
-	default:
-		return 0, fmt.Errorf("expected float, got %T", data)
-	}
+	return 0, err
 }
 
 // Err returns an error in case Next returned false due to an error.

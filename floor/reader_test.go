@@ -357,31 +357,33 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 	require.NoError(t, hlReader.Close())
 }
 
+func elem(data interface{}) *unmarshElem {
+	return &unmarshElem{
+		data: data,
+	}
+}
+
 func TestFillValue(t *testing.T) {
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), false, nil))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(true)).Elem(), 23, nil))
+	um := &reflectUnmarshaller{}
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int64(23), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int32(23), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int16(23), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int8(23), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), int(23), nil))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), 3.5, nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(true)).Elem(), elem(false), nil))
+	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf(true)).Elem(), elem(23), nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int64(42), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int32(42), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int16(42), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int8(42), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), int(42), nil))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), "9001", nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), elem(int64(23)), nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), elem(int32(23)), nil))
+	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf(int32(0))).Elem(), elem(3.5), nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float64(23.5), nil))
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), float32(23.5), nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), elem(int64(42)), nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), elem(int32(42)), nil))
+	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf(uint32(0))).Elem(), elem("9001"), nil))
 
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), false, nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), elem(float64(23.5)), nil))
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), elem(float32(23.5)), nil))
 
-	require.NoError(t, fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), []byte("hello world!"), nil))
-	require.Error(t, fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), int64(1000000), nil))
+	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf(float32(0.0))).Elem(), elem(false), nil))
+
+	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), elem([]byte("hello world!")), nil))
+	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), elem(int64(1000000)), nil))
 
 	sd, err := goparquet.ParseSchemaDefinition(`message test {
 		required int32 date (DATE);
@@ -392,16 +394,16 @@ func TestFillValue(t *testing.T) {
 	require.NoError(t, err)
 
 	date := time.Unix(0, 0)
-	require.NoError(t, fillValue(reflect.ValueOf(&date).Elem(), int32(9), sd.SubSchema("date")))
+	require.NoError(t, um.fillValue(reflect.ValueOf(&date).Elem(), elem(int32(9)), sd.SubSchema("date")))
 	require.Equal(t, date, time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC))
 
 	ts := time.Unix(0, 0)
-	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(42000000000), sd.SubSchema("tsnano")))
+	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(42000000000)), sd.SubSchema("tsnano")))
 	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 0, 42, 0, time.UTC))
 
-	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(1423000000), sd.SubSchema("tsmicro")))
+	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(1423000000)), sd.SubSchema("tsmicro")))
 	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 23, 43, 0, time.UTC))
 
-	require.NoError(t, fillValue(reflect.ValueOf(&ts).Elem(), int64(45299450), sd.SubSchema("tsmilli")))
+	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(45299450)), sd.SubSchema("tsmilli")))
 	require.Equal(t, ts, time.Date(1970, 01, 01, 12, 34, 59, 450000000, time.UTC))
 }
