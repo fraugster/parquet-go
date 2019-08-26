@@ -42,8 +42,15 @@ type Writer struct {
 	f io.Closer
 }
 
-// Write adds a new object to be written to the parquet file.
+// Write adds a new object to be written to the parquet file. If
+// obj implements the floor.Marshaller object, then obj.(Marshaller).Marshal
+// will be called to determine the data, otherwise reflection will be
+// used.
 func (w *Writer) Write(obj interface{}) error {
+	if m, ok := obj.(Marshaller); ok {
+		return w.writeRecord(m)
+	}
+
 	value := reflect.ValueOf(obj)
 
 	schemaDef := w.w.GetSchemaDefinition()
@@ -57,6 +64,19 @@ func (w *Writer) Write(obj interface{}) error {
 
 	if err := w.w.AddData(data); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (w *Writer) writeRecord(record Marshaller) error {
+	obj := newObject()
+	if err := record.Marshal(obj); err != nil {
+		return err
+	}
+
+	if err := w.w.AddData(obj.getData()); err != nil {
+		return nil
 	}
 
 	return nil

@@ -459,3 +459,37 @@ func TestWriteReadByteArrays(t *testing.T) {
 
 	require.Equal(t, data, readData, "data written and read back doesn't match")
 }
+
+func TestWriteFileWithMarshaller(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := goparquet.ParseSchemaDefinition(
+		`message test_msg {
+			required binary foo (STRING);
+			required int64 bar;
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	hlWriter, err := NewFileWriter(
+		"files/marshaller.parquet",
+		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.CreatedBy("floor-unittest"),
+		goparquet.UseSchemaDefinition(sd),
+	)
+	require.NoError(t, err, "creating new file writer failed")
+
+	testData := &marshTestRecord{}
+	require.NoError(t, hlWriter.Write(testData), "writing object using marshaller failed")
+
+	require.NoError(t, hlWriter.Close())
+}
+
+type marshTestRecord struct{}
+
+func (r *marshTestRecord) Marshal(obj MarshalObject) error {
+	obj.AddField("foo").SetByteArray([]byte("hello world!"))
+	obj.AddField("bar").SetInt64(1234567)
+	return nil
+}
