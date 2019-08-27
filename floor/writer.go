@@ -47,45 +47,44 @@ type Writer struct {
 // will be called to determine the data, otherwise reflection will be
 // used.
 func (w *Writer) Write(obj interface{}) error {
-	if m, ok := obj.(Marshaller); ok {
-		return w.writeRecord(m)
+	m, ok := obj.(Marshaller)
+	if !ok {
+		m = &reflectMarshaller{obj: obj, schemaDef: w.w.GetSchemaDefinition()}
 	}
 
-	value := reflect.ValueOf(obj)
-
-	schemaDef := w.w.GetSchemaDefinition()
-
-	data, err := decodeStruct(value, schemaDef)
-	if err != nil {
+	data := newObject()
+	if err := m.Marshal(data); err != nil {
 		return err
 	}
 
-	//log.Printf("Write: data = %s", spew.Sdump(data))
-
-	if err := w.w.AddData(data); err != nil {
+	if err := w.w.AddData(data.getData()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (w *Writer) writeRecord(record Marshaller) error {
-	obj := newObject()
-	if err := record.Marshal(obj); err != nil {
-		return err
-	}
+type reflectMarshaller struct {
+	obj       interface{}
+	schemaDef *goparquet.SchemaDefinition
+}
 
-	if err := w.w.AddData(obj.getData()); err != nil {
-		return nil
+func (m *reflectMarshaller) Marshal(record MarshalObject) error {
+	return m.marshal(record, reflect.ValueOf(m.obj), m.schemaDef)
+}
+
+func (m *reflectMarshaller) marshal(record MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+	if err := m.decodeStruct(record, value, schemaDef); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func decodeStruct(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (map[string]interface{}, error) {
+func (m *reflectMarshaller) decodeStruct(record MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Type().Kind() == reflect.Ptr {
 		if value.IsNil() {
-			return nil, errors.New("object is nil")
+			return errors.New("object is nil")
 		}
 		value = value.Elem()
 	}
@@ -93,10 +92,8 @@ func decodeStruct(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (m
 	typ := value.Type()
 
 	if typ.Kind() != reflect.Struct {
-		return nil, errors.New("object needs to be a struct or a *struct")
+		return fmt.Errorf("object needs to be a struct or a *struct, it's a %v instead", typ)
 	}
-
-	data := make(map[string]interface{})
 
 	numFields := typ.NumField()
 	for i := 0; i < numFields; i++ {
@@ -106,24 +103,21 @@ func decodeStruct(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (m
 
 		subSchemaDef := schemaDef.SubSchema(fieldName)
 
-		v, err := decodeValue(fieldValue, subSchemaDef)
+		field := record.AddField(fieldName)
+
+		err := m.decodeValue(field, fieldValue, subSchemaDef)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		if v != nil {
-			data[fieldName] = v
-		}
-
 	}
 
-	return data, nil
+	return nil
 }
 
-func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
+func (m *reflectMarshaller) decodeValue(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
-			return nil, nil
+			return nil
 		}
 		value = value.Elem()
 	}
@@ -133,7 +127,8 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 			switch {
 			case elem.GetLogicalType().IsSetDATE():
 				days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
-				return days, nil
+				field.SetInt32(days)
+				return nil
 			case elem.GetLogicalType().IsSetTIMESTAMP():
 				var factor int64
 				switch {
@@ -144,153 +139,132 @@ func decodeValue(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (in
 				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
 					factor = 1000000
 				default:
-					return nil, errors.New("invalid TIMESTAMP unit")
+					return errors.New("invalid TIMESTAMP unit")
 				}
 				ts := value.Interface().(time.Time).UnixNano()
 				ts /= int64(factor)
-				return ts, nil
+				field.SetInt64(ts)
+				return nil
 			}
 		}
 	}
 
 	switch value.Kind() {
 	case reflect.Bool:
-		return value.Bool(), nil
-	case reflect.Int:
-		return int32(value.Int()), nil
-	case reflect.Int8:
-		return int32(value.Int()), nil
-	case reflect.Int16:
-		return int32(value.Int()), nil
-	case reflect.Int32:
-		return int32(value.Int()), nil
+		field.SetBool(value.Bool())
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		field.SetInt32(int32(value.Int()))
+		return nil
 	case reflect.Int64:
-		return value.Int(), nil
-	case reflect.Uint:
-		return int32(value.Uint()), nil
-	case reflect.Uint8:
-		return int32(value.Uint()), nil
-	case reflect.Uint16:
-		return int32(value.Uint()), nil
-	case reflect.Uint32:
-		return int64(value.Uint()), nil
-	case reflect.Uint64:
-		return int64(value.Uint()), nil // TODO: a uint64 doesn't necessarily fit in an int64
+		field.SetInt64(value.Int())
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16:
+		field.SetInt32(int32(value.Uint()))
+		return nil
+	case reflect.Uint32, reflect.Uint64: // TODO: a uint64 doesn't necessarily fit into an int64
+		field.SetInt64(int64(value.Uint()))
+		return nil
 	case reflect.Float32:
-		return float32(value.Float()), nil
+		field.SetFloat32(float32(value.Float()))
+		return nil
 	case reflect.Float64:
-		return value.Float(), nil
+		field.SetFloat64(value.Float())
+		return nil
 	case reflect.Array, reflect.Slice:
 		if value.Type().Elem().Kind() == reflect.Uint8 {
-			return decodeByteSliceOrArray(value, schemaDef)
+			return m.decodeByteSliceOrArray(field, value, schemaDef)
 		}
-		return decodeSliceOrArray(value, schemaDef)
+		return m.decodeSliceOrArray(field, value, schemaDef)
 	case reflect.Map:
-		mapData, err := decodeMap(value, schemaDef)
-		if err != nil {
-			return nil, err
-		}
-		return mapData, nil
+		return m.decodeMap(field, value, schemaDef)
 	case reflect.String:
-		return []byte(value.String()), nil
+		field.SetByteArray([]byte(value.String()))
+		return nil
 	case reflect.Struct:
-		structData, err := decodeStruct(value, schemaDef)
-		if err != nil {
-			return nil, err
-		}
-		return structData, nil
+		return m.decodeStruct(field.Group(), value, schemaDef)
 	default:
-		return nil, fmt.Errorf("unsupported type %s", value.Type())
+		return fmt.Errorf("unsupported type %s", value.Type())
 	}
 }
 
-func decodeByteSliceOrArray(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
+func (m *reflectMarshaller) decodeByteSliceOrArray(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
-		return nil, nil
+		return nil
 	}
 
 	if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
 		if value.Len() != 16 {
-			return nil, fmt.Errorf("field is annotated as UUID but length is %d", value.Len())
+			return fmt.Errorf("field is annotated as UUID but length is %d", value.Len())
 		}
 	}
 
 	if value.Kind() == reflect.Slice {
-		return value.Bytes(), nil
+		field.SetByteArray(value.Bytes())
+		return nil
 	}
 
 	data := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
 
 	reflect.Copy(data, value)
 
-	return data.Bytes(), nil
+	field.SetByteArray(data.Bytes())
+	return nil
 }
 
-func decodeSliceOrArray(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
+func (m *reflectMarshaller) decodeSliceOrArray(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
-		return nil, nil
+		return nil
 	}
 
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
-		return nil, fmt.Errorf("decoding slice or array but schema element %s is not annotated as LIST", elem.GetName())
+		return fmt.Errorf("decoding slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
 
 	listSchemaDef := schemaDef.SubSchema("list")
 	elementSchemaDef := listSchemaDef.SubSchema("element")
 
-	data := map[string]interface{}{}
-
-	list := []map[string]interface{}{}
+	list := field.List()
 
 	for i := 0; i < value.Len(); i++ {
-		v, err := decodeValue(value.Index(i), elementSchemaDef)
-		if err != nil {
-			return nil, err
+		if err := m.decodeValue(list.Add(), value.Index(i), elementSchemaDef); err != nil {
+			return err
 		}
-		list = append(list, map[string]interface{}{"element": v})
 	}
 
-	data["list"] = list
-
-	return data, nil
+	return nil
 }
 
-func decodeMap(value reflect.Value, schemaDef *goparquet.SchemaDefinition) (interface{}, error) {
+func (m *reflectMarshaller) decodeMap(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.IsNil() {
-		return nil, nil
+		return nil
 	}
 
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
-		return nil, fmt.Errorf("decoding map but schema element %s is not annotated as MAP", elem.GetName())
+		return fmt.Errorf("decoding map but schema element %s is not annotated as MAP", elem.GetName())
 	}
 
 	keyValueSchemaDef := schemaDef.SubSchema("key_value")
 	keySchemaDef := keyValueSchemaDef.SubSchema("key")
 	valueSchemaDef := keyValueSchemaDef.SubSchema("value")
 
-	data := map[string]interface{}{}
-
-	keyValueList := []map[string]interface{}{}
+	mapData := field.Map()
 
 	iter := value.MapRange()
 
 	for iter.Next() {
-		key, err := decodeValue(iter.Key(), keySchemaDef)
-		if err != nil {
-			return nil, err
+		kvPair := mapData.Add()
+
+		if err := m.decodeValue(kvPair.Key(), iter.Key(), keySchemaDef); err != nil {
+			return err
 		}
 
-		value, err := decodeValue(iter.Value(), valueSchemaDef)
-		if err != nil {
-			return nil, err
+		if err := m.decodeValue(kvPair.Value(), iter.Value(), valueSchemaDef); err != nil {
+			return err
 		}
-
-		keyValueList = append(keyValueList, map[string]interface{}{"key": key, "value": value})
 	}
 
-	data["key_value"] = keyValueList
-
-	return data, nil
+	return nil
 }
 
 // Close flushes outstanding data and closes the underlying
