@@ -532,28 +532,6 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 
 	lt := parquet.NewLogicalType()
 
-	p.next()
-
-	var annotations []string
-
-	if p.token.typ == itemLeftParen {
-		p.next()
-		for p.token.typ != itemRightParen {
-			p.expect(itemIdentifier)
-			annotations = append(annotations, p.token.val)
-			p.next()
-			switch p.token.typ {
-			case itemComma, itemRightParen:
-				// they are expected, nothing to do.
-			default:
-				p.errorf("unexpected %s", p.token)
-			}
-			p.next()
-		}
-	}
-
-	p.expect(itemRightParen)
-
 	switch strings.ToUpper(typStr) {
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
@@ -561,11 +539,14 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		lt.DATE = parquet.NewDateType()
 	case "TIMESTAMP":
 		lt.TIMESTAMP = parquet.NewTimestampType()
-		if len(annotations) != 2 {
-			p.errorf("TIMESTAMP requires two annotations: unit, isAdjustedToUTC")
-		}
+		p.next()
+		p.expect(itemLeftParen)
+
+		p.next()
+		p.expect(itemIdentifier)
+
 		lt.TIMESTAMP.Unit = parquet.NewTimeUnit()
-		switch annotations[0] {
+		switch p.token.val {
 		case "MILLIS":
 			lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
 		case "MICROS":
@@ -573,14 +554,24 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		case "NANOS":
 			lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
 		default:
-			p.errorf("unknown unit annotation %q for TIMESTAMP", annotations[0])
+			p.errorf("unknown unit annotation %q for TIMESTAMP", p.token.val)
 		}
-		switch annotations[1] {
+
+		p.next()
+		p.expect(itemComma)
+
+		p.next()
+		p.expect(itemIdentifier)
+
+		switch p.token.val {
 		case "true", "false":
-			lt.TIMESTAMP.IsAdjustedToUTC, _ = strconv.ParseBool(annotations[1])
+			lt.TIMESTAMP.IsAdjustedToUTC, _ = strconv.ParseBool(p.token.val)
 		default:
-			p.errorf("invalid isAdjustedToUTC annotation %q for TIMESTAMP", annotations[1])
+			p.errorf("invalid isAdjustedToUTC annotation %q for TIMESTAMP", p.token.val)
 		}
+
+		p.next()
+		p.expect(itemRightParen)
 	case "UUID":
 		lt.UUID = parquet.NewUUIDType()
 	case "ENUM":
@@ -590,6 +581,9 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
+
+	p.next()
+	p.expect(itemRightParen)
 
 	return lt
 }

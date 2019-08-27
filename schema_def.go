@@ -14,7 +14,62 @@ type SchemaDefinition struct {
 }
 
 // ParseSchemaDefinition parses a textual schema definition and returns
-// an object, or an error if parsing has failed.
+// an object, or an error if parsing has failed. The textual schema definition
+// needs to adhere to the following grammar:
+//
+//	message ::= 'message' <identifier> '{' <message-body> '}'
+//	message-body ::= <column-definition>*
+//	column-definition ::= <repetition-type> <column-type-definition>
+//	repetition-type ::= 'required' | 'repeated' | 'optional'
+//	column-type-definition ::= <group-definition> | <field-definition>
+//	group-definition ::= 'group' <identifier> <converted-type-annotation>? '{' <message-body> '}'
+//	field-definition ::= <type> <identifier> <logical-type-annotation>? <field-id-definition>? ';'
+//	type ::= 'binary'
+//		| 'float'
+//		| 'double'
+//		| 'boolean'
+//		| 'int32'
+//		| 'int64'
+//		| 'int96'
+//		| 'fixed_len_byte_array' '(' <number> ')'
+//	converted-type-annotation ::= '(' <converted-type> ')'
+//	converted-type ::= 'UTF8'
+//		| 'MAP'
+//		| 'MAP_KEY_VALUE'
+//		| 'LIST'
+//		| 'ENUM'
+//		| 'DECIMAL'
+//		| 'DATE'
+//		| 'TIME_MILLIS'
+//		| 'TIME_MICROS'
+//		| 'TIMESTAMP_MILLIS'
+//		| 'TIMESTAMP_MICROS'
+//		| 'UINT_8'
+//		| 'UINT_16'
+//		| 'UINT_32'
+//		| 'UINT_64'
+//		| 'INT_8'
+//		| 'INT_16'
+//		| 'INT_32'
+//		| 'INT_64'
+//		| 'JSON'
+//		| 'BSON'
+//		| 'INTERVAL'
+//	logical-type-annotation ::= '(' <logical-type> ')'
+//	logical-type ::= 'STRING'
+//		| 'DATE'
+//		| 'TIMESTAMP' '(' <time-unit> ',' <boolean> ')'
+//		| 'UUID'
+//		| 'ENUM'
+//		| 'JSON'
+//	field-id-definition ::= '=' <number>
+//	number ::= <digit>+
+//	digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+//	time-unit ::= 'MILLIS' | 'MICROS' | 'NANOS'
+//	boolean ::= 'false' | 'true'
+//	identifier ::= <alpha> <alphanum>*
+//	alpha ::= 'a'..'z' | 'A'..'Z'
+//	alphanum ::= <alpha> | <digit>
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
 	if err := p.parse(); err != nil {
