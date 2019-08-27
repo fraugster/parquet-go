@@ -66,6 +66,9 @@ func (d *deltaBitPackDecoder32) readBlockHeader() error {
 	}
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
+	if d.miniBlockValueCount == 0 {
+		return errors.Errorf("invalid mini block value count, it can't be zero")
+	}
 
 	if d.valuesCount, err = readUVariant32(d.r); err != nil {
 		return errors.Wrapf(err, "failed to read total value count")
@@ -145,7 +148,11 @@ func (d *deltaBitPackDecoder32) next() (int32, error) {
 		// should accept any arbitrary bit width here.
 		if d.position+8 >= d.valuesCount {
 			//  current block
-			remaining := make([]byte, (d.miniBlockValueCount/8)*w-d.miniBlockPosition)
+			l := (d.miniBlockValueCount/8)*w - d.miniBlockPosition
+			if l < 0 {
+				return 0, errors.New("invalid stream")
+			}
+			remaining := make([]byte, l)
 			_, _ = io.ReadFull(d.r, remaining)
 			for i := d.currentMiniBlock; i < d.miniBlockCount; i++ {
 				w := int32(d.miniBlockBitWidth[d.currentMiniBlock])
