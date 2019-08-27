@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	goparquet "github.com/fraugster/parquet-go"
@@ -53,7 +52,7 @@ func (w *Writer) Write(obj interface{}) error {
 	}
 
 	data := newObject()
-	if err := m.Marshal(data); err != nil {
+	if err := m.MarshalParquet(data); err != nil {
 		return err
 	}
 
@@ -69,7 +68,7 @@ type reflectMarshaller struct {
 	schemaDef *goparquet.SchemaDefinition
 }
 
-func (m *reflectMarshaller) Marshal(record MarshalObject) error {
+func (m *reflectMarshaller) MarshalParquet(record MarshalObject) error {
 	return m.marshal(record, reflect.ValueOf(m.obj), m.schemaDef)
 }
 
@@ -99,7 +98,7 @@ func (m *reflectMarshaller) decodeStruct(record MarshalObject, value reflect.Val
 	for i := 0; i < numFields; i++ {
 		fieldValue := value.Field(i)
 
-		fieldName := strings.ToLower(typ.Field(i).Name) // TODO: derive field name differently.
+		fieldName := fieldNameFunc(typ.Field(i))
 
 		subSchemaDef := schemaDef.SubSchema(fieldName)
 

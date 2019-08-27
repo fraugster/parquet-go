@@ -284,7 +284,7 @@ func TestDecodeStruct(t *testing.T) {
 		assert.NoError(t, err, "%d. parsing schema failed", idx)
 		obj := newObject()
 		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
-		err = m.Marshal(obj)
+		err = m.MarshalParquet(obj)
 		if tt.ExpectErr {
 			assert.Error(t, err, "%d. expected error, but found none", idx)
 		} else {

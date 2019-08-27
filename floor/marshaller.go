@@ -3,7 +3,7 @@ package floor
 // Marshaller is the interface necessary for objects to be
 // marshalled when passed to the (*Writer).WriteRecord method.
 type Marshaller interface {
-	Marshal(obj MarshalObject) error
+	MarshalParquet(obj MarshalObject) error
 }
 
 // MarshalObject is the interface a Marshaller needs to marshall its data

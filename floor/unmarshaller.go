@@ -8,7 +8,7 @@ import (
 // Unmarshaller is the interface necessary for objects to
 // be unmarshalled.
 type Unmarshaller interface {
-	Unmarshal(obj UnmarshalObject) error
+	UnmarshalParquet(obj UnmarshalObject) error
 }
 
 // UnmarshalObject is the interface an Unmarshaller needs to unmarshal its data
