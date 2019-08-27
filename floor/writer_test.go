@@ -500,13 +500,13 @@ type marshTestRecord struct {
 	bar int64
 }
 
-func (r *marshTestRecord) Marshal(obj MarshalObject) error {
+func (r *marshTestRecord) MarshalParquet(obj MarshalObject) error {
 	obj.AddField("foo").SetByteArray([]byte(r.foo))
 	obj.AddField("bar").SetInt64(r.bar)
 	return nil
 }
 
-func (r *marshTestRecord) Unmarshal(obj UnmarshalObject) error {
+func (r *marshTestRecord) UnmarshalParquet(obj UnmarshalObject) error {
 	foo, err := obj.GetField("foo")
 	if err != nil {
 		return err
