@@ -48,42 +48,42 @@ func TestObjectMarshalling(t *testing.T) {
 		},
 		"id_list": map[string]interface{}{
 			"list": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"element": int64(1),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(2),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(15),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(28),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(32),
 				},
 			},
 		},
 		"data_map": map[string]interface{}{
 			"key_value": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"key":   []byte("data0"),
 					"value": int32(0),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data1"),
 					"value": int32(1),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data2"),
 					"value": int32(2),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data3"),
 					"value": int32(3),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data4"),
 					"value": int32(4),
 				},
@@ -91,7 +91,7 @@ func TestObjectMarshalling(t *testing.T) {
 		},
 		"nested_data_map": map[string]interface{}{
 			"key_value": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"key": int64(23),
 					"value": map[string]interface{}{
 						"foo": int32(42),
