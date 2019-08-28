@@ -1,7 +1,7 @@
 /*
 
 Package floor provides a high-level interface to read from and write to parquet files. It works
-in conjunction and on top of the goparquet package.
+in conjunction with the goparquet package.
 
 To start writing to a parquet file, you must first create a Writer object. You can do this
 using the NewWriter function and a parquet.Writer object that you've previously created using
@@ -36,7 +36,7 @@ function.
 		// ...
 	}
 
-By default, floor will use reflection to map your data structures to parquet schemas. Alternatively,
+By default, floor will use reflection to map your data structure to a parquet schema. Alternatively,
 you can choose to bypass the use of reflection by implementing the floor.Marshaller interface. This is
 especially useful if the structure of your parquet schema doesn't exactly match the structure of your
 Go data structure but rather requires some translating or mapping.
@@ -59,12 +59,12 @@ parquet, as well as structure the object using lists and maps.
 	}
 
 Reflection does this work automatically for you, but in turn you are hit by a slight performance penalty for using reflection,
-and you lose some flexibility in how you structure your Go structs in relation to your parquet schema definition. If the object
+and you lose some flexibility in how you define your Go structs in relation to your parquet schema definition. If the object
 that you want to write does not implement the floor.Marshaller interface, then (*Writer).Write will inspect it via reflection.
 You can only write objects that are either a struct or a *struct. It will then iterate the struct's field, attempting to
 decode each field according to its data type.  Struct fields are matched up with parquet columns by converting the Go field name
-to lowercase. If the struct field is equal to the parquet column name, it's a positive match. The exact
-mechanics of this may change in the future.
+to lowercase. If the struct field is equal to the parquet column name, it's a positive match. The exact mechanics of this may
+change in the future.
 
 Boolean types and numeric types will be mapped to their parquet equivalents.
 
