@@ -1,0 +1,66 @@
+linters-settings:
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0
+  gocyclo:
+    min-complexity: 10
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    misspell:
+      locale: ~ # use a neutral variety of English (both UK and US are fine)
+
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - wrapperFunc
+
+linters:
+  enable-all: true
+  disable:
+    - maligned
+    - lll
+    - prealloc
+    - scopelint
+    - gochecknoglobals
+    - goconst
+    - gocyclo
+
+    # TODO: we actually want to enable those later (follow up MRs):
+    - gocritic
+    - unparam
+    - interfacer
+    - dupl
+    - gosimple
+    - staticcheck
+    - unused
+    - errcheck
+    - nakedret
+    - deadcode
+    - structcheck
+    - ineffassign
+    - gochecknoinits
+    - goimports
+
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 5m
+  skip-dirs:
+    - vendor
+
+issues:
+  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
+  max-issues-per-linter: 0
+
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0
+

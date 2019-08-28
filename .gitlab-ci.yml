@@ -1,6 +1,6 @@
-image: golang:1.12
+image: fraugster/gitlab-runner:1.32
+
 stages:
-  - build
   - test
 
 variables:
@@ -14,3 +14,10 @@ test-parquet-go:
   stage: test
   script:
     - go test -v -cover ./...
+
+lint:
+  stage: test
+  script:
+    - go install 
+    - golangci-lint run
+      
