@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -131,7 +130,7 @@ func (r *Reader) Scan(obj interface{}) error {
 		um = &reflectUnmarshaller{obj: obj, schemaDef: r.r.GetSchemaDefinition()}
 	}
 
-	return um.Unmarshal(newObjectWithData(r.data))
+	return um.UnmarshalParquet(newObjectWithData(r.data))
 }
 
 type reflectUnmarshaller struct {
@@ -139,7 +138,7 @@ type reflectUnmarshaller struct {
 	schemaDef *goparquet.SchemaDefinition
 }
 
-func (um *reflectUnmarshaller) Unmarshal(record UnmarshalObject) error {
+func (um *reflectUnmarshaller) UnmarshalParquet(record UnmarshalObject) error {
 	objValue := reflect.ValueOf(um.obj)
 
 	if objValue.Kind() != reflect.Ptr {
@@ -165,7 +164,7 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalO
 	for i := 0; i < numFields; i++ {
 		fieldValue := value.Field(i)
 
-		fieldName := strings.ToLower(typ.Field(i).Name)
+		fieldName := fieldNameFunc(typ.Field(i))
 
 		fieldSchemaDef := schemaDef.SubSchema(fieldName)
 

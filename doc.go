@@ -1,4 +1,4 @@
-// Package go_parquet is a parquet file reader and writer
-package go_parquet
+// package goparquet is a parquet file reader and writer
+package goparquet
 
 //go:generate go run bitpack_gen.go

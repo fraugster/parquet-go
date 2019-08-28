@@ -1,4 +1,4 @@
-package go_parquet
+package goparquet
 
 import (
 	"fmt"
