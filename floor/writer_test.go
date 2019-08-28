@@ -277,6 +277,18 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr:      false,
 			Schema:         `message test { required int64 ts (TIMESTAMP(NANOS, false)); }`,
 		},
+		{
+			Input: struct {
+				Foo int64
+				bar int32
+			}{
+				Foo: 23,
+				bar: 42,
+			},
+			ExpectedOutput: map[string]interface{}{"foo": int64(23), "bar": int32(42)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 foo; }`,
+		},
 	}
 
 	for idx, tt := range testData {

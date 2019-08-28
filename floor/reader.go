@@ -169,6 +169,10 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalO
 
 		fieldSchemaDef := schemaDef.SubSchema(fieldName)
 
+		if fieldSchemaDef == nil {
+			continue
+		}
+
 		fieldData, err := record.GetField(fieldName)
 		if err != nil {
 			if elem := fieldSchemaDef.SchemaElement(); elem.GetRepetitionType() == parquet.FieldRepetitionType_REQUIRED {
@@ -189,6 +193,10 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data UnmarshalElem
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
+	}
+
+	if !value.CanSet() {
+		return nil
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {

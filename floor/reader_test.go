@@ -292,6 +292,7 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 			required binary client (ENUM);
 			required binary datastr (JSON);
 			required binary data (JSON);
+			optional int64 ignored;
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -306,11 +307,13 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	type testMsg struct {
-		TheID     [16]byte
-		ClientStr string
-		Client    []byte
-		DataStr   string
-		Data      []byte
+		TheID       [16]byte
+		ClientStr   string
+		Client      []byte
+		DataStr     string
+		Data        []byte
+		ignored     int64 // ignored because it's private and therefore not settable.
+		NotInSchema int64 // does not match up with anything in schema, therefore there shall be no attempt to fill it.
 	}
 
 	testData := []testMsg{
