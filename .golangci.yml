@@ -50,6 +50,7 @@ linters:
     - ineffassign
     - gochecknoinits
     - goimports
+    - unconvert
 
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
@@ -63,4 +64,9 @@ issues:
 
   # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
   max-same-issues: 0
+
+  exclude-rules:
+    - path: "types_test.go"
+      text: "Use of weak random number generator"
+      linters: [gosec]
 

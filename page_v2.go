@@ -76,7 +76,7 @@ func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	// TODO: verify this format, there is some question
 	// 1- Uncompressed size is affected by the level lens?
 	// 2- If the levels are actually rle and the first byte is the size, since there is already size in header (NO)
@@ -97,8 +97,11 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 	dp.encoding = ph.DataPageHeader.Encoding
 	dp.ph = ph
 
-	if dp.valuesDecoder, err = dp.fn(dp.encoding); err != nil {
-		return err
+	{ // to hide the govet shadow error
+		var err error
+		if dp.valuesDecoder, err = dp.fn(dp.encoding); err != nil {
+			return err
+		}
 	}
 
 	// Its safe to call this {r,d}Decoder later, since the stream they operate on are in memory
@@ -198,7 +201,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 		return 0, 0, err
 	}
 
-	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
+	if err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
 		return 0, 0, err
 	}
 

@@ -91,6 +91,7 @@ func MaxRowGroupSize(size int64) FileWriterOption {
 	}
 }
 
+// UseSchemaDefinition ...
 func UseSchemaDefinition(sd *SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.SetSchemaDefinition(sd)

@@ -114,10 +114,10 @@ func TestObjectUnmarshalling(t *testing.T) {
 	var i64List []int64
 
 	for idList.Next() {
-		v, err := idList.Value()
-		require.NoError(t, err, "getting list value failed")
-		i64, err := v.Int64()
-		require.NoError(t, err, "getting list value as int64 failed")
+		v, err2 := idList.Value()
+		require.NoError(t, err2, "getting list value failed")
+		i64, err3 := v.Int64()
+		require.NoError(t, err3, "getting list value as int64 failed")
 		i64List = append(i64List, i64)
 	}
 
@@ -214,8 +214,8 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	list, err := elem.List()
 
 	for list.Next() {
-		_, err := list.Value()
-		require.Error(t, err)
+		_, err2 := list.Value()
+		require.Error(t, err2)
 	}
 
 	_, err = list.Value()
@@ -237,7 +237,7 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	for dataMap.Next() {
-		_, err := dataMap.Key()
+		_, err = dataMap.Key()
 		require.Error(t, err)
 
 		_, err = dataMap.Value()

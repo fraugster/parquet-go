@@ -99,7 +99,8 @@ func (dp *dictPageWriter) write(w io.Writer) (int, int, error) {
 		return 0, 0, err
 	}
 
-	if err := encodeValue(dataBuf, encoder, dp.col.data.values.values); err != nil {
+	err = encodeValue(dataBuf, encoder, dp.col.data.values.values)
+	if err != nil {
 		return 0, 0, err
 	}
 
