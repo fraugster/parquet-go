@@ -18,42 +18,42 @@ func TestObjectUnmarshalling(t *testing.T) {
 		},
 		"id_list": map[string]interface{}{
 			"list": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"element": int64(1),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(2),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(15),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(28),
 				},
-				map[string]interface{}{
+				{
 					"element": int64(32),
 				},
 			},
 		},
 		"data_map": map[string]interface{}{
 			"key_value": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"key":   []byte("data0"),
 					"value": int32(0),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data1"),
 					"value": int32(1),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data2"),
 					"value": int32(2),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data3"),
 					"value": int32(3),
 				},
-				map[string]interface{}{
+				{
 					"key":   []byte("data4"),
 					"value": int32(4),
 				},
@@ -61,7 +61,7 @@ func TestObjectUnmarshalling(t *testing.T) {
 		},
 		"nested_data_map": map[string]interface{}{
 			"key_value": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"key": int64(23),
 					"value": map[string]interface{}{
 						"foo": int32(42),
@@ -114,10 +114,10 @@ func TestObjectUnmarshalling(t *testing.T) {
 	var i64List []int64
 
 	for idList.Next() {
-		v, err := idList.Value()
-		require.NoError(t, err, "getting list value failed")
-		i64, err := v.Int64()
-		require.NoError(t, err, "getting list value as int64 failed")
+		v, err2 := idList.Value()
+		require.NoError(t, err2, "getting list value failed")
+		i64, err3 := v.Int64()
+		require.NoError(t, err3, "getting list value as int64 failed")
 		i64List = append(i64List, i64)
 	}
 
@@ -157,7 +157,7 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 		},
 		"invalid_list_element": map[string]interface{}{
 			"list": []map[string]interface{}{
-				map[string]interface{}{"foo": int32(0)},
+				{"foo": int32(0)},
 			},
 		},
 		"invalid_map": map[string]interface{}{},
@@ -167,7 +167,7 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 
 		"data_map_no_keyvalues": map[string]interface{}{
 			"key_value": []map[string]interface{}{
-				map[string]interface{}{},
+				{},
 			},
 		},
 	})
@@ -214,8 +214,8 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	list, err := elem.List()
 
 	for list.Next() {
-		_, err := list.Value()
-		require.Error(t, err)
+		_, err2 := list.Value()
+		require.Error(t, err2)
 	}
 
 	_, err = list.Value()
@@ -237,7 +237,7 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	for dataMap.Next() {
-		_, err := dataMap.Key()
+		_, err = dataMap.Key()
 		require.Error(t, err)
 
 		_, err = dataMap.Value()

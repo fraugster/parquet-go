@@ -172,7 +172,8 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	}
 
 	// TODO: there is a redundant loop and copy if the value encoder is a dictEncoder
-	if err := encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
+	err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble())
+	if err != nil {
 		return 0, 0, err
 	}
 

@@ -119,9 +119,9 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{
 				"foo": map[string]interface{}{
 					"list": []map[string]interface{}{
-						map[string]interface{}{"element": false},
-						map[string]interface{}{"element": true},
-						map[string]interface{}{"element": false},
+						{"element": false},
+						{"element": true},
+						{"element": false},
 					},
 				},
 			},
@@ -143,11 +143,11 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{
 				"foo": map[string]interface{}{
 					"list": []map[string]interface{}{
-						map[string]interface{}{"element": int32(1)},
-						map[string]interface{}{"element": int32(1)},
-						map[string]interface{}{"element": int32(2)},
-						map[string]interface{}{"element": int32(3)},
-						map[string]interface{}{"element": int32(5)},
+						{"element": int32(1)},
+						{"element": int32(1)},
+						{"element": int32(2)},
+						{"element": int32(3)},
+						{"element": int32(5)},
 					},
 				},
 			},
@@ -171,7 +171,7 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{
 				"foo": map[string]interface{}{
 					"key_value": []map[string]interface{}{
-						map[string]interface{}{"key": []byte("hello"), "value": int64(23)},
+						{"key": []byte("hello"), "value": int64(23)},
 					},
 				},
 			},
@@ -366,7 +366,7 @@ func TestWriteFile(t *testing.T) {
 			"bar": []byte("hello!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
-					map[string]interface{}{"element": int32(23)},
+					{"element": int32(23)},
 				},
 			},
 		},
@@ -375,11 +375,11 @@ func TestWriteFile(t *testing.T) {
 			"bar": []byte("world!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
-					map[string]interface{}{"element": int32(1)},
-					map[string]interface{}{"element": int32(1)},
-					map[string]interface{}{"element": int32(2)},
-					map[string]interface{}{"element": int32(3)},
-					map[string]interface{}{"element": int32(5)},
+					{"element": int32(1)},
+					{"element": int32(1)},
+					{"element": int32(2)},
+					{"element": int32(3)},
+					{"element": int32(5)},
 				},
 			},
 		},
@@ -395,11 +395,11 @@ func TestWriteFile(t *testing.T) {
 			"bar": []byte("bye!"),
 			"baz": map[string]interface{}{
 				"list": []map[string]interface{}{
-					map[string]interface{}{"element": int32(2)},
-					map[string]interface{}{"element": int32(3)},
-					map[string]interface{}{"element": int32(5)},
-					map[string]interface{}{"element": int32(7)},
-					map[string]interface{}{"element": int32(11)},
+					{"element": int32(2)},
+					{"element": int32(3)},
+					{"element": int32(5)},
+					{"element": int32(7)},
+					{"element": int32(11)},
 				},
 			},
 		},
