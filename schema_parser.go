@@ -134,7 +134,6 @@ func (l *schemaLexer) backup() {
 }
 
 func (l *schemaLexer) ignore() {
-	l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	l.start = l.pos
 	l.startLine = l.line
 }
@@ -314,6 +313,10 @@ func (p *schemaParser) errorf(msg string, args ...interface{}) {
 }
 
 func (p *schemaParser) expect(typ itemType) {
+	if typ == itemIdentifier && p.token.typ > itemKeyword {
+		return
+	}
+
 	if p.token.typ != typ {
 		//log.Printf("expected %s, got %s instead", typ, p.token)
 		p.errorf("expected %s, got %s instead", typ, p.token)

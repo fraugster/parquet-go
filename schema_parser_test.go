@@ -229,6 +229,9 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required fixed_len_byte_array(-1) theid;
 		}`, true}, // negative length.
+		{`message foo {
+			required binary group (STRING);
+		}`, false},
 	}
 
 	for idx, tt := range testData {
@@ -242,4 +245,28 @@ func TestSchemaParser(t *testing.T) {
 		}
 		//t.Logf("%d. msg = %s expect err = %t err = %v ; parsed message: %s", idx, tt.Msg, tt.ExpectErr, err, spew.Sdump(p.root))
 	}
+}
+
+func TestLineNumber(t *testing.T) {
+	msg := `message foo {
+		optional group signals (LIST) {
+			repeated group list {
+			  required group element {
+				required binary name (STRING);
+				optional binary category (STRING);
+				required binary condition (STRING);
+				optional binary group (STRING);
+				optional binary text (STRING);
+				required binary type (ENUM);
+				repeated binary highlight (STRING);
+				required binary strength (ENUM)
+			  }
+			}
+		  }
+	`
+	p := newSchemaParser(msg)
+	err := p.parse()
+	assert.Error(t, err)
+
+	assert.Contains(t, err.Error(), "line 13:")
 }
