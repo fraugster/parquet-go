@@ -262,7 +262,6 @@ func writeChunk(w writePos, schema SchemaWriter, col *column, codec parquet.Comp
 			DictionaryPageOffset:  dictPageOffset,
 			Statistics:            nil, // TODO: add statistics
 			EncodingStats:         nil,
-			BloomFilterOffset:     nil,
 		},
 		OffsetIndexOffset: nil,
 		OffsetIndexLength: nil,
