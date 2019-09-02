@@ -60,6 +60,11 @@ func (he *hybridEncoder) write(items ...[]byte) error {
 //}
 
 func (he *hybridEncoder) bpEncode(data []int32) error {
+	// If the bit width is zero, no need to write any
+	if he.bitWidth == 0 {
+		return nil
+	}
+
 	l := len(data)
 	if l%8 != 0 {
 		return errors.Errorf("bit-pack should be multiple of 8 values at a time, but it's %q", l)

@@ -10,14 +10,16 @@ import (
 )
 
 func buildData(bitWidth int, l int) []int32 {
-	if bitWidth > 32 || bitWidth <= 0 {
+	if bitWidth > 32 || bitWidth < 0 {
 		panic("wrong bitwidth")
 	}
 
 	max := int32(math.Pow(2, float64(bitWidth)))
 	res := make([]int32, l)
 	for i := 0; i < l; i++ {
-		if bitWidth < 31 {
+		if bitWidth == 0 {
+			res[i] = 0
+		} else if bitWidth < 31 {
 			res[i] = rand.Int31n(max)
 		} else {
 			res[i] = rand.Int31()
@@ -28,7 +30,7 @@ func buildData(bitWidth int, l int) []int32 {
 }
 
 func TestHybrid(t *testing.T) {
-	for i := 1; i < 32; i++ {
+	for i := 0; i < 32; i++ {
 		data := &bytes.Buffer{}
 		enc := newHybridEncoder(i)
 		assert.NoError(t, enc.initSize(data))
