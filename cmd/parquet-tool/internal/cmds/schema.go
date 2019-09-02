@@ -6,12 +6,13 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	go_parquet "github.com/fraugster/parquet-go"
+	goparquet "github.com/fraugster/parquet-go"
 )
 
 func init() {
 	rootCmd.AddCommand(schemaCmd)
 }
+
 // TODO: add support for detailed schema (-d)
 
 var schemaCmd = &cobra.Command{
@@ -28,7 +29,7 @@ var schemaCmd = &cobra.Command{
 		}
 		defer fl.Close()
 
-		reader, err := go_parquet.NewFileReader(fl)
+		reader, err := goparquet.NewFileReader(fl)
 		if err != nil {
 			// TODO: using fatal actually by-pass the defer, do it better
 			log.Fatalf("Failed to read the parquet header: %q", err)
