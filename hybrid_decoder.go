@@ -79,6 +79,10 @@ func (hd *hybridDecoder) next() (next int32, err error) {
 	if hd.r == nil {
 		return 0, errors.New("reader is not initialized")
 	}
+	// when the bit width is zero, it means we can only have infinite zero.
+	if hd.bitWidth == 0 {
+		return 0, nil
+	}
 	if hd.rleCount == 0 && hd.bpCount == 0 && hd.bpRunPos == 0 {
 		if err = hd.readRunHeader(); err != nil {
 			return 0, err
