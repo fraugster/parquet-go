@@ -225,7 +225,7 @@ func (r *schema) ensureRoot() {
 		r.root = &column{
 			index:    0,
 			name:     "msg", // TODO: provide way of overriding this.
-			flatName: "msg",
+			flatName: "",        // the flat name for root element is empty
 			data:     nil,
 			children: []*column{},
 			rep:      0,
