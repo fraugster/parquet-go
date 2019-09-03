@@ -121,6 +121,25 @@ func (m *reflectMarshaller) decodeValue(field MarshalElement, value reflect.Valu
 		value = value.Elem()
 	}
 
+	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
+			switch {
+			case elem.GetLogicalType().IsSetTIME():
+				switch {
+				case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
+					field.SetInt64(value.Interface().(Time).Nanoseconds())
+				case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
+					field.SetInt64(value.Interface().(Time).Microseconds())
+				case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
+					field.SetInt32(value.Interface().(Time).Milliseconds())
+				default:
+					return errors.New("invalid TIME unit")
+				}
+				return nil
+			}
+		}
+	}
+
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
 		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
 			switch {

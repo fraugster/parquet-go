@@ -575,6 +575,41 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 
 		p.next()
 		p.expect(itemRightParen)
+	case "TIME":
+		lt.TIME = parquet.NewTimeType()
+		p.next()
+		p.expect(itemLeftParen)
+
+		p.next()
+		p.expect(itemIdentifier)
+
+		lt.TIME.Unit = parquet.NewTimeUnit()
+		switch p.token.val {
+		case "MILLIS":
+			lt.TIME.Unit.MILLIS = parquet.NewMilliSeconds()
+		case "MICROS":
+			lt.TIME.Unit.MICROS = parquet.NewMicroSeconds()
+		case "NANOS":
+			lt.TIME.Unit.NANOS = parquet.NewNanoSeconds()
+		default:
+			p.errorf("unknown unit annotation %q for TIME", p.token.val)
+		}
+
+		p.next()
+		p.expect(itemComma)
+
+		p.next()
+		p.expect(itemIdentifier)
+
+		switch p.token.val {
+		case "true", "false":
+			lt.TIME.IsAdjustedToUTC, _ = strconv.ParseBool(p.token.val)
+		default:
+			p.errorf("invalid isAdjustedToUTC annotation %q for TIME", p.token.val)
+		}
+
+		p.next()
+		p.expect(itemRightParen)
 	case "UUID":
 		lt.UUID = parquet.NewUUIDType()
 	case "ENUM":
@@ -710,6 +745,22 @@ func (p *schemaParser) validateLogicalTypes(col *column) {
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
 			if col.element.GetType() != parquet.Type_INT64 {
 				p.errorf("field %s is annotated as TIMESTAMP but is not an int64", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIME():
+			t := col.element.GetLogicalType().TIME
+			switch {
+			case t.Unit.IsSetNANOS():
+				if col.element.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as TIME(NANOS, %t) but is not an int64", col.element.Name, t.IsAdjustedToUTC)
+				}
+			case t.Unit.IsSetMICROS():
+				if col.element.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as TIME(MICROS, %t) but is not an int64", col.element.Name, t.IsAdjustedToUTC)
+				}
+			case t.Unit.IsSetMILLIS():
+				if col.element.GetType() != parquet.Type_INT32 {
+					p.errorf("field %s is annotated as TIME(MILLIS, %t) but is not an int32", col.element.Name, t.IsAdjustedToUTC)
+				}
 			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetUUID():
 			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 16 {

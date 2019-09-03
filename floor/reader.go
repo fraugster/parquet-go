@@ -198,6 +198,37 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data UnmarshalElem
 		return nil
 	}
 
+	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
+			switch {
+			case elem.GetLogicalType().IsSetTIME():
+				i, err := getIntValue(data)
+				if err != nil {
+					return err
+				}
+
+				var t Time
+				switch {
+				case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
+					t = TimeFromNanoseconds(i)
+				case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
+					t = TimeFromMicroseconds(i)
+				case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
+					t = TimeFromMilliseconds(int32(i))
+				default:
+					return errors.New("invalid TIME unit")
+				}
+
+				if elem.GetLogicalType().TIME.GetIsAdjustedToUTC() {
+					t = t.UTC()
+				}
+
+				value.Set(reflect.ValueOf(t))
+				return nil
+			}
+		}
+	}
+
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
 		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
 			switch {

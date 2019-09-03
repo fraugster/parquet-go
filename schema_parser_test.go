@@ -232,6 +232,25 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required binary group (STRING);
 		}`, false},
+		// 50.
+		{`message foo {
+			required int64 ts (TIME(NANOS, true));
+		}`, false},
+		{`message foo {
+			required int64 ts (TIME(MICROS, true));
+		}`, false},
+		{`message foo {
+			required int32 ts (TIME(MILLIS, true));
+		}`, false},
+		{`message foo {
+			required int64 ts (TIME(MILLIS, true));
+		}`, true}, // TIME(MILLIS, ...) must be used with int32.
+		{`message foo {
+			required int64 ts (TIME(FOOS, true));
+		}`, true}, // invalid unit FOOS.
+		{`message foo {
+			required int64 ts (TIME(MICROS, bloob));
+		}`, true}, // invalid boolean bloob
 	}
 
 	for idx, tt := range testData {
