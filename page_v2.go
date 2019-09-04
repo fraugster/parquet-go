@@ -88,7 +88,7 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 	if ph.DataPageHeaderV2.DefinitionLevelsByteLength < 0 {
 		return errors.Errorf("invalid DefinitionLevelsByteLength")
 	}
-	dp.encoding = ph.DataPageHeader.Encoding
+	dp.encoding = ph.DataPageHeaderV2.Encoding
 	dp.ph = ph
 
 	{ // to hide the govet shadow error
@@ -109,13 +109,13 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		}
 
 		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
+			if err := dp.rDecoder.initSize(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
 				return errors.Wrapf(err, "read repetition level failed")
 			}
 		}
 
 		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
+			if err := dp.dDecoder.initSize(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
 				return errors.Wrapf(err, "read definition level failed")
 			}
 		}
@@ -147,9 +147,9 @@ func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet
 
 func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool) *parquet.PageHeader {
 	ph := &parquet.PageHeader{
-		Type:                 parquet.PageType_DATA_PAGE,
-		UncompressedPageSize: int32(unComp),
-		CompressedPageSize:   int32(comp),
+		Type:                 parquet.PageType_DATA_PAGE_V2,
+		UncompressedPageSize: int32(unComp + defSize + repSize),
+		CompressedPageSize:   int32(comp + defSize + repSize),
 		Crc:                  nil, // TODO: add crc?
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
@@ -210,13 +210,19 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 		return 0, 0, err
 	}
 
-	if err := writeFull(w, def.Bytes()); err != nil {
-		return 0, 0, err
-	}
-
 	if err := writeFull(w, rep.Bytes()); err != nil {
 		return 0, 0, err
 	}
 
+	if err := writeFull(w, def.Bytes()); err != nil {
+		return 0, 0, err
+	}
+
 	return compSize + defLen + repLen, unCompSize + defLen + repLen, writeFull(w, comp)
+}
+
+func newDataPageV2Writer(useDict bool) pageWriter {
+	return &dataPageWriterV2{
+		dictionary: useDict,
+	}
 }

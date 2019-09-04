@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,4 +58,19 @@ func TestHybrid(t *testing.T) {
 		}
 		assert.Equal(t, toR, append(to1, to2...))
 	}
+}
+
+func TestOnlyOne(t *testing.T) {
+	data := make([]int32, 1000)
+	for i := range data {
+		data[i] = 1
+	}
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, encodeLevels(buf, 1, data))
+	read := make([]int32, 1000)
+	dec := newHybridDecoder(1)
+	require.NoError(t, dec.initSize(bytes.NewReader(buf.Bytes())))
+	require.NoError(t, decodeInt32(dec, read))
+	require.Equal(t, data, read)
 }

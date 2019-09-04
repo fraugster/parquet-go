@@ -184,3 +184,9 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 
 	return compSize, unCompSize, writeFull(w, comp)
 }
+
+func newDataPageV1Writer(useDict bool) pageWriter {
+	return &dataPageWriterV1{
+		dictionary: useDict,
+	}
+}

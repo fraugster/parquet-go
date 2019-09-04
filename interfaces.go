@@ -16,6 +16,15 @@ type pageReader interface {
 	numValues() int32
 }
 
+// pageReader is an internal interface used only internally to read the pages
+type pageWriter interface {
+	init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error
+
+	write(w io.Writer) (int, int, error)
+}
+
+type newDataPageFunc func(useDict bool) pageWriter
+
 type valuesDecoder interface {
 	init(io.Reader) error
 	// the error io.EOF with the less value is acceptable, any other error is not

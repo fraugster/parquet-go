@@ -180,7 +180,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec) (*parquet.ColumnChunk, error) {
+func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	// TODO: support more data page version? or just latest?
@@ -215,9 +215,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		pos = w.Pos() // Move position for data pos
 	}
 
-	page := &dataPageWriterV1{
-		dictionary: useDict,
-	}
+	page := pageFn(useDict)
 
 	if err := page.init(schema, col, codec); err != nil {
 		return nil, err
@@ -270,11 +268,11 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 	return ch, nil
 }
 
-func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec) ([]*parquet.ColumnChunk, error) {
+func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc) ([]*parquet.ColumnChunk, error) {
 	dataCols := schema.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		ch, err := writeChunk(w, schema, ci, codec)
+		ch, err := writeChunk(w, schema, ci, codec, pageFn)
 		if err != nil {
 			return nil, err
 		}

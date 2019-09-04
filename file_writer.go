@@ -25,6 +25,8 @@ type FileWriter struct {
 	rowGroups []*parquet.RowGroup
 
 	codec parquet.CompressionCodec
+
+	newPage newDataPageFunc
 }
 
 // FileWriterOption describes an option function that is applied to a FileWriter when it is created.
@@ -42,6 +44,7 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 		kvStore:      make(map[string]string),
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",
+		newPage:      newDataPageV1Writer,
 	}
 
 	for _, opt := range options {
@@ -98,6 +101,13 @@ func UseSchemaDefinition(sd *SchemaDefinition) FileWriterOption {
 	}
 }
 
+// WithDataPageV2 the library is using page v1 as default, this option is for changing to page v2
+func WithDataPageV2() FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.newPage = newDataPageV2Writer
+	}
+}
+
 // FlushRowGroup is to write the row group into the file
 func (fw *FileWriter) FlushRowGroup() error {
 	// Write the entire row group
@@ -112,7 +122,7 @@ func (fw *FileWriter) FlushRowGroup() error {
 		}
 	}
 
-	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec)
+	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage)
 	if err != nil {
 		return err
 	}
