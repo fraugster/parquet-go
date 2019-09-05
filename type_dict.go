@@ -143,8 +143,8 @@ func (d *dictStore) numDistinctValues() int32 {
 
 // sizes is an experimental guess for the dictionary size and real value size (when there is no dictionary)
 func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
-	count := len(d.data) - int(d.nullCount)
-	max := bits.Len(uint(len(d.values))) // bits required for any value in data
+	count := len(d.data)
+	max := bits.Len(uint(count)) // bits required for any value in data
 	if max > 0 {
 		dictLen = int64(count/max) + 1
 	}
