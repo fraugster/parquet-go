@@ -393,6 +393,9 @@ func TestFillValue(t *testing.T) {
 		required int64 tsnano (TIMESTAMP(NANOS, true));
 		required int64 tsmicro (TIMESTAMP(MICROS, true));
 		required int64 tsmilli (TIMESTAMP(MILLIS, true));
+		required int64 tnano (TIME(NANOS, true));
+		required int64 tmicro (TIME(MICROS, true));
+		required int32 tmilli (TIME(MILLIS, true));
 	}`)
 	require.NoError(t, err)
 
@@ -409,4 +412,14 @@ func TestFillValue(t *testing.T) {
 
 	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(45299450)), sd.SubSchema("tsmilli")))
 	require.Equal(t, ts, time.Date(1970, 01, 01, 12, 34, 59, 450000000, time.UTC))
+
+	var tt Time
+	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int64(30000000010)), sd.SubSchema("tnano")))
+	require.Equal(t, tt, MustTime(NewTime(0, 0, 30, 10)).UTC())
+
+	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int64(210000020)), sd.SubSchema("tmicro")))
+	require.Equal(t, tt, MustTime(NewTime(0, 3, 30, 20000)).UTC())
+
+	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int32(14620200)), sd.SubSchema("tmilli")))
+	require.Equal(t, tt, MustTime(NewTime(4, 3, 40, 200000000)).UTC())
 }

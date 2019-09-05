@@ -289,6 +289,36 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr:      false,
 			Schema:         `message test { required int64 foo; }`,
 		},
+		{
+			Input: struct {
+				Lunch Time
+			}{
+				Lunch: MustTime(NewTime(12, 30, 0, 0)),
+			},
+			ExpectedOutput: map[string]interface{}{"lunch": int32(45000000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int32 lunch (TIME(MILLIS, false)); }`,
+		},
+		{
+			Input: struct {
+				BeddyByes Time
+			}{
+				BeddyByes: MustTime(NewTime(20, 15, 30, 0)),
+			},
+			ExpectedOutput: map[string]interface{}{"beddybyes": int64(72930000000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 beddybyes (TIME(MICROS, false)); }`,
+		},
+		{
+			Input: struct {
+				WakeyWakey Time
+			}{
+				WakeyWakey: MustTime(NewTime(7, 5, 59, 0)),
+			},
+			ExpectedOutput: map[string]interface{}{"wakeywakey": int64(25559000000000)},
+			ExpectErr:      false,
+			Schema:         `message test { required int64 wakeywakey (TIME(NANOS, false)); }`,
+		},
 	}
 
 	for idx, tt := range testData {
@@ -319,6 +349,7 @@ func TestWriteFile(t *testing.T) {
 				}
 			}
 			optional int64 ts (TIMESTAMP(NANOS, false));
+			optional int64 time (TIME(NANOS, false));
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -333,15 +364,16 @@ func TestWriteFile(t *testing.T) {
 	require.NoError(t, err, "creating new file writer failed")
 
 	data := []struct {
-		Foo int64
-		Bar *string
-		Baz []int32
+		Foo  int64
+		Bar  *string
+		Baz  []int32
+		Time *Time
 	}{
-		{23, strPtr("hello!"), []int32{23}},
-		{42, strPtr("world!"), []int32{1, 1, 2, 3, 5}},
-		{500, nil, nil},
-		{750, strPtr("empty"), nil},
-		{1000, strPtr("bye!"), []int32{2, 3, 5, 7, 11}},
+		{23, strPtr("hello!"), []int32{23}, nil},
+		{42, strPtr("world!"), []int32{1, 1, 2, 3, 5}, nil},
+		{500, nil, nil, nil},
+		{750, strPtr("empty"), nil, nil},
+		{1000, strPtr("bye!"), []int32{2, 3, 5, 7, 11}, timePtr(MustTime(NewTime(16, 20, 0, 0)))},
 	}
 
 	for idx, d := range data {
@@ -402,6 +434,7 @@ func TestWriteFile(t *testing.T) {
 					{"element": int32(11)},
 				},
 			},
+			"time": int64(58800000000000),
 		},
 	}
 
@@ -410,6 +443,10 @@ func TestWriteFile(t *testing.T) {
 		require.NoError(t, err, "%d. reading record failed")
 		require.Equal(t, expectedData[i], data, "%d. data in parquet file differs from what's expected", i)
 	}
+}
+
+func timePtr(t Time) *Time {
+	return &t
 }
 
 func strPtr(s string) *string {
