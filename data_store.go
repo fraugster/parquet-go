@@ -35,6 +35,11 @@ func (cs *ColumnStore) useDictionary() bool {
 		return false
 	}
 
+	// There is no point for using dictionary if all values are nil
+	if len(cs.values.data) == 0 || len(cs.values.values) == 0 {
+		return false
+	}
+
 	dictLen, noDictLen := cs.values.sizes()
 	return dictLen < noDictLen
 }
