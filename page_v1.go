@@ -110,13 +110,13 @@ func (dp *dataPageReaderV1) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 }
 
 type dataPageWriterV1 struct {
-	col *column
+	col *Column
 
 	codec      parquet.CompressionCodec
 	dictionary bool
 }
 
-func (dp *dataPageWriterV1) init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil
