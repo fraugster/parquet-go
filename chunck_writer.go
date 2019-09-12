@@ -1,8 +1,6 @@
 package goparquet
 
 import (
-	"strings"
-
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -182,7 +180,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema SchemaWriter, col *column, codec parquet.CompressionCodec) (*parquet.ColumnChunk, error) {
+func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	// TODO: support more data page version? or just latest?
@@ -251,7 +249,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *column, codec parquet.Comp
 		MetaData: &parquet.ColumnMetaData{
 			Type:                  col.data.parquetType(),
 			Encodings:             encodings,
-			PathInSchema:          strings.Split(col.flatName, "."),
+			PathInSchema:          col.pathArray(),
 			Codec:                 codec,
 			NumValues:             int64(col.data.values.numValues() + col.data.values.nullValueCount()),
 			TotalUncompressedSize: totalUnComp,
@@ -276,8 +274,7 @@ func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCod
 	dataCols := schema.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		// TODO: the Column is only *column, but maybe its better not to cast and find the field directly on schema again?
-		ch, err := writeChunk(w, schema, ci.(*column), codec)
+		ch, err := writeChunk(w, schema, ci, codec)
 		if err != nil {
 			return nil, err
 		}

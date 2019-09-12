@@ -63,6 +63,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 type dictStore struct {
 	values    []interface{}
 	data      []int32
+	indices   map[interface{}]int32
 	nullCount int32
 	size      int64
 	valueSize int64
@@ -72,6 +73,7 @@ type dictStore struct {
 }
 
 func (d *dictStore) init() {
+	d.indices = make(map[interface{}]int32)
 	d.values = d.values[:0]
 	d.data = d.data[:0]
 	d.nullCount = 0
@@ -91,16 +93,15 @@ func (d *dictStore) assemble() []interface{} {
 }
 
 func (d *dictStore) getIndex(in interface{}, size int) int32 {
-	for i := range d.values {
-		// TODO: Better compare?
-		if equal(d.values[i], in) {
-			return int32(i)
-		}
+	key := mapKey(in)
+	if idx, ok := d.indices[key]; ok {
+		return idx
 	}
 	d.valueSize += int64(size)
 	d.values = append(d.values, in)
-
-	return int32(len(d.values) - 1)
+	idx := int32(len(d.values) - 1)
+	d.indices[key] = idx
+	return idx
 }
 
 func (d *dictStore) addValue(v interface{}, size int) {

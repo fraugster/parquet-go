@@ -270,13 +270,13 @@ loop:
 type schemaParser struct {
 	l     *schemaLexer
 	token item
-	root  *column
+	root  *Column
 }
 
 func newSchemaParser(text string) *schemaParser {
 	return &schemaParser{
 		l:    lex(text),
-		root: &column{},
+		root: &Column{},
 	}
 }
 
@@ -349,8 +349,8 @@ func (p *schemaParser) parseMessage() {
 	p.expect(itemRightBrace)
 }
 
-func (p *schemaParser) parseMessageBody() []*column {
-	var cols []*column
+func (p *schemaParser) parseMessageBody() []*Column {
+	var cols []*Column
 	p.expect(itemLeftBrace)
 	for {
 		p.next()
@@ -363,8 +363,8 @@ func (p *schemaParser) parseMessageBody() []*column {
 	}
 }
 
-func (p *schemaParser) parseColumnDefinition() *column {
-	col := &column{
+func (p *schemaParser) parseColumnDefinition() *Column {
+	col := &Column{
 		element: &parquet.SchemaElement{},
 	}
 
@@ -517,10 +517,10 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *Colum
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, params)
 	default:
-		p.errorf("unsupported type %q when creating column store", typ.String())
+		p.errorf("unsupported type %q when creating Column store", typ.String())
 	}
 	if err != nil {
-		p.errorf("creating column store for type %q failed: %v", typ.String(), err)
+		p.errorf("creating Column store for type %q failed: %v", typ.String(), err)
 	}
 
 	return colStore
@@ -660,7 +660,7 @@ func (p *schemaParser) parseFieldID() *int32 {
 	return &i32
 }
 
-func fixFlatName(prefix string, col *column) {
+func fixFlatName(prefix string, col *Column) {
 	flatName := col.name
 	if prefix != "" {
 		flatName = prefix + "." + flatName
@@ -673,7 +673,7 @@ func fixFlatName(prefix string, col *column) {
 	}
 }
 
-func (p *schemaParser) validateLogicalTypes(col *column) {
+func (p *schemaParser) validateLogicalTypes(col *Column) {
 	if col.element != nil && (col.element.LogicalType != nil || col.element.ConvertedType != nil) {
 		switch {
 		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetLIST()) || col.element.GetConvertedType() == parquet.ConvertedType_LIST:

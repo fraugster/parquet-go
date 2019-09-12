@@ -182,7 +182,7 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
+func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
 	var (
 		dictPage *dictPageReader
 		pages    []pageReader
@@ -262,7 +262,7 @@ func readPages(r *offsetReader, col Column, chunkMeta *parquet.ColumnMetaData, d
 	return pages, nil
 }
 
-func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
+func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -272,11 +272,11 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) ([]pageR
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return nil, errors.Errorf("missing meta data for column %c", c)
+		return nil, errors.Errorf("missing meta data for Column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return nil, errors.Errorf("wrong type in column chunk metadata, expected %s was %s",
+		return nil, errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -328,7 +328,7 @@ func readChunk(r io.ReadSeeker, col Column, chunk *parquet.ColumnChunk) ([]pageR
 	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
-func readPageData(col Column, pages []pageReader) error {
+func readPageData(col *Column, pages []pageReader) error {
 	s := col.getColumnStore()
 	for i := range pages {
 		// TODO: reuse data

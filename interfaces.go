@@ -6,29 +6,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// Column is one column definition in the parquet file
-type Column interface {
-	// Index of the column in the schema
-	Index() int
-	// Name of the column
-	Name() string
-	// Name of the column with the name of parent structures, separated with dot
-	FlatName() string
-	// MaxDefinitionLevel of the column
-	MaxDefinitionLevel() uint16
-	// MaxRepetitionLevel of the column
-	MaxRepetitionLevel() uint16
-	// Element of the column in the schema
-	Element() *parquet.SchemaElement
-
-	getColumnStore() *ColumnStore
-
-	getDataSize() int64
-}
-
-// Columns array of the column
-type Columns []Column
-
 // pageReader is an internal interface used only internally to read the pages
 type pageReader interface {
 	init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error

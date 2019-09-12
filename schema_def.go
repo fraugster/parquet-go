@@ -10,7 +10,7 @@ import (
 
 // SchemaDefinition represents a valid textual schema definition.
 type SchemaDefinition struct {
-	col *column
+	col *Column
 }
 
 // ParseSchemaDefinition parses a textual schema definition and returns
@@ -121,7 +121,7 @@ func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
 	return sd.col.element
 }
 
-func printCols(w io.Writer, cols []*column, indent int) {
+func printCols(w io.Writer, cols []*Column, indent int) {
 	for _, col := range cols {
 		printIndent(w, indent)
 

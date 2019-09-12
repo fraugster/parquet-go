@@ -133,7 +133,7 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 	t.Logf("generated schema: %s", w.GetSchemaDefinition().String())
 }
 
-func mustColumn(c Column, err error) Column {
+func mustColumn(c *Column, err error) *Column {
 	if err != nil {
 		panic(err)
 	}

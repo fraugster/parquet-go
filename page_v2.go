@@ -137,14 +137,14 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 }
 
 type dataPageWriterV2 struct {
-	col    *column
+	col    *Column
 	schema SchemaWriter
 
 	codec      parquet.CompressionCodec
 	dictionary bool
 }
 
-func (dp *dataPageWriterV2) init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	dp.schema = schema

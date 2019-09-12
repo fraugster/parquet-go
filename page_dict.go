@@ -64,12 +64,12 @@ func (dp *dictPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec pa
 }
 
 type dictPageWriter struct {
-	col *column
+	col *Column
 
 	codec parquet.CompressionCodec
 }
 
-func (dp *dictPageWriter) init(schema SchemaWriter, col *column, codec parquet.CompressionCodec) error {
+func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil
