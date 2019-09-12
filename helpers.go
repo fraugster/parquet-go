@@ -1,7 +1,6 @@
 package goparquet
 
 import (
-	"bytes"
 	"encoding/binary"
 	"io"
 	"math"
@@ -267,19 +266,15 @@ func encodeLevels(w io.Writer, max uint16, values []int32) error {
 	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
-func equal(a, b interface{}) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
+func mapKey(a interface{}) interface{} {
 	switch a.(type) {
 	case int, int32, int64, string, bool, float64, float32:
-		return a == b
+		return a
 	case []byte:
-		return bytes.Equal(a.([]byte), b.([]byte))
+		return string(a.([]byte))
 	case Int96:
-		a1 := a.(Int96)
-		b1 := b.(Int96)
-		return bytes.Equal(a1[:], b1[:])
+		i := a.(Int96)
+		return string(i[:])
 	default:
 		panic("not supported type")
 	}
