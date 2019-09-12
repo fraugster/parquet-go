@@ -1,6 +1,6 @@
 module github.com/fraugster/parquet-go
 
-go 1.12
+go 1.13
 
 require (
 	github.com/apache/thrift v0.12.0

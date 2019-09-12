@@ -85,7 +85,7 @@ func (he *hybridEncoder) bpEncode(data []int32) error {
 	return he.write(buf[:cnt], res)
 }
 
-func (he *hybridEncoder) encode(data []int32) error {
+func (he *hybridEncoder) encode(data ...int32) error {
 	// TODO: Not sure how to decide on the bitpack or rle, so just bp is supported
 	if len(he.left) != 0 {
 		// TODO: this might result in allocation and unused memory under a slice

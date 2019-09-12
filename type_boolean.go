@@ -170,7 +170,7 @@ func (b *booleanRLEEncoder) encodeValues(values []interface{}) error {
 		}
 	}
 
-	return b.encoder.encode(buf)
+	return b.encoder.encode(buf...)
 }
 
 type booleanStore struct {

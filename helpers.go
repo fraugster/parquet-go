@@ -259,7 +259,7 @@ func encodeLevels(w io.Writer, max uint16, values []int32) error {
 	if err := rle.initSize(w); err != nil {
 		return errors.Wrap(err, "level writer initialize with size failed")
 	}
-	if err := rle.encode(values); err != nil {
+	if err := rle.encode(values...); err != nil {
 		return errors.Wrap(err, "level writer encode values failed")
 	}
 

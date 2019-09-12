@@ -35,10 +35,10 @@ func TestHybrid(t *testing.T) {
 		enc := newHybridEncoder(i)
 		assert.NoError(t, enc.initSize(data))
 		to1 := buildData(i, 8*10240+5)
-		assert.NoError(t, enc.encode(to1))
+		assert.NoError(t, enc.encode(to1...))
 
 		to2 := buildData(i, 1000)
-		assert.NoError(t, enc.encode(to2))
+		assert.NoError(t, enc.encode(to2...))
 
 		assert.NoError(t, enc.Close())
 

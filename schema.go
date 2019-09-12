@@ -291,7 +291,7 @@ func (r *schema) GetColumnByName(path string) *Column {
 func (r *schema) resetData() {
 	data := r.Columns()
 	for i := range data {
-		data[i].data.reset(data[i].data.repTyp)
+		data[i].data.reset(data[i].data.repTyp, data[i].maxR, data[i].maxD)
 	}
 
 	r.numRecords = 0
@@ -344,7 +344,6 @@ type ColumnParameters struct {
 
 // NewDataColumn create new column, not a group
 func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) *Column {
-	store.reset(rep)
 	return &Column{
 		data:     store,
 		children: nil,
@@ -446,6 +445,7 @@ func recursiveFix(col *Column, path string, maxR, maxD uint16) {
 		col.flatName = col.name
 	}
 	if col.data != nil {
+		col.data.reset(col.rep, col.maxR, col.maxD)
 		return
 	}
 

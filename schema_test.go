@@ -79,7 +79,7 @@ var sizeFixture = []struct {
 func TestColumnSize(t *testing.T) {
 	for _, sf := range sizeFixture {
 		arr, size := sf.Generate(rand.Intn(1000) + 1)
-		sf.Col.reset(parquet.FieldRepetitionType_REQUIRED)
+		sf.Col.reset(parquet.FieldRepetitionType_REQUIRED, 0, 0)
 		for i := range arr {
 			b, err := sf.Col.add(arr[i], 0, 0, 0)
 

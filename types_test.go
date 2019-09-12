@@ -374,7 +374,7 @@ func TestStores(t *testing.T) {
 			st := fix.store
 			randArr := fix.rand
 
-			st.reset(parquet.FieldRepetitionType_REPEATED)
+			st.reset(parquet.FieldRepetitionType_REPEATED, 10, 10)
 
 			data := randArr(3)
 			ok, err := st.add(data, 3, 3, 0)
@@ -399,7 +399,7 @@ func TestStores(t *testing.T) {
 
 			// One record
 			data = randArr(1)
-			st.reset(parquet.FieldRepetitionType_REQUIRED)
+			st.reset(parquet.FieldRepetitionType_REQUIRED, 10, 10)
 			ok, err = st.add(getOne(data), 3, 3, 0)
 			require.NoError(t, err)
 			assert.True(t, ok)

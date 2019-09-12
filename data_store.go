@@ -16,7 +16,6 @@ type ColumnStore struct {
 
 	dLevels []int32
 	rLevels []int32
-	rep     []int
 
 	enc       parquet.Encoding
 	allowDict bool
@@ -52,9 +51,8 @@ func (cs *ColumnStore) repetitionType() parquet.FieldRepetitionType {
 	return cs.repTyp
 }
 
-// TODO: pass maxR and maxD
 // TODO: need to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
-func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType) {
+func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16) {
 	if cs.typedColumnStore == nil {
 		panic("generic should be used with typed column store")
 	}
@@ -65,7 +63,6 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType) {
 	cs.values.init()
 	cs.dLevels = cs.dLevels[:0]
 	cs.rLevels = cs.rLevels[:0]
-	cs.rep = cs.rep[:0]
 	cs.readPos = 0
 
 	cs.typedColumnStore.reset(rep)
@@ -100,7 +97,6 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 		return cs.add(nil, dL, maxRL, rL)
 	}
 
-	cs.rep = append(cs.rep, len(vals))
 	for i, j := range vals {
 		cs.values.addValue(j, cs.sizeOf(j))
 		tmp := dL

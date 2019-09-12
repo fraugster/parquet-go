@@ -345,6 +345,9 @@ func (p *schemaParser) parseMessage() {
 	p.expect(itemLeftBrace)
 
 	p.root.children = p.parseMessageBody()
+	for _, c := range p.root.children {
+		recursiveFix(c, "", 0, 0)
+	}
 
 	p.expect(itemRightBrace)
 }
@@ -435,8 +438,6 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 		}
 
 		col.data = p.getColumnStore(col.element, params)
-		col.data.reset(col.rep)
-
 		p.expect(itemSemicolon)
 	}
 
