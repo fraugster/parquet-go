@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 type hybridEncoder struct {
@@ -15,12 +13,16 @@ type hybridEncoder struct {
 	original   io.Writer
 	bitWidth   int
 	unpackerFn pack8int32Func
+
+	data *packedArray
 }
 
 func newHybridEncoder(bitWidth int) *hybridEncoder {
+	p := &packedArray{}
 	return &hybridEncoder{
 		bitWidth:   bitWidth,
 		unpackerFn: pack8Int32FuncByWidth[bitWidth],
+		data:       p,
 	}
 }
 
@@ -29,6 +31,7 @@ func (he *hybridEncoder) init(w io.Writer) error {
 	he.left = nil
 	he.original = nil
 
+	he.data.reset(he.bitWidth)
 	return nil
 }
 
@@ -59,67 +62,47 @@ func (he *hybridEncoder) write(items ...[]byte) error {
 //	return he.write(buf[:cnt], encodeRLEValue(value, he.bitWidth))
 //}
 
-func (he *hybridEncoder) bpEncode(data []int32) error {
+func (he *hybridEncoder) bpEncode() error {
 	// If the bit width is zero, no need to write any
 	if he.bitWidth == 0 {
 		return nil
 	}
-
-	l := len(data)
-	if l%8 != 0 {
-		return errors.Errorf("bit-pack should be multiple of 8 values at a time, but it's %q", l)
-	}
-
-	res := make([]byte, 0, (l/8)*he.bitWidth)
-	for i := 0; i < l; i += 8 {
-		toW := [...]int32{
-			data[i], data[i+1], data[i+2], data[i+3], data[i+4], data[i+5], data[i+6], data[i+7],
-		}
-		res = append(res, he.unpackerFn(toW)...)
+	l := he.data.count
+	if x := l % 8; x != 0 {
+		l += 8 - x
 	}
 
 	header := ((l / 8) << 1) | 1
 	buf := make([]byte, 4) // big enough for int
 	cnt := binary.PutUvarint(buf, uint64(header))
 
-	return he.write(buf[:cnt], res)
+	return he.write(buf[:cnt], he.data.data)
 }
 
-func (he *hybridEncoder) encode(data ...int32) error {
-	// TODO: Not sure how to decide on the bitpack or rle, so just bp is supported
-	if len(he.left) != 0 {
-		// TODO: this might result in allocation and unused memory under a slice
-		data = append(he.left, data...)
-	}
-	ln := len(data)
-	// TODO: if the ln is small, just leave it for the next call
-	l := ln % 8
-	if l != 0 {
-		he.left = data[ln-l:]
-	} else {
-		he.left = nil
+func (he *hybridEncoder) encode(data []int32) error {
+	for i := range data {
+		he.data.appendSingle(data[i])
 	}
 
-	if ln-l == 0 {
-		// Nothing to write
-		return nil
-	}
+	return nil
+}
 
-	return he.bpEncode(data[:ln-l])
+// TODO: this is the final function, remove the encode
+func (he *hybridEncoder) encode2(data *packedArray) error {
+	he.data.appendArray(data)
+
+	return nil
 }
 
 func (he *hybridEncoder) flush() error {
-	if len(he.left) == 0 {
-		return nil
-	}
-
-	l := len(he.left) % 8
-	data := append(he.left, make([]int32, 8-l)...)
-	he.left = nil
-	return he.bpEncode(data)
+	he.data.flush()
+	return he.bpEncode()
 }
 
 func (he *hybridEncoder) Close() error {
+	if he.bitWidth == 0 {
+		return nil
+	}
 	if err := he.flush(); err != nil {
 		return err
 	}

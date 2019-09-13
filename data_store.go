@@ -68,6 +68,11 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	cs.typedColumnStore.reset(rep)
 }
 
+func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
+	cs.rLevels = append(cs.rLevels, int32(rl))
+	cs.dLevels = append(cs.dLevels, int32(dl))
+}
+
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
@@ -83,8 +88,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 	// them is nil) they can not be the first level, but if they are in the next levels, is actually ok, but the
 	// level is one less
 	if v == nil {
-		cs.dLevels = append(cs.dLevels, int32(dL))
-		cs.rLevels = append(cs.rLevels, int32(rL))
+		cs.appendRDLevel(rL, dL)
 		cs.values.addValue(nil, 0)
 		return false, nil
 	}
@@ -103,11 +107,11 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 		if cs.repTyp != parquet.FieldRepetitionType_REQUIRED {
 			tmp++
 		}
-		cs.dLevels = append(cs.dLevels, int32(tmp))
+
 		if i == 0 {
-			cs.rLevels = append(cs.rLevels, int32(rL))
+			cs.appendRDLevel(rL, tmp)
 		} else {
-			cs.rLevels = append(cs.rLevels, int32(maxRL))
+			cs.appendRDLevel(maxRL, tmp)
 		}
 	}
 

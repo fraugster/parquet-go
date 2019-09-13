@@ -177,7 +177,7 @@ func (d *dictEncoder) Close() error {
 	if err := enc.init(d.w); err != nil {
 		return err
 	}
-	if err := enc.encode(d.data...); err != nil {
+	if err := enc.encode(d.data); err != nil {
 		return err
 	}
 

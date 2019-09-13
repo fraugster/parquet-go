@@ -259,13 +259,14 @@ func encodeLevels(w io.Writer, max uint16, values []int32) error {
 	if err := rle.initSize(w); err != nil {
 		return errors.Wrap(err, "level writer initialize with size failed")
 	}
-	if err := rle.encode(values...); err != nil {
+	if err := rle.encode(values); err != nil {
 		return errors.Wrap(err, "level writer encode values failed")
 	}
 
 	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
+// TODO: the type cast of []byte to string is very expensive in this function, use some sort of hashing.
 func mapKey(a interface{}) interface{} {
 	switch a.(type) {
 	case int, int32, int64, string, bool, float64, float32:
