@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"encoding/binary"
+	"hash/fnv"
 	"io"
 	"math"
 	"math/bits"
@@ -9,6 +10,10 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 )
+
+// DefaultHashFunc is used to handle duplicate values, the result can not be an slice and the library use it as a map key.
+// default is fnv hash in std lib
+var DefaultHashFunc = fnvHashFunc
 
 type byteReader struct {
 	io.Reader
@@ -290,13 +295,21 @@ func mapKey(a interface{}) interface{} {
 	case int, int32, int64, string, bool, float64, float32:
 		return a
 	case []byte:
-		return string(a.([]byte))
+		return DefaultHashFunc(a.([]byte))
 	case Int96:
 		i := a.(Int96)
-		return string(i[:])
+		return DefaultHashFunc(i[:])
 	default:
 		panic("not supported type")
 	}
+}
+
+func fnvHashFunc(in []byte) interface{} {
+	hash := fnv.New64()
+	if err := writeFull(hash, in); err != nil {
+		panic(err)
+	}
+	return hash.Sum64()
 }
 
 type writePos interface {
