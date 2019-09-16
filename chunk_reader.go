@@ -343,8 +343,8 @@ func readPageData(col *Column, pages []pageReader) error {
 		}
 
 		// using append to make sure we handle the multiple data page correctly
-		s.rLevels = append(s.rLevels, rl...)
-		s.dLevels = append(s.dLevels, dl...)
+		s.rLevels.appendArray(rl)
+		s.dLevels.appendArray(dl)
 		// TODO : having a dictEncoder/decoder is wrong. they should be a plain decoder for header and a int32 hybrid for
 		// values. the mix should happen here not in the dict itself
 		s.values.values = append(s.values.values, data...)

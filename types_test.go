@@ -383,10 +383,10 @@ func TestStores(t *testing.T) {
 
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is not Required, so def level should be one more
-			assert.Equal(t, []int32{4, 4, 4}, st.dLevels)
+			assert.Equal(t, []int32{4, 4, 4}, st.dLevels.toArray())
 			// Filed is repeated so the rep level (except for the first one which is the new record)
 			// should be one more
-			assert.Equal(t, []int32{0, 4, 4}, st.rLevels)
+			assert.Equal(t, []int32{0, 4, 4}, st.rLevels.toArray())
 
 			ok, err = st.add(randArr(0), 3, 3, 0)
 			require.NoError(t, err)
@@ -394,8 +394,8 @@ func TestStores(t *testing.T) {
 			// No Reset
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// The new field is nil
-			assert.Equal(t, []int32{4, 4, 4, 3}, st.dLevels)
-			assert.Equal(t, []int32{0, 4, 4, 0}, st.rLevels)
+			assert.Equal(t, []int32{4, 4, 4, 3}, st.dLevels.toArray())
+			assert.Equal(t, []int32{0, 4, 4, 0}, st.rLevels.toArray())
 
 			// One record
 			data = randArr(1)
@@ -406,8 +406,8 @@ func TestStores(t *testing.T) {
 
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3}, st.dLevels)
-			assert.Equal(t, []int32{0}, st.rLevels)
+			assert.Equal(t, []int32{3}, st.dLevels.toArray())
+			assert.Equal(t, []int32{0}, st.rLevels.toArray())
 
 			data2 := randArr(1)
 			ok, err = st.add(getOne(data2), 3, 3, 10)
@@ -417,9 +417,9 @@ func TestStores(t *testing.T) {
 			dArr := []interface{}{getOne(data), getOne(data2)}
 			assert.Equal(t, dArr, st.values.assemble())
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3, 3}, st.dLevels)
+			assert.Equal(t, []int32{3, 3}, st.dLevels.toArray())
 			// rLevel is more than max, so its max now
-			assert.Equal(t, []int32{0, 3}, st.rLevels)
+			assert.Equal(t, []int32{0, 3}, st.rLevels.toArray())
 
 			// empty array had same effect as nil in repeated, but not in required
 			_, err = st.add(randArr(0), 3, 3, 10)
@@ -436,9 +436,9 @@ func TestStores(t *testing.T) {
 			assert.Equal(t, dArr, st.values.assemble())
 
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3, 3, 3}, st.dLevels)
+			assert.Equal(t, []int32{3, 3, 3}, st.dLevels.toArray())
 			// rLevel is more than max, so its max now
-			assert.Equal(t, []int32{0, 3, 0}, st.rLevels)
+			assert.Equal(t, []int32{0, 3, 0}, st.rLevels.toArray())
 		})
 	}
 }

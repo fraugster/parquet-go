@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"math"
+	"math/bits"
 
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
@@ -14,8 +15,8 @@ type ColumnStore struct {
 
 	values *dictStore
 
-	dLevels []int32
-	rLevels []int32
+	dLevels *packedArray
+	rLevels *packedArray
 
 	enc       parquet.Encoding
 	allowDict bool
@@ -59,18 +60,20 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	cs.repTyp = rep
 	if cs.values == nil {
 		cs.values = &dictStore{}
+		cs.rLevels = &packedArray{}
+		cs.dLevels = &packedArray{}
 	}
 	cs.values.init()
-	cs.dLevels = cs.dLevels[:0]
-	cs.rLevels = cs.rLevels[:0]
+	cs.rLevels.reset(bits.Len16(maxR))
+	cs.dLevels.reset(bits.Len16(maxD))
 	cs.readPos = 0
 
 	cs.typedColumnStore.reset(rep)
 }
 
 func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
-	cs.rLevels = append(cs.rLevels, int32(rl))
-	cs.dLevels = append(cs.dLevels, int32(dl))
+	cs.rLevels.appendSingle(int32(rl))
+	cs.dLevels.appendSingle(int32(dl))
 }
 
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
@@ -118,17 +121,26 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 	return true, nil
 }
 
-// getDRLevelAt return the next rLevel in the read position, if there is no value left, it returns true
+// getRDLevelAt return the next rLevel in the read position, if there is no value left, it returns true
 // if the position is less than zero, then it returns the current position
-func (cs *ColumnStore) getDRLevelAt(pos int) (int32, int32, bool) {
+// NOTE: make sure always r is before d, in ay function
+func (cs *ColumnStore) getRDLevelAt(pos int) (int32, int32, bool) {
 	if pos < 0 {
 		pos = cs.readPos
 	}
-	if pos >= len(cs.rLevels) || pos >= len(cs.dLevels) {
+	if pos >= cs.rLevels.count || pos >= cs.dLevels.count {
+		return 0, 0, true
+	}
+	dl, err := cs.dLevels.at(pos)
+	if err != nil {
+		return 0, 0, true
+	}
+	rl, err := cs.rLevels.at(pos)
+	if err != nil {
 		return 0, 0, true
 	}
 
-	return cs.dLevels[pos], cs.rLevels[pos], false
+	return rl, dl, false
 }
 
 func (cs *ColumnStore) getNext() (v interface{}, err error) {
@@ -140,10 +152,10 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 }
 
 func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
-	if cs.readPos >= len(cs.rLevels) || cs.readPos >= len(cs.dLevels) {
+	if cs.readPos >= cs.rLevels.count || cs.readPos >= cs.dLevels.count {
 		return nil, 0, errors.New("out of range")
 	}
-	dl, _, _ := cs.getDRLevelAt(cs.readPos)
+	_, dl, _ := cs.getRDLevelAt(cs.readPos)
 	// this is a null value, increase the read pos, for advancing the rLvl and dLvl but
 	// do not touch the dict-store
 	if dl < maxD {
@@ -168,7 +180,7 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	var ret = cs.typedColumnStore.append(nil, v)
 	for {
 		cs.readPos++
-		_, rl, last := cs.getDRLevelAt(cs.readPos)
+		rl, _, last := cs.getRDLevelAt(cs.readPos)
 		if last || rl < maxR {
 			// end of this object
 			return ret, maxD, nil

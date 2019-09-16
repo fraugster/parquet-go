@@ -17,8 +17,6 @@ func newRandomPacked(bw int, size int32) (*packedArray, []int32) {
 		data[i] = rand.Int31n(max)
 		packed.appendSingle(data[i])
 	}
-	packed.flush()
-
 	return packed, data
 }
 

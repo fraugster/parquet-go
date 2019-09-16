@@ -169,21 +169,21 @@ func (c *Column) getNextData() (map[string]interface{}, int32, error) {
 	return ret, int32(c.maxD), nil
 }
 
-func (c *Column) getFirstDRLevel() (int32, int32, bool) {
+func (c *Column) getFirstRDLevel() (int32, int32, bool) {
 	if c.data != nil {
-		return c.data.getDRLevelAt(-1)
+		return c.data.getRDLevelAt(-1)
 	}
 
 	// there should be at lease 1 child, // TODO : add validation
 	for i := range c.children {
-		dl, rl, last := c.children[i].getFirstDRLevel()
+		rl, dl, last := c.children[i].getFirstRDLevel()
 		if last {
-			return dl, rl, last
+			return rl, dl, last
 		}
 
 		// if this value is not nil, dLevel less than this level is not interesting
 		if dl == int32(c.children[i].maxD) {
-			return dl, rl, last
+			return rl, dl, last
 		}
 	}
 
@@ -203,7 +203,7 @@ func (c *Column) getData() (interface{}, int32, error) {
 
 		ret := []map[string]interface{}{data}
 		for {
-			_, rl, last := c.getFirstDRLevel()
+			rl, _, last := c.getFirstRDLevel()
 			if last || rl < int32(c.maxR) || rl == 0 {
 				// end of this object
 				return ret, maxD, nil
@@ -222,10 +222,9 @@ func (c *Column) getData() (interface{}, int32, error) {
 }
 
 type schema struct {
-	root            *Column
-	numRecords      int64
-	readOnly        int
-	dataColumnCache []*Column
+	root       *Column
+	numRecords int64
+	readOnly   int
 }
 
 // TODO(f0rud): a hacky way to make sure the root is not nil (because of my wrong assumption of the root element) at the last minute. fix it
@@ -254,10 +253,6 @@ func (r *schema) getSchemaArray() []*parquet.SchemaElement {
 }
 
 func (r *schema) Columns() []*Column {
-	// every call to add data, may call this function (if the auto flush is on) so caching the column is a good idea
-	if r.readOnly != 0 && r.dataColumnCache != nil {
-		return r.dataColumnCache
-	}
 	var ret []*Column
 	var fn func([]*Column)
 
@@ -272,7 +267,6 @@ func (r *schema) Columns() []*Column {
 	}
 	r.ensureRoot()
 	fn(r.root.children)
-	r.dataColumnCache = ret
 	return ret
 }
 
@@ -291,7 +285,7 @@ func (r *schema) GetColumnByName(path string) *Column {
 func (r *schema) resetData() {
 	data := r.Columns()
 	for i := range data {
-		data[i].data.reset(data[i].data.repTyp, data[i].maxR, data[i].maxD)
+		data[i].data.reset(data[i].rep, data[i].maxR, data[i].maxD)
 	}
 
 	r.numRecords = 0
@@ -674,7 +668,6 @@ func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 		return 0, err
 	}
 	c.rep = *s.RepetitionType
-	data.repTyp = *s.RepetitionType
 	c.data = data
 	c.flatName = name + "." + s.Name
 	c.name = s.Name

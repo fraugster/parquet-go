@@ -1,6 +1,9 @@
 package goparquet
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type packedArray struct {
 	count int
@@ -14,24 +17,15 @@ type packedArray struct {
 	reader unpack8int32Func
 }
 
+// This function is only for test, since it flush at first, so be careful!!
 func (pa *packedArray) toArray() []int32 {
-	if pa.bufPos != 0 {
-		panic("not flushed")
-	}
-	ret := make([]int32, 0, pa.count)
-	l := len(pa.data)
-	cnt := pa.count
-	for i := 0; i < l; i += pa.bw {
-		a := pa.reader(pa.data[i : i+pa.bw])
-		for j := range a {
-			if cnt == 0 {
-				break
-			}
-			cnt--
-			ret = append(ret, a[j])
-		}
-	}
+	pa.flush()
+	defer pa.unFlush()
 
+	ret := make([]int32, pa.count)
+	for i := range ret {
+		ret[i], _ = pa.at(i)
+	}
 	return ret
 }
 
@@ -56,7 +50,20 @@ func (pa *packedArray) flush() {
 	pa.bufPos = 0
 }
 
+func (pa *packedArray) unFlush() {
+	if pa.bufPos != 0 {
+		return
+	}
+	pa.bufPos = pa.count % 8
+	if pa.bufPos == 0 {
+		return
+	}
+	pa.buf = pa.reader(pa.data[len(pa.data)-pa.bw:])
+	pa.data = pa.data[:len(pa.data)-pa.bw]
+}
+
 func (pa *packedArray) appendSingle(v int32) {
+	pa.unFlush()
 	if pa.bufPos == 8 {
 		pa.flush()
 	}
@@ -65,6 +72,7 @@ func (pa *packedArray) appendSingle(v int32) {
 	pa.count++
 }
 
+// TODO : cache the block
 func (pa *packedArray) at(pos int) (int32, error) {
 	if pos < 0 || pos >= pa.count {
 		return 0, errors.New("out of range")
@@ -72,8 +80,13 @@ func (pa *packedArray) at(pos int) (int32, error) {
 	if pa.bw == 0 {
 		return 0, nil
 	}
+
 	block := (pos / 8) * pa.bw
 	idx := pos % 8
+
+	if block >= len(pa.data) {
+		return pa.buf[idx], nil
+	}
 
 	buf := pa.reader(pa.data[block : block+pa.bw])
 	return buf[idx], nil
@@ -81,42 +94,17 @@ func (pa *packedArray) at(pos int) (int32, error) {
 
 func (pa *packedArray) appendArray(other *packedArray) {
 	if pa.bw != other.bw {
-		panic("can not append array with different bit width")
+		panic(fmt.Sprintf("can not append array with different bit width : %d and %d", pa.bw, other.bw))
 	}
 
-	if pa.bufPos != 0 || other.bufPos != 0 {
-		panic("both array should be flushed")
+	if cap(pa.data) < len(pa.data)+len(other.data)+1 {
+		data := make([]byte, len(pa.data), len(pa.data)+len(other.data)+1)
+		copy(data, pa.data)
+		pa.data = data
 	}
 
-	pa.bufPos = pa.count % 8
-	if pa.bufPos != 0 {
-		l := len(pa.data)
-		pa.buf = pa.reader(pa.data[l-pa.bw:])
-		pa.data = pa.data[:l-pa.bw]
+	for i := 0; i < other.count; i++ {
+		v, _ := other.at(i)
+		pa.appendSingle(v)
 	}
-	// Good
-	if pa.bufPos == 0 {
-		pa.data = append(pa.data, other.data...)
-		pa.count += other.count
-		return
-	}
-	// Bad
-	l := len(other.data)
-	if l%pa.bw != 0 {
-		panic("invalid array")
-	}
-	cnt := other.count
-
-	for i := 0; i < l; i += pa.bw {
-		pack := pa.reader(other.data[i : i+pa.bw])
-		for i := range pack {
-			if cnt == 0 {
-				break
-			}
-			cnt--
-			pa.appendSingle(pack[i])
-		}
-	}
-
-	pa.flush()
 }
