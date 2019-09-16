@@ -296,15 +296,6 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 		count:  0,
 	}
 
-	dDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
-		if enc != parquet.Encoding_RLE {
-			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
-		}
-		dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
-		dec.buffered = true
-		return &levelDecoderWrapper{decoder: dec, max: col.MaxDefinitionLevel()}, nil
-	}
-
 	rDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
 		if enc != parquet.Encoding_RLE {
 			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
@@ -314,15 +305,24 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 		return &levelDecoderWrapper{decoder: dec, max: col.MaxRepetitionLevel()}, nil
 	}
 
+	dDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
+		if enc != parquet.Encoding_RLE {
+			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+		}
+		dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
+		dec.buffered = true
+		return &levelDecoderWrapper{decoder: dec, max: col.MaxDefinitionLevel()}, nil
+	}
+
 	if col.MaxRepetitionLevel() == 0 {
 		rDecoder = func(parquet.Encoding) (levelDecoder, error) {
-			return &levelDecoderWrapper{decoder: constDecoder(int32(col.MaxDefinitionLevel())), max: col.MaxDefinitionLevel()}, nil
+			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxRepetitionLevel()}, nil
 		}
 	}
 
 	if col.MaxDefinitionLevel() == 0 {
 		dDecoder = func(parquet.Encoding) (levelDecoder, error) {
-			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxRepetitionLevel()}, nil
+			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxDefinitionLevel()}, nil
 		}
 	}
 	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
