@@ -23,9 +23,6 @@ type packedArray struct {
 
 // This function is only for test, since it flush at first, so be careful!!
 func (pa *packedArray) toArray() []int32 {
-	pa.flush()
-	defer pa.unFlush()
-
 	ret := make([]int32, pa.count)
 	for i := range ret {
 		ret[i], _ = pa.at(i)
@@ -54,20 +51,7 @@ func (pa *packedArray) flush() {
 	pa.bufPos = 0
 }
 
-func (pa *packedArray) unFlush() {
-	if pa.bufPos != 0 {
-		return
-	}
-	pa.bufPos = pa.count % 8
-	if pa.bufPos == 0 {
-		return
-	}
-	pa.buf = pa.reader(pa.data[len(pa.data)-pa.bw:])
-	pa.data = pa.data[:len(pa.data)-pa.bw]
-}
-
 func (pa *packedArray) appendSingle(v int32) {
-	pa.unFlush()
 	if pa.bufPos == 8 {
 		pa.flush()
 	}
