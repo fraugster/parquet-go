@@ -143,14 +143,14 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	dataBuf := &bytes.Buffer{}
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevels(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
 			return 0, 0, err
 		}
 	}
 
 	// Only write definition value higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevels(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}

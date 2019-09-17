@@ -277,12 +277,26 @@ func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
 	return enc.Close()
 }
 
-func encodeLevels(w io.Writer, max uint16, values *packedArray) error {
+// In PageV1 the rle stream for rep/def level has the size in stream , but in V2 the size is inside the header not the
+// stream
+func encodeLevelsV1(w io.Writer, max uint16, values *packedArray) error {
 	rle := newHybridEncoder(bits.Len16(max))
 	if err := rle.initSize(w); err != nil {
 		return errors.Wrap(err, "level writer initialize with size failed")
 	}
 	if err := rle.encodePacked(values); err != nil {
+		return errors.Wrap(err, "level writer encode values failed")
+	}
+
+	return errors.Wrap(rle.Close(), "level writer flush failed")
+}
+
+func encodeLevelsV2(w io.Writer, max uint16, values *packedArray) error {
+	rle := newHybridEncoder(bits.Len16(max))
+	if err := rle.init(w); err != nil {
+		return errors.Wrap(err, "level writer initialize with size failed")
+	}
+	if err := rle.encode2(values); err != nil {
 		return errors.Wrap(err, "level writer encode values failed")
 	}
 

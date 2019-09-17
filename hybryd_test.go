@@ -68,7 +68,7 @@ func TestOnlyOne(t *testing.T) {
 	}
 
 	buf := &bytes.Buffer{}
-	require.NoError(t, encodeLevels(buf, 1, data))
+	require.NoError(t, encodeLevelsV1(buf, 1, data))
 	read := make([]int32, 1000)
 	dec := newHybridDecoder(1)
 	require.NoError(t, dec.initSize(bytes.NewReader(buf.Bytes())))

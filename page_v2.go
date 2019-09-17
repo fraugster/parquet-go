@@ -109,13 +109,13 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		}
 
 		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-			if err := dp.rDecoder.initSize(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
+			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
 				return errors.Wrapf(err, "read repetition level failed")
 			}
 		}
 
 		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-			if err := dp.dDecoder.initSize(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
+			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
 				return errors.Wrapf(err, "read definition level failed")
 			}
 		}
@@ -170,7 +170,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevels(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV2(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -179,7 +179,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 
 	// Only write definition level higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevels(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV2(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
