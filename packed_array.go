@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+// packedArray is a bitmap encoded array mainly for repetition and definition levels. theses two values normally are too small
+// to use a real []uint16 array for them (with 1M stored value, using the array of uint16 means 2M bytes for rep, and 2M bytes for
+// dep, and if we have max level 2 for both with packedArray the usage is around 250K bytes (each)
+// TODO: use this on the boolean storage
 type packedArray struct {
 	count int
 	bw    int

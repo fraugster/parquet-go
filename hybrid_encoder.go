@@ -87,8 +87,7 @@ func (he *hybridEncoder) encode(data []int32) error {
 	return nil
 }
 
-// TODO: this is the final function, remove the encode
-func (he *hybridEncoder) encode2(data *packedArray) error {
+func (he *hybridEncoder) encodePacked(data *packedArray) error {
 	he.data.appendArray(data)
 
 	return nil
