@@ -61,9 +61,10 @@ func TestHybrid(t *testing.T) {
 }
 
 func TestOnlyOne(t *testing.T) {
-	data := make([]int32, 1000)
-	for i := range data {
-		data[i] = 1
+	data := &packedArray{}
+	data.reset(1)
+	for i := int32(0); i < 1000; i++ {
+		data.appendSingle(i)
 	}
 
 	buf := &bytes.Buffer{}
@@ -72,5 +73,5 @@ func TestOnlyOne(t *testing.T) {
 	dec := newHybridDecoder(1)
 	require.NoError(t, dec.initSize(bytes.NewReader(buf.Bytes())))
 	require.NoError(t, decodeInt32(dec, read))
-	require.Equal(t, data, read)
+	require.Equal(t, data.toArray(), read)
 }
