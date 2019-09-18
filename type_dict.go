@@ -157,7 +157,6 @@ func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 
 }
 
-// TODO: Implement fallback
 type dictEncoder struct {
 	w io.Writer
 	dictStore
