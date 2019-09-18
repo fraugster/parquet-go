@@ -4,9 +4,10 @@ import (
 	"io"
 
 	"github.com/pkg/errors"
-
 	"github.com/fraugster/parquet-go/parquet"
 )
+
+// TODO: rewrite using packed array
 
 type booleanPlainDecoder struct {
 	r    io.Reader
@@ -71,58 +72,31 @@ func (b *booleanPlainDecoder) decodeValues(dst []interface{}) (int, error) {
 
 type booleanPlainEncoder struct {
 	w    io.Writer
-	left []interface{}
+	data *packedArray
 }
 
 func (b *booleanPlainEncoder) Close() error {
-	if len(b.left) == 0 {
-		return nil
-	}
-	data := make([]interface{}, 0, 8)
-	data = append(data, b.left...)
-	b.left = nil
-	for len(data)%8 != 0 {
-		data = append(data, false)
-	}
-
-	return b.encodeValues(data)
+	b.data.flush()
+	return writeFull(b.w, b.data.data)
 }
 
 func (b *booleanPlainEncoder) init(w io.Writer) error {
 	b.w = w
-	b.left = nil
+	b.data = &packedArray{}
+	b.data.reset(1)
 	return nil
 }
 
 func (b *booleanPlainEncoder) encodeValues(values []interface{}) error {
-	if len(b.left) > 0 {
-		values = append(b.left, values...)
-	}
-	lf := len(values)
-	l := lf % 8
-
-	buf := make([]byte, 0, lf/8+1)
-	for i := 0; i < lf-l; i += 8 {
-		var i8 [8]int32
-		for j := 0; j < 8; j++ {
-			if values[i+j].(bool) {
-				i8[j] = 1
-			}
+	for i := range values {
+		var v int32
+		if values[i].(bool) {
+			v = 1
 		}
-		buf = append(buf, pack8int32_1(i8)...)
+		b.data.appendSingle(v)
 	}
 
-	if l > 0 {
-		b.left = make([]interface{}, l)
-		for i := lf - l; i < lf; i++ {
-			b.left[i-lf+l] = values[i]
-		}
-	}
-
-	if len(buf) == 0 {
-		return nil
-	}
-	return writeFull(b.w, buf)
+	return nil
 }
 
 type booleanRLEDecoder struct {

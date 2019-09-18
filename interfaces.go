@@ -11,7 +11,7 @@ type pageReader interface {
 	init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error
 	read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
 
-	readValues([]interface{}) (n int, dLevel []int32, rLevel []int32, err error)
+	readValues([]interface{}) (n int, dLevel *packedArray, rLevel *packedArray, err error)
 
 	numValues() int32
 }

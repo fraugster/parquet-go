@@ -173,7 +173,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 	root := r.SchemaReader.(*schema).root
 	for i := range data {
 		_, ok := data[i]["foo"]
-		dL, rL, b := root.getFirstDRLevel()
+		rL, dL, b := root.getFirstRDLevel()
 		if ok {
 			assert.False(t, b)
 			assert.Equal(t, int32(0), rL)

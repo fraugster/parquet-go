@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"encoding/binary"
+	"hash/fnv"
 	"io"
 	"math"
 	"math/bits"
@@ -9,6 +10,10 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 )
+
+// DefaultHashFunc is used to handle duplicate values, the result can not be an slice and the library use it as a map key.
+// default is fnv hash in std lib
+var DefaultHashFunc = fnvHashFunc
 
 type byteReader struct {
 	io.Reader
@@ -145,6 +150,24 @@ func decodeInt32(d decoder, data []int32) error {
 	return nil
 }
 
+func decodePackedArray(d levelDecoder, count int) (*packedArray, int, error) {
+	ret := &packedArray{}
+	ret.reset(bits.Len16(d.maxLevel()))
+	nn := 0 // Counting not nulls only good for dLevels
+	for i := 0; i < count; i++ {
+		u, err := d.next()
+		if err != nil {
+			return nil, 0, err
+		}
+		ret.appendSingle(u)
+		if u == int32(d.maxLevel()) {
+			nn++
+		}
+	}
+
+	return ret, nn, nil
+}
+
 func readUVariant32(r io.Reader) (int32, error) {
 	b, ok := r.(io.ByteReader)
 	if !ok {
@@ -254,30 +277,39 @@ func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
 	return enc.Close()
 }
 
-func encodeLevels(w io.Writer, max uint16, values []int32) error {
+func encodeLevels(w io.Writer, max uint16, values *packedArray) error {
 	rle := newHybridEncoder(bits.Len16(max))
 	if err := rle.initSize(w); err != nil {
 		return errors.Wrap(err, "level writer initialize with size failed")
 	}
-	if err := rle.encode(values); err != nil {
+	if err := rle.encodePacked(values); err != nil {
 		return errors.Wrap(err, "level writer encode values failed")
 	}
 
 	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
+// TODO: the type cast of []byte to string is very expensive in this function, use some sort of hashing.
 func mapKey(a interface{}) interface{} {
 	switch a.(type) {
 	case int, int32, int64, string, bool, float64, float32:
 		return a
 	case []byte:
-		return string(a.([]byte))
+		return DefaultHashFunc(a.([]byte))
 	case Int96:
 		i := a.(Int96)
-		return string(i[:])
+		return DefaultHashFunc(i[:])
 	default:
 		panic("not supported type")
 	}
+}
+
+func fnvHashFunc(in []byte) interface{} {
+	hash := fnv.New64()
+	if err := writeFull(hash, in); err != nil {
+		panic(err)
+	}
+	return hash.Sum64()
 }
 
 type writePos interface {
