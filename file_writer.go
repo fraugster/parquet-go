@@ -164,10 +164,14 @@ func (fw *FileWriter) Close() error {
 
 	kv := make([]*parquet.KeyValue, 0, len(fw.kvStore))
 	for i := range fw.kvStore {
-		v := fw.kvStore[i] // TODO: nil value support
+		v := fw.kvStore[i]
+		addr := &v
+		if v == "" {
+			addr = nil
+		}
 		kv = append(kv, &parquet.KeyValue{
 			Key:   i,
-			Value: &v,
+			Value: addr,
 		})
 	}
 	meta := &parquet.FileMetaData{

@@ -247,7 +247,6 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 }
 
 // NewBooleanStore create new boolean store
-// TODO: is it make sense to use dictionary on boolean? its RLE encoded 1 bit per one value.
 func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:

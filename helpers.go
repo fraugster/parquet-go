@@ -303,7 +303,6 @@ func encodeLevelsV2(w io.Writer, max uint16, values *packedArray) error {
 	return errors.Wrap(rle.Close(), "level writer flush failed")
 }
 
-// TODO: the type cast of []byte to string is very expensive in this function, use some sort of hashing.
 func mapKey(a interface{}) interface{} {
 	switch a.(type) {
 	case int, int32, int64, string, bool, float64, float32:

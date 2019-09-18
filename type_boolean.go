@@ -161,7 +161,7 @@ func (b *booleanStore) params() *ColumnParameters {
 
 func (b *booleanStore) sizeOf(v interface{}) int {
 	// Cheating here. boolean size is one bit, but the size is in byte. so zero to make sure
-	// we never use dictionary on this. // TODO: is this make sense?
+	// we never use dictionary on this.
 	return 0
 }
 
