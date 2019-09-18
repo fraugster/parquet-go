@@ -123,7 +123,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 
 // getRDLevelAt return the next rLevel in the read position, if there is no value left, it returns true
 // if the position is less than zero, then it returns the current position
-// NOTE: make sure always r is before d, in ay function
+// NOTE: make sure always r is before d, in any function
 func (cs *ColumnStore) getRDLevelAt(pos int) (int32, int32, bool) {
 	if pos < 0 {
 		pos = cs.readPos

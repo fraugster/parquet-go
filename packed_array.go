@@ -5,10 +5,12 @@ import (
 	"fmt"
 )
 
-// packedArray is a bitmap encoded array mainly for repetition and definition levels. theses two values normally are too small
-// to use a real []uint16 array for them (with 1M stored value, using the array of uint16 means 2M bytes for rep, and 2M bytes for
-// dep, and if we have max level 2 for both with packedArray the usage is around 250K bytes (each)
-// TODO: use this on the boolean storage
+// packedArray is a bitmap encoded array mainly for repetition and definition
+// levels, which normally have low values (~<10), a []uint16 array is not the
+// most memory efficient structure due to the large number of values. Memory
+// storage requirements for the packed array are ~1/8th compared to
+// []uint16 array.
+//TODO: use this on the boolean storage
 type packedArray struct {
 	count int
 	bw    int
@@ -21,7 +23,7 @@ type packedArray struct {
 	reader unpack8int32Func
 }
 
-// This function is only for test, since it flush at first, so be careful!!
+// This function is only for testing, as it flushes first, so be careful!
 func (pa *packedArray) toArray() []int32 {
 	ret := make([]int32, pa.count)
 	for i := range ret {
@@ -40,7 +42,6 @@ func (pa *packedArray) reset(bw int) {
 	pa.data = pa.data[:0]
 	pa.writer = pack8Int32FuncByWidth[bw]
 	pa.reader = unpack8Int32FuncByWidth[bw]
-
 }
 
 func (pa *packedArray) flush() {
@@ -82,7 +83,7 @@ func (pa *packedArray) at(pos int) (int32, error) {
 
 func (pa *packedArray) appendArray(other *packedArray) {
 	if pa.bw != other.bw {
-		panic(fmt.Sprintf("can not append array with different bit width : %d and %d", pa.bw, other.bw))
+		panic(fmt.Sprintf("Can not append array with different bit width : %d and %d", pa.bw, other.bw))
 	}
 
 	if cap(pa.data) < len(pa.data)+len(other.data)+1 {
