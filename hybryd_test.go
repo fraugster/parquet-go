@@ -66,6 +66,7 @@ func TestOnlyOne(t *testing.T) {
 	for i := int32(0); i < 1000; i++ {
 		data.appendSingle(i)
 	}
+	data.flush()
 
 	buf := &bytes.Buffer{}
 	require.NoError(t, encodeLevelsV1(buf, 1, data))
