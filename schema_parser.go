@@ -428,7 +428,7 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			params.LogicalType = p.parseLogicalType()
+			params.LogicalType, params.ConvertedType = p.parseLogicalType()
 			p.next()
 		}
 
@@ -527,7 +527,7 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *Colum
 	return colStore
 }
 
-func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
+func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.ConvertedType) {
 	p.expect(itemLeftParen)
 	p.next()
 	p.expect(itemIdentifier)
@@ -535,12 +535,15 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 	typStr := p.token.val
 
 	lt := parquet.NewLogicalType()
+	var ct *parquet.ConvertedType
 
 	switch strings.ToUpper(typStr) {
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8)
 	case "DATE":
 		lt.DATE = parquet.NewDateType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_DATE)
 	case "TIMESTAMP":
 		lt.TIMESTAMP = parquet.NewTimestampType()
 		p.next()
@@ -553,8 +556,10 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		switch p.token.val {
 		case "MILLIS":
 			lt.TIMESTAMP.Unit.MILLIS = parquet.NewMilliSeconds()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_TIMESTAMP_MILLIS)
 		case "MICROS":
 			lt.TIMESTAMP.Unit.MICROS = parquet.NewMicroSeconds()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_TIMESTAMP_MICROS)
 		case "NANOS":
 			lt.TIMESTAMP.Unit.NANOS = parquet.NewNanoSeconds()
 		default:
@@ -588,8 +593,10 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		switch p.token.val {
 		case "MILLIS":
 			lt.TIME.Unit.MILLIS = parquet.NewMilliSeconds()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_TIME_MILLIS)
 		case "MICROS":
 			lt.TIME.Unit.MICROS = parquet.NewMicroSeconds()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_TIME_MICROS)
 		case "NANOS":
 			lt.TIME.Unit.NANOS = parquet.NewNanoSeconds()
 		default:
@@ -615,8 +622,10 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 		lt.UUID = parquet.NewUUIDType()
 	case "ENUM":
 		lt.ENUM = parquet.NewEnumType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_ENUM)
 	case "JSON":
 		lt.JSON = parquet.NewJsonType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_JSON)
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
@@ -624,7 +633,7 @@ func (p *schemaParser) parseLogicalType() *parquet.LogicalType {
 	p.next()
 	p.expect(itemRightParen)
 
-	return lt
+	return lt, ct
 }
 
 func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
