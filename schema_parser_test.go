@@ -3,6 +3,10 @@ package goparquet
 import (
 	"testing"
 
+	"github.com/fraugster/parquet-go/parquet"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
@@ -288,4 +292,19 @@ func TestLineNumber(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.Contains(t, err.Error(), "line 13:")
+}
+
+func TestBuildSchema(t *testing.T) {
+	schema := `message foo {
+			required binary xxx (STRING);
+		}`
+	s, err := ParseSchemaDefinition(schema)
+	assert.NoError(t, err)
+
+	arr := s.col.getSchemaArray()
+	require.Len(t, arr, 2)
+
+	assert.NotNil(t, arr[1].LogicalType.STRING)
+	require.NotNil(t, arr[1].ConvertedType)
+	assert.Equal(t, parquet.ConvertedType_UTF8, *arr[1].ConvertedType)
 }

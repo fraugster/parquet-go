@@ -360,7 +360,6 @@ func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGr
 	schema.setNumRecords(rowGroups.NumRows)
 	for _, c := range dataCols {
 		chunk := rowGroups.Columns[c.Index()]
-		// TODO : Safe cast
 		pages, err := readChunk(r, c, chunk)
 		if err != nil {
 			return err

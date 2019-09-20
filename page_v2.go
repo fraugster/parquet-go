@@ -71,9 +71,8 @@ func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getV
 }
 
 func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
-	// TODO: verify this format, there is some question
-	// 1- Uncompressed size is affected by the level lens?
-	// 2- If the levels are actually rle and the first byte is the size, since there is already size in header (NO)
+	// 1- Uncompressed size is affected by the level lens.
+	// 2- In page V2 the rle size is in header, not in level stream
 	if ph.DataPageHeaderV2 == nil {
 		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
 	}

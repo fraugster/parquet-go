@@ -183,7 +183,6 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
-	// TODO: support more data page version? or just latest?
 	var (
 		dictPageOffset *int64
 		useDict        bool
