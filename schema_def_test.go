@@ -36,7 +36,7 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 
 	w := NewFileWriter(buf)
 
-	w.AddColumn("foo", NewDataColumn(
+	require.NoError(t, w.AddColumn("foo", NewDataColumn(
 		mustColumnStore(
 			NewInt64Store(
 				parquet.Encoding_PLAIN,
@@ -45,8 +45,8 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 			),
 		),
 		parquet.FieldRepetitionType_REQUIRED,
-	))
-	w.AddColumn("bar", mustColumn(
+	)))
+	require.NoError(t, w.AddColumn("bar", mustColumn(
 		NewListColumn(
 			NewDataColumn(
 				mustColumnStore(
@@ -60,8 +60,8 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 			),
 			parquet.FieldRepetitionType_OPTIONAL,
 		),
-	))
-	w.AddColumn("baz", NewDataColumn(
+	)))
+	require.NoError(t, w.AddColumn("baz", NewDataColumn(
 		mustColumnStore(
 			NewByteArrayStore(
 				parquet.Encoding_PLAIN,
@@ -75,8 +75,8 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 			),
 		),
 		parquet.FieldRepetitionType_REQUIRED,
-	))
-	w.AddColumn("quux", mustColumn(
+	)))
+	require.NoError(t, w.AddColumn("quux", mustColumn(
 		NewMapColumn(
 			NewDataColumn(
 				mustColumnStore(
@@ -109,7 +109,7 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 			),
 			parquet.FieldRepetitionType_REQUIRED,
 		),
-	))
+	)))
 
 	expectedSchema :=
 		`message msg {

@@ -111,6 +111,13 @@ func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
 	return nil
 }
 
+// Children is used for iterate over children of this definition.
+func (sd *SchemaDefinition) Children(iter func(column Column)) {
+	for i := range sd.col.children {
+		iter(*sd.col.children[i])
+	}
+}
+
 // SchemaElement returns the schema element associated with the current
 // schema definition. If no schema element is present, then nil is returned.
 func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {

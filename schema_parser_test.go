@@ -304,6 +304,8 @@ func TestBuildSchema(t *testing.T) {
 	arr := s.col.getSchemaArray()
 	require.Len(t, arr, 2)
 
+	assert.Nil(t, s.col.Type()) // the first one is the group
+	assert.Equal(t, parquet.Type_BYTE_ARRAY, *s.col.children[0].Type())
 	assert.NotNil(t, arr[1].LogicalType.STRING)
 	require.NotNil(t, arr[1].ConvertedType)
 	assert.Equal(t, parquet.ConvertedType_UTF8, *arr[1].ConvertedType)
