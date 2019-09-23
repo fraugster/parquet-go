@@ -58,26 +58,32 @@ func (c *Column) getSchemaArray() []*parquet.SchemaElement {
 	return ret
 }
 
+// MaxDefinitionLevel returns the maximum definition level for this column
 func (c *Column) MaxDefinitionLevel() uint16 {
 	return c.maxD
 }
 
+// MaxRepetitionLevel returns the maximum repetition value for this column
 func (c *Column) MaxRepetitionLevel() uint16 {
 	return c.maxR
 }
 
+// FlatName returns the name of the column and its parents separated with dot
 func (c *Column) FlatName() string {
 	return c.flatName
 }
 
+// Name return the column name
 func (c *Column) Name() string {
 	return c.name
 }
 
+// Index return the index of the column in schema, zero based
 func (c *Column) Index() int {
 	return c.index
 }
 
+// Element returns the thrift parquet element
 func (c *Column) Element() *parquet.SchemaElement {
 	if c.element == nil {
 		// If this is a no-element node, we need to re-create element every time to make sure the content is always up-to-date
@@ -85,6 +91,16 @@ func (c *Column) Element() *parquet.SchemaElement {
 		return c.buildElement()
 	}
 	return c.element
+}
+
+// Type returns the parquet type of the value, if this is a group, then it returns nil
+// also it returns the basic parquet types, not the logical and converted type
+func (c *Column) Type() *parquet.Type {
+	if c.data == nil {
+		return nil
+	}
+
+	return parquet.TypePtr(c.data.parquetType())
 }
 
 func (c *Column) getColumnStore() *ColumnStore {
@@ -105,8 +121,7 @@ func (c *Column) buildElement() *parquet.SchemaElement {
 	}
 
 	if c.data != nil {
-		t := c.data.parquetType()
-		elem.Type = &t
+		elem.Type = parquet.TypePtr(c.data.parquetType())
 		elem.TypeLength = c.params.TypeLength
 		elem.Scale = c.params.Scale
 		elem.Precision = c.params.Precision
