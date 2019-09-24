@@ -618,6 +618,46 @@ func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.Conver
 
 		p.next()
 		p.expect(itemRightParen)
+	case "INT":
+		lt.INTEGER = parquet.NewIntType()
+		p.next()
+		p.expect(itemLeftParen)
+
+		p.next()
+		p.expect(itemNumber)
+
+		bitWidth, _ := strconv.ParseInt(p.token.val, 10, 64)
+		if bitWidth != 8 && bitWidth != 16 && bitWidth != 32 && bitWidth != 64 {
+			p.errorf("INT: unsupported bitwidth %d", bitWidth)
+		}
+
+		lt.INTEGER.BitWidth = int8(bitWidth)
+
+		p.next()
+		p.expect(itemComma)
+
+		p.next()
+		p.expect(itemIdentifier)
+		switch p.token.val {
+		case "true", "false":
+			lt.INTEGER.IsSigned, _ = strconv.ParseBool(p.token.val)
+		default:
+			p.errorf("invalid isSigned annotation %q for INT", p.token.val)
+		}
+
+		p.next()
+		p.expect(itemRightParen)
+
+		convertedTypeStr := fmt.Sprintf("INT_%d", bitWidth)
+		if !lt.INTEGER.IsSigned {
+			convertedTypeStr = "U" + convertedTypeStr
+		}
+
+		convertedType, err := parquet.ConvertedTypeFromString(convertedTypeStr)
+		if err != nil {
+			p.errorf("couldn't convert INT(%d, %t) annotation to converted type %s: %v", bitWidth, lt.INTEGER.IsSigned, convertedTypeStr, err)
+		}
+		ct = parquet.ConvertedTypePtr(convertedType)
 	case "UUID":
 		lt.UUID = parquet.NewUUIDType()
 	case "ENUM":
@@ -783,6 +823,21 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetJSON():
 			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
 				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetINTEGER():
+			bitWidth := col.element.LogicalType.INTEGER.BitWidth
+			isSigned := col.element.LogicalType.INTEGER.IsSigned
+			switch bitWidth {
+			case 8, 16, 32:
+				if col.element.GetType() != parquet.Type_INT32 {
+					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.element.Name, bitWidth, isSigned, col.element.GetType().String())
+				}
+			case 64:
+				if col.element.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.element.Name, bitWidth, isSigned, col.element.GetType().String())
+				}
+			default:
+				p.errorf("invalid bitWidth %d", bitWidth)
 			}
 		}
 	}
