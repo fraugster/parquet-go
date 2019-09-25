@@ -41,7 +41,14 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 			NewInt64Store(
 				parquet.Encoding_PLAIN,
 				true,
-				&ColumnParameters{},
+				&ColumnParameters{
+					LogicalType: &parquet.LogicalType{
+						INTEGER: &parquet.IntType{
+							BitWidth: 64,
+							IsSigned: true,
+						},
+					},
+				},
 			),
 		),
 		parquet.FieldRepetitionType_REQUIRED,
@@ -113,7 +120,7 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 
 	expectedSchema :=
 		`message msg {
-  required int64 foo;
+  required int64 foo (INT(64, true));
   optional group bar (LIST) {
     repeated group list {
       optional int32 element;

@@ -255,6 +255,31 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required int64 ts (TIME(MICROS, bloob));
 		}`, true}, // invalid boolean bloob
+		{`message foo {
+			required int32 foo (INT(8, true));
+		}`, false},
+		{`message foo {
+			required int32 foo (INT(16, false));
+		}`, false},
+		{`message foo {
+			required int32 foo (INT(32, true));
+		}`, false},
+		{`message foo {
+			required int64 foo (INT(64, true));
+		}`, false},
+		// 60.
+		{`message foo {
+			required int32 foo (INT(64, true));
+		}`, true}, // int32 can't be annotated as INT(64, true)
+		{`message foo {
+			required int64 foo (INT(32, true));
+		}`, true}, // int64 can't be annotated as INT(32, true)
+		{`message foo {
+			required int32 foo (INT(28, true));
+		}`, true}, // invalid bitwidth
+		{`message foo {
+			required int32 foo (INT(32, foobar));
+		}`, true}, // invalid isSigned
 	}
 
 	for idx, tt := range testData {
