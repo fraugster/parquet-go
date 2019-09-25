@@ -71,43 +71,35 @@ func TestObjectUnmarshalling(t *testing.T) {
 		},
 	})
 
-	elem, err := obj.GetField("foo")
-	require.NoError(t, err, "getting foo failed")
-	i64, err := elem.Int64()
+	i64, err := obj.GetField("foo").Int64()
 	require.NoError(t, err, "getting foo as int64 failed")
 	require.Equal(t, int64(23), i64)
 
-	elem, err = obj.GetField("bar")
-	require.NoError(t, err, "getting bar failed")
+	elem := obj.GetField("bar")
 	i32, err := elem.Int32()
 	require.NoError(t, err, "getting bar as int32 failed")
 	require.Equal(t, int32(42), i32)
 
-	elem, err = obj.GetField("baz")
-	require.NoError(t, err, "getting baz failed")
+	elem = obj.GetField("baz")
 	b, err := elem.Bool()
 	require.NoError(t, err, "getting baz as bool failed")
 	require.Equal(t, true, b)
 
-	elem, err = obj.GetField("my_group")
-	require.NoError(t, err, "getting my_group failed")
+	elem = obj.GetField("my_group")
 	myGroup, err := elem.Group()
 	require.NoError(t, err, "getting my_group as group failed")
 
-	elem, err = myGroup.GetField("foo1")
-	require.NoError(t, err, "getting my_group.foo1 failed")
+	elem = myGroup.GetField("foo1")
 	f32, err := elem.Float32()
 	require.NoError(t, err, "getting my_group.foo1 as float32 failed")
 	require.Equal(t, float32(23.5), f32)
 
-	elem, err = myGroup.GetField("bar1")
-	require.NoError(t, err, "getting my_group.bar1 failed")
+	elem = myGroup.GetField("bar1")
 	f64, err := elem.Float64()
 	require.NoError(t, err, "getting my_group.bar1 as float64 failed")
 	require.Equal(t, float64(9000.5), f64)
 
-	elem, err = obj.GetField("id_list")
-	require.NoError(t, err, "getting id_list failed")
+	elem = obj.GetField("id_list")
 	idList, err := elem.List()
 	require.NoError(t, err, "getting id_list as list failed")
 
@@ -123,8 +115,7 @@ func TestObjectUnmarshalling(t *testing.T) {
 
 	require.Equal(t, []int64{1, 2, 15, 28, 32}, i64List, "list id_list values don't match")
 
-	elem, err = obj.GetField("data_map")
-	require.NoError(t, err, "getting data_map failed")
+	elem = obj.GetField("data_map")
 	dataMap, err := elem.Map()
 	require.NoError(t, err, "getting data_map as map failed")
 
@@ -172,11 +163,10 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 		},
 	})
 
-	_, err := obj.GetField("does_not_exist")
+	err := obj.GetField("does_not_exist").Error()
 	require.Error(t, err)
 
-	elem, err := obj.GetField("foo")
-	require.NoError(t, err)
+	elem := obj.GetField("foo")
 	_, err = elem.Bool()
 	require.Error(t, err)
 	_, err = elem.ByteArray()
@@ -194,24 +184,21 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	_, err = elem.Map()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("bar")
-	require.NoError(t, err)
+	elem = obj.GetField("bar")
 	_, err = elem.Int64()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("invalid_list")
-	require.NoError(t, err)
+	elem = obj.GetField("invalid_list")
 	_, err = elem.List()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("invalid_list_2")
-	require.NoError(t, err)
+	elem = obj.GetField("invalid_list_2")
 	_, err = elem.List()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("invalid_list_element")
-	require.NoError(t, err)
+	elem = obj.GetField("invalid_list_element")
 	list, err := elem.List()
+	require.NoError(t, err)
 
 	for list.Next() {
 		_, err2 := list.Value()
@@ -221,18 +208,15 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	_, err = list.Value()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("invalid_map")
-	require.NoError(t, err)
+	elem = obj.GetField("invalid_map")
 	_, err = elem.Map()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("invalid_map_2")
-	require.NoError(t, err)
+	elem = obj.GetField("invalid_map_2")
 	_, err = elem.Map()
 	require.Error(t, err)
 
-	elem, err = obj.GetField("data_map_no_keyvalues")
-	require.NoError(t, err)
+	elem = obj.GetField("data_map_no_keyvalues")
 	dataMap, err := elem.Map()
 	require.NoError(t, err)
 

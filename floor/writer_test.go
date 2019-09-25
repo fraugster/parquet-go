@@ -556,8 +556,8 @@ func (r *marshTestRecord) MarshalParquet(obj MarshalObject) error {
 }
 
 func (r *marshTestRecord) UnmarshalParquet(obj UnmarshalObject) error {
-	foo, err := obj.GetField("foo")
-	if err != nil {
+	foo := obj.GetField("foo")
+	if err := foo.Error(); err != nil {
 		return err
 	}
 
@@ -568,8 +568,8 @@ func (r *marshTestRecord) UnmarshalParquet(obj UnmarshalObject) error {
 
 	r.foo = string(fooValue)
 
-	bar, err := obj.GetField("bar")
-	if err != nil {
+	bar := obj.GetField("bar")
+	if err = bar.Error(); err != nil {
 		return err
 	}
 

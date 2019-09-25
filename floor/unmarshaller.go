@@ -5,6 +5,11 @@ import (
 	"fmt"
 )
 
+var (
+	// ErrFieldNotPresent indicate the field is not available in the result
+	ErrFieldNotPresent = errors.New("filed is not present")
+)
+
 // Unmarshaller is the interface necessary for objects to
 // be unmarshalled.
 type Unmarshaller interface {
@@ -14,7 +19,7 @@ type Unmarshaller interface {
 // UnmarshalObject is the interface an Unmarshaller needs to unmarshal its data
 // from.
 type UnmarshalObject interface {
-	GetField(field string) (UnmarshalElement, error)
+	GetField(field string) UnmarshalElement
 }
 
 // UnmarshalElement describes the interface to get the value of an element in an Unmarshaller
@@ -29,6 +34,7 @@ type UnmarshalElement interface {
 	ByteArray() ([]byte, error)
 	List() (UnmarshalList, error)
 	Map() (UnmarshalMap, error)
+	Error() error
 }
 
 // UnmarshalList describes the interface to get the values of a list in an Unmarshaller
@@ -46,17 +52,64 @@ type UnmarshalMap interface {
 	Value() (UnmarshalElement, error)
 }
 
-func (o *object) GetField(field string) (UnmarshalElement, error) {
+type unmarshalErr struct {
+}
+
+func (u unmarshalErr) Error() error {
+	return ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Group() (UnmarshalObject, error) {
+	return nil, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Int32() (int32, error) {
+	return 0, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Int64() (int64, error) {
+	return 0, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Float32() (float32, error) {
+	return 0, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Float64() (float64, error) {
+	return 0, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Bool() (bool, error) {
+	return false, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) ByteArray() ([]byte, error) {
+	return nil, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) List() (UnmarshalList, error) {
+	return nil, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Map() (UnmarshalMap, error) {
+	return nil, ErrFieldNotPresent
+}
+
+func (o *object) GetField(field string) UnmarshalElement {
 	fieldData, ok := o.data[field]
 	if !ok {
-		return nil, fmt.Errorf("field %q not found", field)
+		return &unmarshalErr{}
 	}
 
-	return &unmarshElem{data: fieldData}, nil
+	return &unmarshElem{data: fieldData}
 }
 
 type unmarshElem struct {
 	data interface{}
+}
+
+func (e *unmarshElem) Error() error {
+	return nil
 }
 
 func (e *unmarshElem) Group() (UnmarshalObject, error) {
