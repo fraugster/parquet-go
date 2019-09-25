@@ -172,8 +172,8 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalO
 			continue
 		}
 
-		fieldData, err := record.GetField(fieldName)
-		if err != nil {
+		fieldData := record.GetField(fieldName)
+		if fieldData.Error() != nil {
 			if elem := fieldSchemaDef.SchemaElement(); elem.GetRepetitionType() == parquet.FieldRepetitionType_REQUIRED {
 				return fmt.Errorf("field %s is %s but couldn't be found in data", fieldName, elem.GetRepetitionType())
 			}
