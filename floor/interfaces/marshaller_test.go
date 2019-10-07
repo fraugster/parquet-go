@@ -1,4 +1,4 @@
-package floor
+package interfaces
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestObjectMarshalling(t *testing.T) {
-	obj := newObject()
+	obj := NewMarshallObject(nil)
 
 	obj.AddField("foo").SetInt64(23)
 	obj.AddField("bar").SetInt32(42)
@@ -101,5 +101,5 @@ func TestObjectMarshalling(t *testing.T) {
 		},
 	}
 
-	require.Equal(t, expectedData, obj.getData())
+	require.Equal(t, expectedData, obj.GetData())
 }
