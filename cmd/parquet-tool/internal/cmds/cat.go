@@ -22,7 +22,7 @@ var catCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := catFile(args[0], -1); err != nil {
+		if err := catFile(os.Stdout, args[0], -1); err != nil {
 			log.Fatal(err)
 		}
 	},

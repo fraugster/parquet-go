@@ -103,6 +103,25 @@ func (c *Column) Type() *parquet.Type {
 	return parquet.TypePtr(c.data.parquetType())
 }
 
+// RepetitionType returns the repetition type for the current column
+func (c *Column) RepetitionType() *parquet.FieldRepetitionType {
+	return &c.rep
+}
+
+// DataColumn indicates if the column is data column, otherwise it's a group
+func (c *Column) DataColumn() bool {
+	return c.data != nil
+}
+
+// ChildrenCount returns the number of children on a group, returns -1 on data column
+func (c *Column) ChildrenCount() int {
+	if c.data != nil {
+		return -1
+	}
+
+	return len(c.children)
+}
+
 func (c *Column) getColumnStore() *ColumnStore {
 	return c.data
 }
