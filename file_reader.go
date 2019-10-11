@@ -52,3 +52,8 @@ func (f *FileReader) ReadRowGroup() error {
 func (f *FileReader) RawGroupCount() int {
 	return len(f.meta.RowGroups)
 }
+
+// NumRows return the number of rows in the current file reader, based on parquet meta data without loading the row groups
+func (f *FileReader) NumRows() int64 {
+	return f.meta.NumRows
+}
