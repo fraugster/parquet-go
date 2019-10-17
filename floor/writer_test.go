@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fraugster/parquet-go/floor/interfaces"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -324,14 +326,14 @@ func TestDecodeStruct(t *testing.T) {
 	for idx, tt := range testData {
 		sd, err := goparquet.ParseSchemaDefinition(tt.Schema)
 		assert.NoError(t, err, "%d. parsing schema failed", idx)
-		obj := newObject()
+		obj := interfaces.NewMarshallObject(nil)
 		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
 		err = m.MarshalParquet(obj)
 		if tt.ExpectErr {
 			assert.Error(t, err, "%d. expected error, but found none", idx)
 		} else {
 			assert.NoError(t, err, "%d. expected no error, but found one", idx)
-			assert.Equal(t, tt.ExpectedOutput, obj.getData(), "%d. output mismatch", idx)
+			assert.Equal(t, tt.ExpectedOutput, obj.GetData(), "%d. output mismatch", idx)
 		}
 	}
 }
@@ -549,13 +551,13 @@ type marshTestRecord struct {
 	bar int64
 }
 
-func (r *marshTestRecord) MarshalParquet(obj MarshalObject) error {
+func (r *marshTestRecord) MarshalParquet(obj interfaces.MarshalObject) error {
 	obj.AddField("foo").SetByteArray([]byte(r.foo))
 	obj.AddField("bar").SetInt64(r.bar)
 	return nil
 }
 
-func (r *marshTestRecord) UnmarshalParquet(obj UnmarshalObject) error {
+func (r *marshTestRecord) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
 	foo := obj.GetField("foo")
 	if err := foo.Error(); err != nil {
 		return err

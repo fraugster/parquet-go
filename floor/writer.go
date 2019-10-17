@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/fraugster/parquet-go/floor/interfaces"
+
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -46,17 +48,17 @@ type Writer struct {
 // will be called to determine the data, otherwise reflection will be
 // used.
 func (w *Writer) Write(obj interface{}) error {
-	m, ok := obj.(Marshaller)
+	m, ok := obj.(interfaces.Marshaller)
 	if !ok {
 		m = &reflectMarshaller{obj: obj, schemaDef: w.w.GetSchemaDefinition()}
 	}
 
-	data := newObject()
+	data := interfaces.NewMarshallObject(nil)
 	if err := m.MarshalParquet(data); err != nil {
 		return err
 	}
 
-	if err := w.w.AddData(data.getData()); err != nil {
+	if err := w.w.AddData(data.GetData()); err != nil {
 		return err
 	}
 
@@ -68,11 +70,11 @@ type reflectMarshaller struct {
 	schemaDef *goparquet.SchemaDefinition
 }
 
-func (m *reflectMarshaller) MarshalParquet(record MarshalObject) error {
+func (m *reflectMarshaller) MarshalParquet(record interfaces.MarshalObject) error {
 	return m.marshal(record, reflect.ValueOf(m.obj), m.schemaDef)
 }
 
-func (m *reflectMarshaller) marshal(record MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) marshal(record interfaces.MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if err := m.decodeStruct(record, value, schemaDef); err != nil {
 		return err
 	}
@@ -80,7 +82,7 @@ func (m *reflectMarshaller) marshal(record MarshalObject, value reflect.Value, s
 	return nil
 }
 
-func (m *reflectMarshaller) decodeStruct(record MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeStruct(record interfaces.MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Type().Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return errors.New("object is nil")
@@ -113,7 +115,7 @@ func (m *reflectMarshaller) decodeStruct(record MarshalObject, value reflect.Val
 	return nil
 }
 
-func (m *reflectMarshaller) decodeValue(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil
@@ -206,7 +208,7 @@ func (m *reflectMarshaller) decodeValue(field MarshalElement, value reflect.Valu
 	}
 }
 
-func (m *reflectMarshaller) decodeByteSliceOrArray(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
@@ -230,7 +232,7 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field MarshalElement, value r
 	return nil
 }
 
-func (m *reflectMarshaller) decodeSliceOrArray(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
@@ -253,7 +255,7 @@ func (m *reflectMarshaller) decodeSliceOrArray(field MarshalElement, value refle
 	return nil
 }
 
-func (m *reflectMarshaller) decodeMap(field MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeMap(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
 	if value.IsNil() {
 		return nil
 	}

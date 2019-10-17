@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/fraugster/parquet-go/parquet"
-
 	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/floor/interfaces"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 // NewReader returns a new high-level parquet file reader.
@@ -125,12 +125,12 @@ func (r *Reader) init() {
 // a pointer to an object, or alternatively implement the
 // Unmarshaller interface.
 func (r *Reader) Scan(obj interface{}) error {
-	um, ok := obj.(Unmarshaller)
+	um, ok := obj.(interfaces.Unmarshaller)
 	if !ok {
 		um = &reflectUnmarshaller{obj: obj, schemaDef: r.r.GetSchemaDefinition()}
 	}
 
-	return um.UnmarshalParquet(newObjectWithData(r.data))
+	return um.UnmarshalParquet(interfaces.NewUnmarshallObject(r.data))
 }
 
 type reflectUnmarshaller struct {
@@ -138,7 +138,7 @@ type reflectUnmarshaller struct {
 	schemaDef *goparquet.SchemaDefinition
 }
 
-func (um *reflectUnmarshaller) UnmarshalParquet(record UnmarshalObject) error {
+func (um *reflectUnmarshaller) UnmarshalParquet(record interfaces.UnmarshalObject) error {
 	objValue := reflect.ValueOf(um.obj)
 
 	if objValue.Kind() != reflect.Ptr {
@@ -157,7 +157,7 @@ func (um *reflectUnmarshaller) UnmarshalParquet(record UnmarshalObject) error {
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalObject, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record interfaces.UnmarshalObject, schemaDef *goparquet.SchemaDefinition) error {
 	typ := value.Type()
 
 	numFields := typ.NumField()
@@ -188,7 +188,7 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record UnmarshalO
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillValue(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
@@ -322,7 +322,7 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data UnmarshalElem
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillMap(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
 		return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
 	}
@@ -365,7 +365,7 @@ func (um *reflectUnmarshaller) fillMap(value reflect.Value, data UnmarshalElemen
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	byteSlice, err := data.ByteArray()
 	if err != nil {
 		return err
@@ -382,7 +382,7 @@ func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data Un
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
 		return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
@@ -392,7 +392,7 @@ func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data Unmars
 		return err
 	}
 
-	elementList := []UnmarshalElement{}
+	elementList := []interfaces.UnmarshalElement{}
 
 	for elemList.Next() {
 		elemValue, err := elemList.Value()
@@ -421,7 +421,7 @@ func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data Unmars
 	return nil
 }
 
-func getIntValue(data UnmarshalElement) (int64, error) {
+func getIntValue(data interfaces.UnmarshalElement) (int64, error) {
 	i32, err := data.Int32()
 	if err == nil {
 		return int64(i32), nil
@@ -434,7 +434,7 @@ func getIntValue(data UnmarshalElement) (int64, error) {
 	return 0, err
 }
 
-func getFloatValue(data UnmarshalElement) (float64, error) {
+func getFloatValue(data interfaces.UnmarshalElement) (float64, error) {
 	f32, err := data.Float32()
 	if err == nil {
 		return float64(f32), nil

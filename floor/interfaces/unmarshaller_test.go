@@ -1,4 +1,4 @@
-package floor
+package interfaces
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestObjectUnmarshalling(t *testing.T) {
-	obj := newObjectWithData(map[string]interface{}{
+	obj := NewUnmarshallObject(map[string]interface{}{
 		"foo":  int64(23),
 		"bar":  int32(42),
 		"baz":  true,
@@ -139,7 +139,7 @@ func TestObjectUnmarshalling(t *testing.T) {
 }
 
 func TestObjectUnmarshallingErrors(t *testing.T) {
-	obj := newObjectWithData(map[string]interface{}{
+	obj := NewUnmarshallObject(map[string]interface{}{
 		"foo":          int64(23),
 		"bar":          int32(42),
 		"invalid_list": map[string]interface{}{},

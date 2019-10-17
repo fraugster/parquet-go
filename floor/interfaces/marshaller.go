@@ -1,4 +1,4 @@
-package floor
+package interfaces
 
 // Marshaller is the interface necessary for objects to be
 // marshalled when passed to the (*Writer).WriteRecord method.
@@ -10,6 +10,8 @@ type Marshaller interface {
 // to.
 type MarshalObject interface {
 	AddField(field string) MarshalElement
+
+	GetData() map[string]interface{}
 }
 
 // MarshalElement describes the interface to set the value of an element in a Marshaller
@@ -49,19 +51,7 @@ type object struct {
 	data map[string]interface{}
 }
 
-func newObject() *object {
-	return &object{
-		data: make(map[string]interface{}),
-	}
-}
-
-func newObjectWithData(data map[string]interface{}) *object {
-	return &object{
-		data: data,
-	}
-}
-
-func (o *object) getData() map[string]interface{} {
+func (o *object) GetData() map[string]interface{} {
 	return o.data
 }
 
@@ -144,10 +134,31 @@ type mapElement struct {
 	data map[string]interface{}
 }
 
-func (me *mapElement) Key() MarshalElement {
-	return &element{data: me.data, f: "key"}
+func (m *mapElement) Key() MarshalElement {
+	return &element{data: m.data, f: "key"}
 }
 
-func (me *mapElement) Value() MarshalElement {
-	return &element{data: me.data, f: "value"}
+func (m *mapElement) Value() MarshalElement {
+	return &element{data: m.data, f: "value"}
+}
+
+// NewMarshallObject creates a new marshaller object
+func NewMarshallObject(data map[string]interface{}) MarshalObject {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+	return &object{
+		data: data,
+	}
+}
+
+// NewMarshalElement creates new marshall element object
+func NewMarshalElement(data map[string]interface{}, name string) MarshalElement {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+	return &element{
+		data: data,
+		f:    name,
+	}
 }

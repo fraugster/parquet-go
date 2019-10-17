@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fraugster/parquet-go/floor/interfaces"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 	goparquet "github.com/fraugster/parquet-go"
@@ -360,10 +362,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 	require.NoError(t, hlReader.Close())
 }
 
-func elem(data interface{}) *unmarshElem {
-	return &unmarshElem{
-		data: data,
-	}
+func elem(data interface{}) interfaces.UnmarshalElement {
+	return interfaces.NewUnmarshallElement(data)
 }
 
 func TestFillValue(t *testing.T) {

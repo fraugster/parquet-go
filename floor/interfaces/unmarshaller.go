@@ -1,4 +1,4 @@
-package floor
+package interfaces
 
 import (
 	"errors"
@@ -20,6 +20,8 @@ type Unmarshaller interface {
 // from.
 type UnmarshalObject interface {
 	GetField(field string) UnmarshalElement
+
+	GetData() map[string]interface{}
 }
 
 // UnmarshalElement describes the interface to get the value of an element in an Unmarshaller
@@ -264,4 +266,21 @@ func (m *unmarshMap) Value() (UnmarshalElement, error) {
 	}
 
 	return &unmarshElem{data: elem}, nil
+}
+
+// NewUnmarshallObject creates a new unmarshaller object
+func NewUnmarshallObject(data map[string]interface{}) UnmarshalObject {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+	return &object{
+		data: data,
+	}
+}
+
+// NewUnmarshallElement creates new unmarshall element object
+func NewUnmarshallElement(data interface{}) UnmarshalElement {
+	return &unmarshElem{
+		data: data,
+	}
 }
