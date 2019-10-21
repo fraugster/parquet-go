@@ -24,7 +24,7 @@ func (i *int96PlainDecoder) init(r io.Reader) error {
 func (i *int96PlainDecoder) decodeValues(dst []interface{}) (int, error) {
 	idx := 0
 	for range dst {
-		var data Int96
+		var data [12]byte
 		// this one is a little tricky do not use ReadFull here
 		n, err := i.r.Read(data[:])
 		// make sure we handle the read data first then handle the error
@@ -61,7 +61,7 @@ func (i *int96PlainEncoder) init(w io.Writer) error {
 func (i *int96PlainEncoder) encodeValues(values []interface{}) error {
 	data := make([]byte, len(values)*12)
 	for j := range values {
-		i96 := values[j].(Int96)
+		i96 := values[j].([12]byte)
 		copy(data[j*12:], i96[:])
 	}
 
@@ -87,12 +87,12 @@ func (is *int96Store) repetitionType() parquet.FieldRepetitionType {
 func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
-	case Int96:
+	case [12]byte:
 		if err := is.setMinMax(typed[:]); err != nil {
 			return nil, err
 		}
 		vals = []interface{}{typed}
-	case []Int96:
+	case [][12]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
 			return nil, errors.Errorf("the value is not repeated but it is an array")
 		}
@@ -112,7 +112,7 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 
 func (*int96Store) append(arrayIn interface{}, value interface{}) interface{} {
 	if arrayIn == nil {
-		arrayIn = make([]Int96, 0, 1)
+		arrayIn = make([][12]byte, 0, 1)
 	}
-	return append(arrayIn.([]Int96), value.(Int96))
+	return append(arrayIn.([][12]byte), value.([12]byte))
 }

@@ -309,8 +309,8 @@ func mapKey(a interface{}) interface{} {
 		return a
 	case []byte:
 		return DefaultHashFunc(a.([]byte))
-	case Int96:
-		i := a.(Int96)
+	case [12]byte:
+		i := a.([12]byte)
 		return DefaultHashFunc(i[:])
 	default:
 		panic("not supported type")
