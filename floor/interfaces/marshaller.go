@@ -20,6 +20,7 @@ type MarshalElement interface {
 	Group() MarshalObject
 	SetInt32(i int32)
 	SetInt64(i int64)
+	SetInt96(i [12]byte)
 	SetFloat32(f float32)
 	SetFloat64(f float64)
 	SetBool(b bool)
@@ -69,6 +70,10 @@ func (e *element) SetInt32(i int32) {
 }
 
 func (e *element) SetInt64(i int64) {
+	e.data[e.f] = i
+}
+
+func (e *element) SetInt96(i [12]byte) {
 	e.data[e.f] = i
 }
 

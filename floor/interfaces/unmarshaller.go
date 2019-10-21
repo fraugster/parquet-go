@@ -30,6 +30,7 @@ type UnmarshalElement interface {
 	Group() (UnmarshalObject, error)
 	Int32() (int32, error)
 	Int64() (int64, error)
+	Int96() ([12]byte, error)
 	Float32() (float32, error)
 	Float64() (float64, error)
 	Bool() (bool, error)
@@ -71,6 +72,10 @@ func (u unmarshalErr) Int32() (int32, error) {
 
 func (u unmarshalErr) Int64() (int64, error) {
 	return 0, ErrFieldNotPresent
+}
+
+func (u unmarshalErr) Int96() ([12]byte, error) {
+	return [12]byte{}, ErrFieldNotPresent
 }
 
 func (u unmarshalErr) Float32() (float32, error) {
@@ -135,6 +140,14 @@ func (e *unmarshElem) Int64() (int64, error) {
 	i, ok := e.data.(int64)
 	if !ok {
 		return 0, fmt.Errorf("expected int64, found %T instead", e.data)
+	}
+	return i, nil
+}
+
+func (e *unmarshElem) Int96() ([12]byte, error) {
+	i, ok := e.data.([12]byte)
+	if !ok {
+		return [12]byte{}, fmt.Errorf("expected [12]byte, found %T instead", e.data)
 	}
 	return i, nil
 }

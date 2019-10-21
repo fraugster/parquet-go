@@ -110,7 +110,7 @@ var (
 			enc:  &int96PlainEncoder{},
 			dec:  &int96PlainDecoder{},
 			rand: func() interface{} {
-				var data Int96
+				var data [12]byte
 				for i := 0; i < 12; i++ {
 					data[i] = byte(rand.Intn(256))
 				}
@@ -163,7 +163,7 @@ var (
 			enc:  &dictEncoder{},
 			dec:  &dictDecoder{},
 			rand: func() interface{} {
-				var data Int96
+				var data [12]byte
 				for i := 0; i < 12; i++ {
 					data[i] = byte(rand.Intn(10)) // limit the values
 				}
@@ -337,7 +337,7 @@ var (
 			name:  "Int96Store",
 			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
 			rand: func(n int) interface{} {
-				var data = make([]Int96, n)
+				var data = make([][12]byte, n)
 				for c := 0; c < n; c++ {
 					for i := 0; i < 12; i++ {
 						data[c][i] = byte(rand.Intn(255))
