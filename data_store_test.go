@@ -39,7 +39,7 @@ func TestOneColumn(t *testing.T) {
 	// Now reading data
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -67,7 +67,7 @@ func TestOneColumnOptional(t *testing.T) {
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -95,7 +95,7 @@ func TestOneColumnRepeated(t *testing.T) {
 	assert.Equal(t, []int32{0, 1, 0}, d.data.rLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -170,7 +170,7 @@ func TestComplexPart1(t *testing.T) {
 	assert.Equal(t, []int32{0, 1, 1}, d.data.rLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -219,7 +219,7 @@ func TestComplexPart2(t *testing.T) {
 	assert.Equal(t, []int32{0, 0, 1}, d.data.rLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -338,7 +338,7 @@ func TestComplex(t *testing.T) {
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.data.rLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -384,7 +384,7 @@ func TestTwitterBlog(t *testing.T) {
 	assert.Equal(t, []int32{2, 2, 2, 2, 2, 2, 2, 2, 2, 2}, d.data.dLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
@@ -423,7 +423,7 @@ func TestEmptyParent(t *testing.T) {
 	require.Equal(t, []int32{1}, col.data.dLevels.toArray())
 
 	for i := range data {
-		read, err := row.GetData()
+		read, err := row.getData()
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}

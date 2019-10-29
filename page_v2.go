@@ -131,13 +131,13 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 
 type dataPageWriterV2 struct {
 	col    *Column
-	schema SchemaWriter
+	schema schemaWriter
 
 	codec      parquet.CompressionCodec
 	dictionary bool
 }
 
-func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV2) init(schema schemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	dp.schema = schema
@@ -153,7 +153,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			NumNulls:                   dp.col.data.values.nullValueCount(),
-			NumRows:                    int32(dp.schema.NumRecords()),
+			NumRows:                    int32(dp.schema.rowGroupNumRecords()),
 			Encoding:                   dp.col.data.encoding(),
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),

@@ -2,7 +2,6 @@ package cmds
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 
@@ -34,20 +33,6 @@ var rowCountCmd = &cobra.Command{
 			log.Fatalf("Failed to read the parquet header: %q", err)
 		}
 
-		var total int64
-		for {
-			err := reader.ReadRowGroup()
-			if err != nil && err != io.EOF {
-				log.Fatalf("failed to read the row group: %q", err)
-			}
-
-			if err == io.EOF {
-				break
-			}
-
-			total += reader.NumRecords()
-		}
-
-		fmt.Println("Total RowCount:", total)
+		fmt.Println("Total RowCount:", reader.NumRows())
 	},
 }

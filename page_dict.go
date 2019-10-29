@@ -69,7 +69,7 @@ type dictPageWriter struct {
 	codec parquet.CompressionCodec
 }
 
-func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dictPageWriter) init(schema schemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil

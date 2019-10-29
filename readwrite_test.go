@@ -23,7 +23,7 @@ func TestReadFile(t *testing.T) {
 		t.Fatalf("creating file reader failed: %v", err)
 	}
 
-	fmt.Printf("%s", r.SchemaReader.String())
+	fmt.Printf("%s", r.schemaReader.String())
 }
 */
 
@@ -76,9 +76,9 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.Equal(t, "bar", cols[1].Name())
 		require.Equal(t, "bar", cols[1].FlatName())
 		for g := 0; g < r.RawGroupCount(); g++ {
-			require.NoError(t, r.ReadRowGroup(), "Reading row group failed")
-			for i := 0; i < int(r.NumRecords()); i++ {
-				data, err := r.GetData()
+			require.NoError(t, r.readRowGroup(), "Reading row group failed")
+			for i := 0; i < int(r.rowGroupNumRecords()); i++ {
+				data, err := r.getData()
 				require.NoError(t, err)
 				_, ok := data["foo"]
 				require.True(t, ok)
@@ -126,11 +126,11 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -172,10 +172,10 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
-	root := r.SchemaReader.(*schema).root
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	root := r.schemaReader.(*schema).root
 	for i := range data {
 		_, ok := data[i]["foo"]
 		rL, dL, b := root.getFirstRDLevel()
@@ -189,7 +189,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 			assert.Equal(t, int32(-1), dL)
 		}
 
-		get, err := r.GetData()
+		get, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], get)
 	}
@@ -234,11 +234,11 @@ func TestWriteThenReadFileNested(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -307,11 +307,11 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -404,11 +404,11 @@ func TestWriteThenReadFileMap(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -450,11 +450,11 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(len(data)), r.NumRecords())
+	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -485,11 +485,11 @@ func TestWriteEmptyDict(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.ReadRowGroup())
+	require.NoError(t, r.readRowGroup())
 
-	require.Equal(t, int64(1000), r.NumRecords())
+	require.Equal(t, int64(1000), r.rowGroupNumRecords())
 	for i := 0; i < 1000; i++ {
-		d, err := r.GetData()
+		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{}, d)
 	}

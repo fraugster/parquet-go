@@ -22,31 +22,18 @@ func catFile(address string, n int64) error {
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 
-	var total int64
 	for {
-		err := reader.ReadRowGroup()
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("failed to read the row group: %q", err)
-		}
-
+		data, err := reader.NextRow()
 		if err == io.EOF {
 			return nil
 		}
-
-		for i := int64(0); i < reader.NumRecords(); i++ {
-			if n > 0 && total >= n {
-				return nil
-			}
-			total++
-			data, err := reader.GetData()
-			if err != nil {
-				log.Printf("Reading data failed with error, skip current row group: %q", err)
-				break
-			}
-
-			printData(data, "")
-			fmt.Println()
+		if err != nil {
+			log.Printf("Reading data failed with error, skip current row group: %q", err)
+			continue
 		}
+
+		printData(data, "")
+		fmt.Println()
 	}
 }
 
