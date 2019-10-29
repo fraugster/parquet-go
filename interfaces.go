@@ -18,7 +18,7 @@ type pageReader interface {
 
 // pageReader is an internal interface used only internally to read the pages
 type pageWriter interface {
-	init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error
+	init(schema schemaWriter, col *Column, codec parquet.CompressionCodec) error
 
 	write(w io.Writer) (int, int, error)
 }

@@ -826,8 +826,8 @@ type schemaReader interface {
 	getData() (map[string]interface{}, error)
 }
 
-// SchemaWriter is a writer and generator for the schema
-type SchemaWriter interface {
+// schemaWriter is a writer and generator for the schema
+type schemaWriter interface {
 	schemaCommon
 
 	AddData(m map[string]interface{}) error

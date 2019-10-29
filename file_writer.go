@@ -14,7 +14,7 @@ type FileWriter struct {
 
 	version int32
 	// TODO: make it internal, its not good to expose the schema here
-	SchemaWriter
+	schemaWriter
 
 	totalNumRecords int64
 	kvStore         map[string]string
@@ -40,7 +40,7 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 			pos: 0,
 		},
 		version:      1,
-		SchemaWriter: &schema{},
+		schemaWriter: &schema{},
 		kvStore:      make(map[string]string),
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",
@@ -122,7 +122,7 @@ func (fw *FileWriter) FlushRowGroup() error {
 		}
 	}
 
-	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage)
+	cc, err := writeRowGroup(fw.w, fw.schemaWriter, fw.codec, fw.newPage)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (fw *FileWriter) FlushRowGroup() error {
 	})
 	fw.totalNumRecords += fw.rowGroupNumRecords()
 	// flush the schema
-	fw.SchemaWriter.resetData()
+	fw.schemaWriter.resetData()
 
 	return nil
 }
@@ -143,11 +143,11 @@ func (fw *FileWriter) FlushRowGroup() error {
 // AddData add a new record to the current row group and flush it if the auto flush is enabled and the size
 // is more than the auto flush size
 func (fw *FileWriter) AddData(m map[string]interface{}) error {
-	if err := fw.SchemaWriter.AddData(m); err != nil {
+	if err := fw.schemaWriter.AddData(m); err != nil {
 		return err
 	}
 
-	if fw.rowGroupFlushSize > 0 && fw.SchemaWriter.DataSize() >= fw.rowGroupFlushSize {
+	if fw.rowGroupFlushSize > 0 && fw.schemaWriter.DataSize() >= fw.rowGroupFlushSize {
 		return fw.FlushRowGroup()
 	}
 
@@ -201,5 +201,5 @@ func (fw *FileWriter) Close() error {
 // just a rough estimation of data size in plain format, uncompressed. if the encoding is different than plain, the finall
 // size depends on the data
 func (fw *FileWriter) CurrentRowGroupSize() int64 {
-	return fw.SchemaWriter.DataSize()
+	return fw.schemaWriter.DataSize()
 }
