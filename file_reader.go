@@ -10,11 +10,12 @@ import (
 // FileReader is the parquet file reader
 type FileReader struct {
 	meta *parquet.FileMetaData
-	// TODO: make it internal, its not good to expose the schema here
-	SchemaReader
+	schemaReader
 	reader io.ReadSeeker
 
 	rowGroupPosition int
+	currentRecord    int64
+	skipRowGroup     bool
 }
 
 // NewFileReader try to create a reader from a stream
@@ -34,18 +35,18 @@ func NewFileReader(r io.ReadSeeker) (*FileReader, error) {
 	}
 	return &FileReader{
 		meta:         meta,
-		SchemaReader: schema,
+		schemaReader: schema,
 		reader:       r,
 	}, nil
 }
 
-// ReadRowGroup read the next row group into memory
-func (f *FileReader) ReadRowGroup() error {
+// readRowGroup read the next row group into memory
+func (f *FileReader) readRowGroup() error {
 	if len(f.meta.RowGroups) <= f.rowGroupPosition {
 		return io.EOF
 	}
 	f.rowGroupPosition++
-	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
+	return readRowGroup(f.reader, f.schemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
 // RawGroupCount return the number of row groups in file
@@ -56,4 +57,46 @@ func (f *FileReader) RawGroupCount() int {
 // NumRows return the number of rows in the current file reader, based on parquet meta data without loading the row groups
 func (f *FileReader) NumRows() int64 {
 	return f.meta.NumRows
+}
+
+func (f *FileReader) advanceIfNeeded() error {
+	if f.rowGroupPosition == 0 || f.currentRecord >= f.schemaReader.rowGroupNumRecords() || f.skipRowGroup {
+		if err := f.readRowGroup(); err != nil {
+			f.skipRowGroup = true
+			return err
+		}
+		f.currentRecord = 0
+		f.skipRowGroup = false
+	}
+
+	return nil
+}
+
+// RowGroupNumRows returns the number of rows in the current active RowGroup
+func (f *FileReader) RowGroupNumRows() (int64, error) {
+	if err := f.advanceIfNeeded(); err != nil {
+		return 0, err
+	}
+
+	return f.schemaReader.rowGroupNumRecords(), nil
+}
+
+// NextRow try to read next row from the parquet file, it loads the next row group if required
+func (f *FileReader) NextRow() (map[string]interface{}, error) {
+	if err := f.advanceIfNeeded(); err != nil {
+		return nil, err
+	}
+
+	f.currentRecord++
+	return f.schemaReader.getData()
+}
+
+// SkipRowGroup skips the current loaded row group and advance to the next row group
+func (f *FileReader) SkipRowGroup() {
+	f.skipRowGroup = true
+}
+
+// PreLoad is used to load the row group if required. it does nothing if the row group is already loaded
+func (f *FileReader) PreLoad() error {
+	return f.advanceIfNeeded()
 }

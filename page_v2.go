@@ -153,7 +153,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			NumNulls:                   dp.col.data.values.nullValueCount(),
-			NumRows:                    int32(dp.schema.NumRecords()),
+			NumRows:                    int32(dp.schema.rowGroupNumRecords()),
 			Encoding:                   dp.col.data.encoding(),
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),

@@ -111,7 +111,7 @@ func WithDataPageV2() FileWriterOption {
 // FlushRowGroup is to write the row group into the file
 func (fw *FileWriter) FlushRowGroup() error {
 	// Write the entire row group
-	if fw.NumRecords() == 0 {
+	if fw.rowGroupNumRecords() == 0 {
 		// TODO: maybe simply return nil?
 		return errors.New("nothing to write")
 	}
@@ -130,10 +130,10 @@ func (fw *FileWriter) FlushRowGroup() error {
 	fw.rowGroups = append(fw.rowGroups, &parquet.RowGroup{
 		Columns:        cc,
 		TotalByteSize:  0,
-		NumRows:        fw.NumRecords(),
+		NumRows:        fw.rowGroupNumRecords(),
 		SortingColumns: nil, // TODO: support Sorting
 	})
-	fw.totalNumRecords += fw.NumRecords()
+	fw.totalNumRecords += fw.rowGroupNumRecords()
 	// flush the schema
 	fw.SchemaWriter.resetData()
 
@@ -156,7 +156,7 @@ func (fw *FileWriter) AddData(m map[string]interface{}) error {
 
 // Close is the finalizer for the parquet file, you SHOULD call it to finalize the write
 func (fw *FileWriter) Close() error {
-	if fw.NumRecords() > 0 {
+	if fw.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(); err != nil {
 			return err
 		}

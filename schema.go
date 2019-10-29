@@ -556,7 +556,7 @@ func (r *schema) AddData(m map[string]interface{}) error {
 	return err
 }
 
-func (r *schema) GetData() (map[string]interface{}, error) {
+func (r *schema) getData() (map[string]interface{}, error) {
 	// TODO: keep track of read row count
 	d, _, err := r.root.getData()
 	if err != nil {
@@ -799,7 +799,7 @@ func (r *schema) DataSize() int64 {
 	return size
 }
 
-func (r *schema) NumRecords() int64 {
+func (r *schema) rowGroupNumRecords() int64 {
 	return r.numRecords
 }
 
@@ -811,19 +811,19 @@ type schemaCommon interface {
 
 	// GetSchemaDefinition returns the schema definition.
 	GetSchemaDefinition() *SchemaDefinition
+	SetSchemaDefinition(*SchemaDefinition)
 
-	NumRecords() int64
 	// Internal functions
+	rowGroupNumRecords() int64
 	resetData()
 	getSchemaArray() []*parquet.SchemaElement
-	SetSchemaDefinition(*SchemaDefinition)
 }
 
-// SchemaReader is a reader for the schema in file
-type SchemaReader interface {
+// schemaReader is a reader for the schema in file
+type schemaReader interface {
 	schemaCommon
 	setNumRecords(int64)
-	GetData() (map[string]interface{}, error)
+	getData() (map[string]interface{}, error)
 }
 
 // SchemaWriter is a writer and generator for the schema
@@ -836,7 +836,7 @@ type SchemaWriter interface {
 	DataSize() int64
 }
 
-func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
+func makeSchema(meta *parquet.FileMetaData) (schemaReader, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
 	}

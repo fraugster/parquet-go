@@ -44,12 +44,9 @@ type Reader struct {
 	r *goparquet.FileReader
 	f io.Closer
 
-	initialized  bool
-	currentGroup int
-	currentRow   int64
-	data         map[string]interface{}
-	err          error
-	eof          bool
+	data map[string]interface{}
+	err  error
+	eof  bool
 }
 
 // Close closes the reader.
@@ -65,58 +62,17 @@ func (r *Reader) Close() error {
 // Returns true if fetching the next object was successful, false
 // otherwise, e.g. in case of an error or when EOF was reached.
 func (r *Reader) Next() bool {
-	if r.eof {
+	r.data, r.err = r.r.NextRow()
+	if r.err == io.EOF {
+		r.eof = true
+		r.err = nil
 		return false
 	}
-
-	r.init()
 	if r.err != nil {
-		return false
-	}
-
-	r.readNext()
-	if r.err != nil || r.eof {
 		return false
 	}
 
 	return true
-}
-
-func (r *Reader) readNext() {
-	if r.currentRow == r.r.NumRecords() {
-
-		if r.currentGroup == r.r.RawGroupCount() {
-			r.eof = true
-			r.err = nil
-			return
-		}
-
-		r.err = r.r.ReadRowGroup()
-		if r.err != nil {
-			return
-		}
-		r.currentGroup++
-		r.currentRow = 0
-	}
-
-	r.data, r.err = r.r.GetData()
-	if r.err != nil {
-		return
-	}
-	r.currentRow++
-}
-
-func (r *Reader) init() {
-	if r.initialized {
-		return
-	}
-	r.initialized = true
-
-	r.err = r.r.ReadRowGroup()
-	if r.err != nil {
-		return
-	}
-	r.currentGroup++
 }
 
 // Scan fills obj with the data from the record last fetched.

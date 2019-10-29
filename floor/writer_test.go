@@ -390,9 +390,9 @@ func TestWriteFile(t *testing.T) {
 	reader, err := goparquet.NewFileReader(rf)
 	require.NoError(t, err)
 
-	require.NoError(t, reader.ReadRowGroup())
-
-	require.Equal(t, int64(len(data)), reader.NumRecords())
+	n, err := reader.RowGroupNumRows()
+	require.NoError(t, err)
+	require.Equal(t, int64(len(data)), n)
 
 	expectedData := []map[string]interface{}{
 		{
@@ -440,8 +440,11 @@ func TestWriteFile(t *testing.T) {
 		},
 	}
 
-	for i := int64(0); i < reader.NumRecords(); i++ {
-		data, err := reader.GetData()
+	n, err = reader.RowGroupNumRows()
+	require.NoError(t, err)
+
+	for i := int64(0); i < n; i++ {
+		data, err := reader.NextRow()
 		require.NoError(t, err, "%d. reading record failed")
 		require.Equal(t, expectedData[i], data, "%d. data in parquet file differs from what's expected", i)
 	}
