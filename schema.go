@@ -722,6 +722,9 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 		rLevel++
 	}
 
+	c.maxD = dLevel
+	c.maxR = rLevel
+
 	if name == "" {
 		name = s.Name
 	} else {
