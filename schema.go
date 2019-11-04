@@ -334,7 +334,12 @@ func (r *schema) sortIndex() {
 }
 
 func (r *schema) SetSchemaDefinition(sd *SchemaDefinition) {
-	r.root = sd.col
+	cp, err := ParseSchemaDefinition(sd.String())
+	if err != nil {
+		panic(err)
+	}
+
+	r.root = cp.col
 
 	for _, c := range r.root.children {
 		recursiveFix(c, "", 0, 0)
@@ -786,9 +791,15 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 }
 
 func (r *schema) GetSchemaDefinition() *SchemaDefinition {
-	return &SchemaDefinition{
+	cp := SchemaDefinition{
 		col: r.root,
 	}
+	def, err := ParseSchemaDefinition(cp.String())
+	if err != nil {
+		panic(err)
+	}
+
+	return def
 }
 
 // DataSize return the size of data stored in the schema right now

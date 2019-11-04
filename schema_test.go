@@ -1,6 +1,8 @@
 package goparquet
 
 import (
+	"bytes"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -88,4 +90,51 @@ func TestColumnSize(t *testing.T) {
 		}
 		require.Equal(t, size, sf.Col.values.size)
 	}
+}
+
+func TestSchemaCopy(t *testing.T) {
+	schema := `message txn {
+  optional boolean is_fraud;
+}`
+	def, err := ParseSchemaDefinition(schema)
+	require.NoError(t, err)
+	buf := &bytes.Buffer{}
+	writer := NewFileWriter(buf, UseSchemaDefinition(def))
+
+	for i := 0; i < 3; i++ {
+		var d interface{}
+		switch {
+		case i%3 == 0:
+			d = true
+		case i%3 == 1:
+			d = false
+		case i%3 == 2:
+			d = nil
+		}
+		err := writer.AddData(map[string]interface{}{
+			"is_fraud": d,
+		})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, writer.Close())
+
+	buf2 := bytes.NewReader(buf.Bytes())
+	buf3 := &bytes.Buffer{}
+	reader, err := NewFileReader(buf2)
+	require.NoError(t, err)
+	writer2 := NewFileWriter(buf3, UseSchemaDefinition(reader.GetSchemaDefinition()))
+
+	for {
+		rec, err := reader.NextRow()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		err = writer2.AddData(rec)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, writer2.Close())
+
 }
