@@ -1,7 +1,9 @@
 package goparquet
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -493,4 +495,41 @@ func TestWriteEmptyDict(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{}, d)
 	}
+}
+
+func TestReadWriteMultiLevel(t *testing.T) {
+	sc := `message txn {
+  optional group cluster (LIST) {
+    repeated group list {
+      required group element {
+        optional group cluster_step (LIST) {
+            repeated group list {
+              required group element {
+                optional group story_point {
+                  required binary type (STRING);
+                }
+              }
+            }
+          }
+      }
+    }
+  }
+}
+`
+	buf := &bytes.Buffer{}
+	sd, err := ParseSchemaDefinition(sc)
+	require.NoError(t, err)
+	w := NewFileWriter(buf, UseSchemaDefinition(sd))
+
+	require.NoError(t, w.AddData(map[string]interface{}{}))
+	require.NoError(t, w.Close())
+	buf2 := bytes.NewReader(buf.Bytes())
+	r, err := NewFileReader(buf2)
+	require.NoError(t, err)
+	data, err := r.NextRow()
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{}, data)
+
+	_, err = r.NextRow()
+	require.Equal(t, io.EOF, err)
 }
