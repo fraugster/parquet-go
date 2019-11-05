@@ -64,6 +64,7 @@ type SchemaDefinition struct {
 //		| 'JSON'
 //		| 'BSON'
 //      | 'INT' '(' <bit-width> ',' <boolean> ')'
+//		| 'DECIMAL' '(' <scale> ',' <precision> ')' // TODO: check
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
 //	digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
@@ -241,6 +242,8 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 		return "JSON"
 	case t.IsSetBSON():
 		return "BSON"
+	case t.IsSetDECIMAL():
+		return fmt.Sprintf("DECIMAL(%d, %d)", t.DECIMAL.Precision, t.DECIMAL.Scale)
 	case t.IsSetINTEGER():
 		return fmt.Sprintf("INT(%d, %t)", t.INTEGER.BitWidth, t.INTEGER.IsSigned)
 	default:

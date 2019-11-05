@@ -338,9 +338,19 @@ func TestWriteThenReadFileMap(t *testing.T) {
 	list, err := NewListColumn(elementCol, parquet.FieldRepetitionType_OPTIONAL)
 	require.NoError(t, err)
 
+	quuxParams := &ColumnParameters{
+		LogicalType: parquet.NewLogicalType(),
+	}
+	quuxParams.LogicalType.DECIMAL = parquet.NewDecimalType()
+	quuxParams.LogicalType.DECIMAL.Scale = 3
+	quuxParams.LogicalType.DECIMAL.Precision = 5
+
+	quuxStore, err := NewInt32Store(parquet.Encoding_PLAIN, true, quuxParams)
+
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
 	require.NoError(t, w.AddColumn("baz", list))
+	require.NoError(t, w.AddColumn("quux", NewDataColumn(quuxStore, parquet.FieldRepetitionType_OPTIONAL)))
 
 	/* `message test_msg {
 		required int64 foo;
@@ -350,6 +360,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 				required int32 element;
 			}
 		}
+		optional int32 quux (DECIMAL(3, 5));
 	}` */
 	data := []map[string]interface{}{
 		{
@@ -363,6 +374,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 					{"element": int32(23)},
 				},
 			},
+			"quux": int32(123456),
 		},
 		{
 			"foo": int64(42),

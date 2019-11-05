@@ -140,6 +140,28 @@ func TestSchemasPutTogetherManually(t *testing.T) {
 	t.Logf("generated schema: %s", w.GetSchemaDefinition().String())
 }
 
+func TestParseAndGenerateSchema(t *testing.T) {
+	schema := `message msg {
+  required int64 foo (INT(64, true));
+  required int32 bar (DECIMAL(5, 3));
+  required binary baz (JSON);
+  required binary quux (BSON);
+  required fixed_len_byte_array(16) bla (UUID);
+  required binary fasel (ENUM);
+  required int64 t1 (TIMESTAMP(NANOS, true));
+  required int64 t2 (TIMESTAMP(MICROS, false));
+  required int64 t3 (TIMESTAMP(MILLIS, true));
+  required float f;
+  required double d;
+}
+`
+
+	schemaDef, err := ParseSchemaDefinition(schema)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	require.Equal(t, schema, schemaDef.String(), "expected and actual schema definition does not match")
+}
+
 func mustColumn(c *Column, err error) *Column {
 	if err != nil {
 		panic(err)

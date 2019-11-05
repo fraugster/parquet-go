@@ -280,6 +280,56 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required int32 foo (INT(32, foobar));
 		}`, true}, // invalid isSigned
+		{`message foo {
+			required int32 foo (DECIMAL(5, 3));
+		}`, false},
+		{`message foo {
+			required int32 foo (DECIMAL(12, 3));
+		}`, true}, // precision out of bounds.
+		{`message foo {
+			required int64 foo (DECIMAL(12, 3));
+		}`, false},
+		{`message foo {
+			required int64 foo (DECIMAL(20, 3));
+		}`, true}, // precision out of bounds.
+		{`message foo {
+			required int64 foo (DECIMAL);
+		}`, true}, // no precision, scale parameters.
+		{`message foo {
+			required fixed_len_byte_array(10) foo (DECIMAL(20,10));
+		}`, false},
+		// 70.
+		{`message foo {
+			required fixed_len_byte_array(10) foo (DECIMAL(23,10));
+		}`, true}, // 23 is out of bounds; maximum for 10 is 22.
+		{`message foo {
+			required binary foo (DECIMAL(100,10));
+		}`, false},
+		{`message foo {
+			required binary foo (DECIMAL(0,10));
+		}`, true}, // invalid precision.
+		{`message foo {
+			required float foo (DECIMAL(1,10));
+		}`, true}, // invalid data type.
+		{`message foo {
+			required binary foo (JSON);
+		}`, false},
+		{`message foo {
+			required int64 foo (JSON);
+		}`, true}, // only binary can be annotated as JSON.
+		{`message foo {
+			required binary foo (BSON);
+		}`, false},
+		{`message foo {
+			required int32 foo (BSON);
+		}`, true}, // only binary can be annotated as BSON.
+		{`message foo {
+			required fixed_len_byte_array(32) foo (UUID);
+		}`, true}, // invalid length for UUID.
+		{`message foo {
+			required int64 foo (ENUM);
+		}`, true}, // invalid type for ENUM.
+		// 80.
 	}
 
 	for idx, tt := range testData {

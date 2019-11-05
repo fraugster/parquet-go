@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -429,6 +430,10 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 		p.next()
 		if p.token.typ == itemLeftParen {
 			params.LogicalType, params.ConvertedType = p.parseLogicalType()
+			if params.LogicalType != nil && params.LogicalType.IsSetDECIMAL() {
+				col.element.Scale = &params.LogicalType.DECIMAL.Scale
+				col.element.Precision = &params.LogicalType.DECIMAL.Precision
+			}
 			p.next()
 		}
 
@@ -669,6 +674,28 @@ func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.Conver
 	case "BSON":
 		lt.BSON = parquet.NewBsonType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_BSON)
+	case "DECIMAL":
+		lt.DECIMAL = parquet.NewDecimalType()
+		p.next()
+		p.expect(itemLeftParen)
+
+		p.next()
+		p.expect(itemNumber)
+
+		prec, _ := strconv.ParseInt(p.token.val, 10, 64)
+		lt.DECIMAL.Precision = int32(prec)
+
+		p.next()
+		p.expect(itemComma)
+
+		p.next()
+		p.expect(itemNumber)
+
+		scale, _ := strconv.ParseInt(p.token.val, 10, 64)
+		lt.DECIMAL.Scale = int32(scale)
+
+		p.next()
+		p.expect(itemRightParen)
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
@@ -830,6 +857,30 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetBSON():
 			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
 				p.errorf("field %s is annotated as BSON but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDECIMAL():
+			dec := col.element.GetLogicalType().DECIMAL
+			switch col.element.GetType() {
+			case parquet.Type_INT32:
+				if dec.Precision < 1 || dec.Precision > 9 {
+					p.errorf("field %s is int32 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 9", col.element.Name, dec.Precision)
+				}
+			case parquet.Type_INT64:
+				if dec.Precision < 1 || dec.Precision > 18 {
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 18", col.element.Name, dec.Precision)
+				}
+			case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+				n := *col.element.TypeLength
+				maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1)) - 1))
+				if dec.Precision < 1 || dec.Precision > maxDigits {
+					p.errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.element.Name, n, dec.Precision, maxDigits)
+				}
+			case parquet.Type_BYTE_ARRAY:
+				if dec.Precision < 1 {
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision", col.element.Name, dec.Precision)
+				}
+			default:
+				p.errorf("field %s is annotated as DECIMAL but type %s is unsupported", col.element.Name, col.element.GetType().String())
 			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetINTEGER():
 			bitWidth := col.element.LogicalType.INTEGER.BitWidth
