@@ -666,6 +666,9 @@ func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.Conver
 	case "JSON":
 		lt.JSON = parquet.NewJsonType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_JSON)
+	case "BSON":
+		lt.BSON = parquet.NewBsonType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_BSON)
 	default:
 		p.errorf("unsupported logical type %q", typStr)
 	}
@@ -823,6 +826,10 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetJSON():
 			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
 				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetBSON():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as BSON but is not a binary", col.element.Name)
 			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetINTEGER():
 			bitWidth := col.element.LogicalType.INTEGER.BitWidth

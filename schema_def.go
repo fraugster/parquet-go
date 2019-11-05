@@ -62,6 +62,7 @@ type SchemaDefinition struct {
 //		| 'UUID'
 //		| 'ENUM'
 //		| 'JSON'
+//		| 'BSON'
 //      | 'INT' '(' <bit-width> ',' <boolean> ')'
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
@@ -238,6 +239,8 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 		return "ENUM"
 	case t.IsSetJSON():
 		return "JSON"
+	case t.IsSetBSON():
+		return "BSON"
 	case t.IsSetINTEGER():
 		return fmt.Sprintf("INT(%d, %t)", t.INTEGER.BitWidth, t.INTEGER.IsSigned)
 	default:
