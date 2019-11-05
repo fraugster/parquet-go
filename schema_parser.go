@@ -457,7 +457,7 @@ func int32Ptr(i int32) *int32 {
 }
 
 func (p *schemaParser) isValidType(typ string) {
-	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"} // TODO: add more.
+	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"}
 	for _, vt := range validTypes {
 		if vt == typ {
 			return
@@ -469,7 +469,6 @@ func (p *schemaParser) isValidType(typ string) {
 func (p *schemaParser) getTokenType() *parquet.Type {
 	p.isValidType(p.token.val)
 
-	// TODO: add support for fixed_len_byte_array; length is kept in logical type annotation
 	switch p.token.val {
 	case "binary":
 		return parquet.TypePtr(parquet.Type_BYTE_ARRAY)

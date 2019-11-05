@@ -64,7 +64,7 @@ type SchemaDefinition struct {
 //		| 'JSON'
 //		| 'BSON'
 //      | 'INT' '(' <bit-width> ',' <boolean> ')'
-//		| 'DECIMAL' '(' <scale> ',' <precision> ')' // TODO: check
+//		| 'DECIMAL' '(' <precision> ',' <scale> ')'
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
 //	digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
@@ -74,6 +74,8 @@ type SchemaDefinition struct {
 //	alpha ::= 'a'..'z' | 'A'..'Z'
 //	alphanum ::= <alpha> | <digit>
 //	bit-width ::= '8' | '16' | '32' | '64'
+//	precision := <number>
+//	scale := <number>
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
 	if err := p.parse(); err != nil {
