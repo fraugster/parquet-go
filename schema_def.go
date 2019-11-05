@@ -151,7 +151,7 @@ func printCols(w io.Writer, cols []*Column, indent int) {
 		if elem.Type == nil {
 			fmt.Fprintf(w, "group %s", elem.GetName())
 			if elem.ConvertedType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(elem.GetConvertedType()))
+				fmt.Fprintf(w, " (%s)", elem.GetConvertedType().String())
 			}
 			fmt.Fprintf(w, " {\n")
 			printCols(w, col.children, indent+2)
@@ -163,6 +163,8 @@ func printCols(w io.Writer, cols []*Column, indent int) {
 			fmt.Fprintf(w, "%s %s", typ, elem.GetName())
 			if elem.LogicalType != nil {
 				fmt.Fprintf(w, " (%s)", getSchemaLogicalType(elem.GetLogicalType()))
+			} else if elem.ConvertedType != nil {
+				fmt.Fprintf(w, " (%s)", elem.GetConvertedType().String())
 			}
 			if elem.FieldID != nil {
 				fmt.Fprintf(w, " = %d", elem.GetFieldID())
@@ -199,20 +201,6 @@ func getSchemaType(elem *parquet.SchemaElement) string {
 		return fmt.Sprintf("fixed_len_byte_array(%d)", elem.GetTypeLength())
 	}
 	return fmt.Sprintf("UT:%s", elem.GetType())
-}
-
-func getSchemaConvertedType(t parquet.ConvertedType) string {
-	switch t {
-	case parquet.ConvertedType_UTF8:
-		return "UTF8"
-	case parquet.ConvertedType_LIST:
-		return "LIST"
-	case parquet.ConvertedType_MAP:
-		return "MAP"
-	case parquet.ConvertedType_MAP_KEY_VALUE:
-		return "MAP_KEY_VALUE"
-	}
-	return fmt.Sprintf("UC:%s", t)
 }
 
 func getSchemaLogicalType(t *parquet.LogicalType) string {

@@ -330,6 +330,43 @@ func TestSchemaParser(t *testing.T) {
 			required int64 foo (ENUM);
 		}`, true}, // invalid type for ENUM.
 		// 80.
+		{`message foo {
+			required int64 foo (UTF8);
+		}`, true}, // invalid type for UTF8.
+		{`message foo {
+			required double foo (TIME_MILLIS);
+		}`, true}, // invalid type for TIME_MILLIS.
+		{`message foo {
+			required float foo (TIME_MICROS);
+		}`, true}, // invalid type for TIME_MICROS.
+		{`message foo {
+			required double foo (TIMESTAMP_MILLIS);
+		}`, true}, // invalid type for TIMESTAMP_MILLIS.
+		{`message foo {
+			required double foo (TIMESTAMP_MICROS);
+		}`, true}, // invalid type for TIMESTAMP_MICROS.
+		{`message foo {
+			required double foo (UINT_8);
+		}`, true}, // invalid type for UINT_8.
+		{`message foo {
+			required double foo (INT_64);
+		}`, true}, // invalid type for INT_64.
+		{`message foo {
+			required double foo (INTERVAL);
+		}`, true}, // invalid type for INTERVAL.
+		{`message foo {
+			required double foo (TIME(NANOS, true));
+		}`, true}, // invalid type for TIME(NANOS, true).
+		{`message foo {
+			required double foo (TIME(MICROS, true));
+		}`, true}, // invalid type for TIME(MICROS, true).
+		// 90.
+		{`message foo {
+			required double foo (MAP);
+		}`, true}, // invalid type for MAP.
+		{`message foo {
+			required double foo (LIST);
+		}`, true}, // invalid type for LIST.
 	}
 
 	for idx, tt := range testData {

@@ -429,7 +429,7 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			params.LogicalType, params.ConvertedType = p.parseLogicalType()
+			params.LogicalType, params.ConvertedType = p.parseLogicalOrConvertedType()
 			if params.LogicalType != nil && params.LogicalType.IsSetDECIMAL() {
 				col.element.Scale = &params.LogicalType.DECIMAL.Scale
 				col.element.Precision = &params.LogicalType.DECIMAL.Precision
@@ -532,7 +532,7 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *Colum
 	return colStore
 }
 
-func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.ConvertedType) {
+func (p *schemaParser) parseLogicalOrConvertedType() (*parquet.LogicalType, *parquet.ConvertedType) {
 	p.expect(itemLeftParen)
 	p.next()
 	p.expect(itemIdentifier)
@@ -697,7 +697,12 @@ func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.Conver
 		p.next()
 		p.expect(itemRightParen)
 	default:
-		p.errorf("unsupported logical type %q", typStr)
+		convertedType, err := parquet.ConvertedTypeFromString(strings.ToUpper(typStr))
+		if err != nil {
+			p.errorf("unsupported logical type or converted type %q", typStr)
+		}
+		lt = nil
+		ct = &convertedType
 	}
 
 	p.next()
@@ -896,6 +901,46 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 				}
 			default:
 				p.errorf("invalid bitWidth %d", bitWidth)
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_UTF8:
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as UTF8 but element type is %s, not binary", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as TIME_MILLIS but element type is %s, not int32", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIME_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MILLIS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil &&
+			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_UINT_16 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_UINT_32 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_8 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_16 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_32):
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int32", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil &&
+			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_64 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_64):
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int64", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_INTERVAL:
+			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 12 {
+				p.errorf("field %s is annotated as INTERVAL but element type is %s, not fixed_len_byte_array(12)", col.element.Name, col.element.GetType().String())
 			}
 		}
 	}

@@ -153,6 +153,20 @@ func TestParseAndGenerateSchema(t *testing.T) {
   required int64 t3 (TIMESTAMP(MILLIS, true));
   required float f;
   required double d;
+  required binary aa (UTF8);
+  required int32 bb (TIME_MILLIS);
+  required int64 cc (TIME_MICROS);
+  required int64 dd (TIMESTAMP_MILLIS);
+  required int64 ee (TIMESTAMP_MICROS);
+  required int32 ff (UINT_8);
+  required int32 gg (UINT_16);
+  required int32 hh (UINT_32);
+  required int64 ii (UINT_64);
+  required int32 jj (INT_8);
+  required int32 kk (INT_16);
+  required int32 ll (INT_32);
+  required int64 mm (INT_64);
+  required fixed_len_byte_array(12) nn (INTERVAL);
 }
 `
 
