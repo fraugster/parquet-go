@@ -62,7 +62,9 @@ type SchemaDefinition struct {
 //		| 'UUID'
 //		| 'ENUM'
 //		| 'JSON'
+//		| 'BSON'
 //      | 'INT' '(' <bit-width> ',' <boolean> ')'
+//		| 'DECIMAL' '(' <precision> ',' <scale> ')'
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
 //	digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
@@ -72,6 +74,8 @@ type SchemaDefinition struct {
 //	alpha ::= 'a'..'z' | 'A'..'Z'
 //	alphanum ::= <alpha> | <digit>
 //	bit-width ::= '8' | '16' | '32' | '64'
+//	precision := <number>
+//	scale := <number>
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
 	if err := p.parse(); err != nil {
@@ -149,7 +153,7 @@ func printCols(w io.Writer, cols []*Column, indent int) {
 		if elem.Type == nil {
 			fmt.Fprintf(w, "group %s", elem.GetName())
 			if elem.ConvertedType != nil {
-				fmt.Fprintf(w, " (%s)", getSchemaConvertedType(elem.GetConvertedType()))
+				fmt.Fprintf(w, " (%s)", elem.GetConvertedType().String())
 			}
 			fmt.Fprintf(w, " {\n")
 			printCols(w, col.children, indent+2)
@@ -161,6 +165,8 @@ func printCols(w io.Writer, cols []*Column, indent int) {
 			fmt.Fprintf(w, "%s %s", typ, elem.GetName())
 			if elem.LogicalType != nil {
 				fmt.Fprintf(w, " (%s)", getSchemaLogicalType(elem.GetLogicalType()))
+			} else if elem.ConvertedType != nil {
+				fmt.Fprintf(w, " (%s)", elem.GetConvertedType().String())
 			}
 			if elem.FieldID != nil {
 				fmt.Fprintf(w, " = %d", elem.GetFieldID())
@@ -199,20 +205,6 @@ func getSchemaType(elem *parquet.SchemaElement) string {
 	return fmt.Sprintf("UT:%s", elem.GetType())
 }
 
-func getSchemaConvertedType(t parquet.ConvertedType) string {
-	switch t {
-	case parquet.ConvertedType_UTF8:
-		return "UTF8"
-	case parquet.ConvertedType_LIST:
-		return "LIST"
-	case parquet.ConvertedType_MAP:
-		return "MAP"
-	case parquet.ConvertedType_MAP_KEY_VALUE:
-		return "MAP_KEY_VALUE"
-	}
-	return fmt.Sprintf("UC:%s", t)
-}
-
 func getSchemaLogicalType(t *parquet.LogicalType) string {
 	switch {
 	case t.IsSetSTRING():
@@ -238,6 +230,10 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 		return "ENUM"
 	case t.IsSetJSON():
 		return "JSON"
+	case t.IsSetBSON():
+		return "BSON"
+	case t.IsSetDECIMAL():
+		return fmt.Sprintf("DECIMAL(%d, %d)", t.DECIMAL.Precision, t.DECIMAL.Scale)
 	case t.IsSetINTEGER():
 		return fmt.Sprintf("INT(%d, %t)", t.INTEGER.BitWidth, t.INTEGER.IsSigned)
 	default:

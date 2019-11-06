@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -428,7 +429,11 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			params.LogicalType, params.ConvertedType = p.parseLogicalType()
+			params.LogicalType, params.ConvertedType = p.parseLogicalOrConvertedType()
+			if params.LogicalType != nil && params.LogicalType.IsSetDECIMAL() {
+				col.element.Scale = &params.LogicalType.DECIMAL.Scale
+				col.element.Precision = &params.LogicalType.DECIMAL.Precision
+			}
 			p.next()
 		}
 
@@ -452,7 +457,7 @@ func int32Ptr(i int32) *int32 {
 }
 
 func (p *schemaParser) isValidType(typ string) {
-	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"} // TODO: add more.
+	validTypes := []string{"binary", "float", "double", "boolean", "int32", "int64", "int96", "fixed_len_byte_array"}
 	for _, vt := range validTypes {
 		if vt == typ {
 			return
@@ -464,7 +469,6 @@ func (p *schemaParser) isValidType(typ string) {
 func (p *schemaParser) getTokenType() *parquet.Type {
 	p.isValidType(p.token.val)
 
-	// TODO: add support for fixed_len_byte_array; length is kept in logical type annotation
 	switch p.token.val {
 	case "binary":
 		return parquet.TypePtr(parquet.Type_BYTE_ARRAY)
@@ -527,7 +531,7 @@ func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *Colum
 	return colStore
 }
 
-func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.ConvertedType) {
+func (p *schemaParser) parseLogicalOrConvertedType() (*parquet.LogicalType, *parquet.ConvertedType) {
 	p.expect(itemLeftParen)
 	p.next()
 	p.expect(itemIdentifier)
@@ -666,8 +670,38 @@ func (p *schemaParser) parseLogicalType() (*parquet.LogicalType, *parquet.Conver
 	case "JSON":
 		lt.JSON = parquet.NewJsonType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_JSON)
+	case "BSON":
+		lt.BSON = parquet.NewBsonType()
+		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_BSON)
+	case "DECIMAL":
+		lt.DECIMAL = parquet.NewDecimalType()
+		p.next()
+		p.expect(itemLeftParen)
+
+		p.next()
+		p.expect(itemNumber)
+
+		prec, _ := strconv.ParseInt(p.token.val, 10, 64)
+		lt.DECIMAL.Precision = int32(prec)
+
+		p.next()
+		p.expect(itemComma)
+
+		p.next()
+		p.expect(itemNumber)
+
+		scale, _ := strconv.ParseInt(p.token.val, 10, 64)
+		lt.DECIMAL.Scale = int32(scale)
+
+		p.next()
+		p.expect(itemRightParen)
 	default:
-		p.errorf("unsupported logical type %q", typStr)
+		convertedType, err := parquet.ConvertedTypeFromString(strings.ToUpper(typStr))
+		if err != nil {
+			p.errorf("unsupported logical type or converted type %q", typStr)
+		}
+		lt = nil
+		ct = &convertedType
 	}
 
 	p.next()
@@ -824,6 +858,34 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
 				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
 			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetBSON():
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as BSON but is not a binary", col.element.Name)
+			}
+		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDECIMAL():
+			dec := col.element.GetLogicalType().DECIMAL
+			switch col.element.GetType() {
+			case parquet.Type_INT32:
+				if dec.Precision < 1 || dec.Precision > 9 {
+					p.errorf("field %s is int32 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 9", col.element.Name, dec.Precision)
+				}
+			case parquet.Type_INT64:
+				if dec.Precision < 1 || dec.Precision > 18 {
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 18", col.element.Name, dec.Precision)
+				}
+			case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+				n := *col.element.TypeLength
+				maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1)) - 1))
+				if dec.Precision < 1 || dec.Precision > maxDigits {
+					p.errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.element.Name, n, dec.Precision, maxDigits)
+				}
+			case parquet.Type_BYTE_ARRAY:
+				if dec.Precision < 1 {
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision", col.element.Name, dec.Precision)
+				}
+			default:
+				p.errorf("field %s is annotated as DECIMAL but type %s is unsupported", col.element.Name, col.element.GetType().String())
+			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetINTEGER():
 			bitWidth := col.element.LogicalType.INTEGER.BitWidth
 			isSigned := col.element.LogicalType.INTEGER.IsSigned
@@ -838,6 +900,46 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 				}
 			default:
 				p.errorf("invalid bitWidth %d", bitWidth)
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_UTF8:
+			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as UTF8 but element type is %s, not binary", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as TIME_MILLIS but element type is %s, not int32", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIME_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MILLIS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil &&
+			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_UINT_16 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_UINT_32 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_8 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_16 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_32):
+			if col.element.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int32", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil &&
+			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_64 ||
+				col.element.GetConvertedType() == parquet.ConvertedType_INT_64):
+			if col.element.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int64", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+			}
+		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_INTERVAL:
+			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 12 {
+				p.errorf("field %s is annotated as INTERVAL but element type is %s, not fixed_len_byte_array(12)", col.element.Name, col.element.GetType().String())
 			}
 		}
 	}
