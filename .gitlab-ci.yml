@@ -1,4 +1,4 @@
-image: fraugster/gitlab-runner:1.32
+image: fraugster/gitlab-runner:1.35
 
 stages:
   - test

@@ -174,7 +174,6 @@ func TestComplexPart1(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
-
 }
 
 func TestComplexPart2(t *testing.T) {
@@ -342,7 +341,6 @@ func TestComplex(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
-
 }
 
 func TestTwitterBlog(t *testing.T) {
@@ -388,7 +386,6 @@ func TestTwitterBlog(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, data[i], read)
 	}
-
 }
 
 func TestEmptyParent(t *testing.T) {

@@ -25,5 +25,4 @@ func TestDictStore(t *testing.T) {
 
 	d.init()
 	require.Equal(t, d.size, int64(0))
-
 }

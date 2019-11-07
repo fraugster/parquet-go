@@ -20,6 +20,7 @@ func randStringRunes(n int) string {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
+
 	return string(b)
 }
 
@@ -229,6 +230,7 @@ func TestTypes(t *testing.T) {
 	bufLen := 1000
 
 	bufRead := bufLen + bufLen/2
+
 	for _, data := range encFixtures {
 		t.Run(data.name, func(t *testing.T) {
 			arr1 := buildRandArray(bufLen, data.rand)
@@ -264,6 +266,7 @@ func TestTypes(t *testing.T) {
 func convertToInterface(arr interface{}) []interface{} {
 	v := reflect.ValueOf(arr)
 	ret := make([]interface{}, v.Len())
+
 	for i := 0; i < v.Len(); i++ {
 		ret[i] = v.Index(i).Interface()
 	}
