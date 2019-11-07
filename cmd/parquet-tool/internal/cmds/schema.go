@@ -35,6 +35,6 @@ var schemaCmd = &cobra.Command{
 			log.Fatalf("Failed to read the parquet header: %q", err)
 		}
 
-		fmt.Print(reader.schemaReader.GetSchemaDefinition())
+		fmt.Print(reader.GetSchemaDefinition())
 	},
 }
