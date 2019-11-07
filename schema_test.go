@@ -111,10 +111,9 @@ func TestSchemaCopy(t *testing.T) {
 		case i%3 == 2:
 			d = nil
 		}
-		err := writer.AddData(map[string]interface{}{
+		require.NoError(t, writer.AddData(map[string]interface{}{
 			"is_fraud": d,
-		})
-		require.NoError(t, err)
+		}))
 	}
 
 	require.NoError(t, writer.Close())
@@ -132,9 +131,9 @@ func TestSchemaCopy(t *testing.T) {
 		}
 		require.NoError(t, err)
 		err = writer2.AddData(rec)
+
 		require.NoError(t, err)
 	}
 
 	require.NoError(t, writer2.Close())
-
 }

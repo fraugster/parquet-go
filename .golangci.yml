@@ -34,6 +34,9 @@ linters:
     - gochecknoglobals
     - goconst
     - gocyclo
+    - funlen
+    - godox
+    - wsl 
 
     # TODO: we actually want to enable those later (follow up MRs):
     - gocritic
@@ -43,7 +46,6 @@ linters:
     - gosimple
     - staticcheck
     - unused
-    - errcheck
     - nakedret
     - deadcode
     - structcheck
@@ -51,6 +53,7 @@ linters:
     - gochecknoinits
     - goimports
     - unconvert
+    - gocognit
 
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
@@ -66,7 +69,7 @@ issues:
   max-same-issues: 0
 
   exclude-rules:
-    - path: "types_test.go"
+    - path: ".*_test.go"
       text: "Use of weak random number generator"
       linters: [gosec]
 

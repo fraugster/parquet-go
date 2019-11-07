@@ -280,5 +280,4 @@ func writeRowGroup(w writePos, schema schemaWriter, codec parquet.CompressionCod
 	}
 
 	return res, nil
-
 }

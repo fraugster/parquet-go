@@ -125,7 +125,6 @@ func (t Time) UTC() Time {
 // Today returns a time.Time, combining the current date with the provided time.
 func (t Time) Today() time.Time {
 	return t.OnThatDay(time.Now())
-
 }
 
 // OnThatDay returns a time.Time, combining the provided date with the time of this object.

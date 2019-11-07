@@ -154,7 +154,6 @@ func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 	dictLen += d.valueSize
 	noDictLen = d.size
 	return
-
 }
 
 type dictEncoder struct {

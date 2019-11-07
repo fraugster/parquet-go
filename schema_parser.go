@@ -386,8 +386,8 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 	params := &ColumnParameters{}
 
 	p.next()
-	if p.token.typ == itemGroup {
 
+	if p.token.typ == itemGroup {
 		p.next()
 		p.expect(itemIdentifier)
 		col.name = p.token.val

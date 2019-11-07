@@ -184,7 +184,6 @@ func printIndent(w io.Writer, indent int) {
 
 func getSchemaType(elem *parquet.SchemaElement) string {
 	switch elem.GetType() {
-
 	case parquet.Type_BYTE_ARRAY:
 		return "binary"
 	case parquet.Type_FLOAT:
@@ -224,6 +223,19 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 			unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
 		}
 		return fmt.Sprintf("TIMESTAMP(%s, %t)", unit, t.TIMESTAMP.IsAdjustedToUTC)
+	case t.IsSetTIME():
+		unit := ""
+		switch {
+		case t.TIME.Unit.IsSetNANOS():
+			unit = "NANOS"
+		case t.TIME.Unit.IsSetMICROS():
+			unit = "MICROS"
+		case t.TIME.Unit.IsSetMILLIS():
+			unit = "MILLIS"
+		default:
+			unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
+		}
+		return fmt.Sprintf("TIME(%s, %t)", unit, t.TIME.IsAdjustedToUTC)
 	case t.IsSetUUID():
 		return "UUID"
 	case t.IsSetENUM():
