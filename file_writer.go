@@ -198,8 +198,15 @@ func (fw *FileWriter) Close() error {
 }
 
 // CurrentRowGroupSize is the size of current row group data (not including definition/repetition levels and parquet headers
-// just a rough estimation of data size in plain format, uncompressed. if the encoding is different than plain, the finall
+// just a rough estimation of data size in plain format, uncompressed. if the encoding is different than plain, the final
 // size depends on the data
 func (fw *FileWriter) CurrentRowGroupSize() int64 {
 	return fw.schemaWriter.DataSize()
+}
+
+// CurrentFileSize returns the size of data written in file, so far. this is not contains the data in current row group
+// just the written data. after closing the file, the size is always more than this since we write the footer on closing
+// the file.
+func (fw *FileWriter) CurrentFileSize() int64 {
+	return fw.w.Pos()
 }
