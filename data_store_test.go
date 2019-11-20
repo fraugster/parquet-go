@@ -428,3 +428,54 @@ func TestEmptyParent(t *testing.T) {
 		assert.Equal(t, data[i], read)
 	}
 }
+
+func TestZeroRL(t *testing.T) {
+	row := &schema{}
+	//message test_msg {
+	//		required group baz (LIST) {
+	//			repeated group list {
+	//				required group element {
+	//					required int64 quux;
+	//				}
+	//			}
+	//		}
+	//	}
+	require.NoError(t, row.AddGroup("baz", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroup("baz.list", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroup("baz.list.element", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddColumn("baz.list.element.quux", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
+	row.resetData()
+
+	data := map[string]interface{}{
+		"baz": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{
+					"element": map[string]interface{}{
+						"quux": int32(23),
+					},
+				},
+				{
+					"element": map[string]interface{}{
+						"quux": int32(42),
+					},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, row.AddData(data))
+
+	d, err := row.findDataColumn("baz.list.element.quux")
+	require.NoError(t, err)
+	var expected = []interface{}{int32(23), int32(42)}
+	assert.Equal(t, expected, d.data.values.assemble())
+	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
+	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
+	assert.Equal(t, []int32{0, 1}, d.data.rLevels.toArray())
+	assert.Equal(t, []int32{1, 1}, d.data.dLevels.toArray())
+
+	read, err := row.getData()
+	require.NoError(t, err)
+	assert.Equal(t, data, read)
+
+}

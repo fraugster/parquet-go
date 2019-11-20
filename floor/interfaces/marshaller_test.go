@@ -107,17 +107,17 @@ func TestObjectMarshalling(t *testing.T) {
 		},
 		"group_list": map[string]interface{}{
 			"list": []map[string]interface{}{
-				map[string]interface{}{
+				{
 					"element": map[string]interface{}{
 						"i": int64(0),
 					},
 				},
-				map[string]interface{}{
+				{
 					"element": map[string]interface{}{
 						"i": int64(1),
 					},
 				},
-				map[string]interface{}{
+				{
 					"element": map[string]interface{}{
 						"i": int64(2),
 					},

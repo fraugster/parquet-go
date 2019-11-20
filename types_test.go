@@ -377,9 +377,8 @@ func TestStores(t *testing.T) {
 			st.reset(parquet.FieldRepetitionType_REPEATED, 10, 10)
 
 			data := randArr(3)
-			ok, err := st.add(data, 3, 3, 0)
+			err := st.add(data, 3, 3, 0)
 			require.NoError(t, err)
-			assert.True(t, ok)
 
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is not Required, so def level should be one more
@@ -388,9 +387,8 @@ func TestStores(t *testing.T) {
 			// should be one more
 			assert.Equal(t, []int32{0, 4, 4}, st.rLevels.toArray())
 
-			ok, err = st.add(randArr(0), 3, 3, 0)
+			err = st.add(randArr(0), 3, 3, 0)
 			require.NoError(t, err)
-			assert.False(t, ok)
 			// No Reset
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// The new field is nil
@@ -400,9 +398,8 @@ func TestStores(t *testing.T) {
 			// One record
 			data = randArr(1)
 			st.reset(parquet.FieldRepetitionType_REQUIRED, 10, 10)
-			ok, err = st.add(getOne(data), 3, 3, 0)
+			err = st.add(getOne(data), 3, 3, 0)
 			require.NoError(t, err)
-			assert.True(t, ok)
 
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is Required, so def level should be exact
@@ -410,9 +407,8 @@ func TestStores(t *testing.T) {
 			assert.Equal(t, []int32{0}, st.rLevels.toArray())
 
 			data2 := randArr(1)
-			ok, err = st.add(getOne(data2), 3, 3, 10)
+			err = st.add(getOne(data2), 3, 3, 10)
 			require.NoError(t, err)
-			assert.True(t, ok)
 			// No reset
 			dArr := []interface{}{getOne(data), getOne(data2)}
 			assert.Equal(t, dArr, st.values.assemble())
@@ -422,16 +418,15 @@ func TestStores(t *testing.T) {
 			assert.Equal(t, []int32{0, 3}, st.rLevels.toArray())
 
 			// empty array had same effect as nil in repeated, but not in required
-			_, err = st.add(randArr(0), 3, 3, 10)
+			err = st.add(randArr(0), 3, 3, 10)
 			assert.Error(t, err)
 
 			// Just exact type and nil
-			_, err = st.add(struct{}{}, 3, 3, 0)
+			err = st.add(struct{}{}, 3, 3, 0)
 			assert.Error(t, err)
 
-			ok, err = st.add(nil, 3, 3, 0)
+			err = st.add(nil, 3, 3, 0)
 			assert.NoError(t, err)
-			assert.False(t, ok)
 
 			assert.Equal(t, dArr, st.values.assemble())
 
