@@ -37,6 +37,12 @@ func TestObjectMarshalling(t *testing.T) {
 	elem.Key().SetInt64(23)
 	elem.Value().Group().AddField("foo").SetInt32(42)
 
+	groupList := obj.AddField("group_list").List()
+	for i := 0; i < 3; i++ {
+		group := groupList.Add().Group()
+		group.AddField("i").SetInt64(int64(i))
+	}
+
 	expectedData := map[string]interface{}{
 		"foo":  int64(23),
 		"bar":  int32(42),
@@ -95,6 +101,25 @@ func TestObjectMarshalling(t *testing.T) {
 					"key": int64(23),
 					"value": map[string]interface{}{
 						"foo": int32(42),
+					},
+				},
+			},
+		},
+		"group_list": map[string]interface{}{
+			"list": []map[string]interface{}{
+				map[string]interface{}{
+					"element": map[string]interface{}{
+						"i": int64(0),
+					},
+				},
+				map[string]interface{}{
+					"element": map[string]interface{}{
+						"i": int64(1),
+					},
+				},
+				map[string]interface{}{
+					"element": map[string]interface{}{
+						"i": int64(2),
 					},
 				},
 			},

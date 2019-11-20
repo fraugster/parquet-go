@@ -1,6 +1,7 @@
 package floor
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -519,6 +520,13 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 		`message test_msg {
 			required binary foo (STRING);
 			required int64 bar;
+			required group baz (LIST) {
+				repeated group list {
+					required group element {
+						required int64 quux;
+					}
+				}
+			}
 		}`)
 	require.NoError(t, err, "parsing schema definition failed")
 
@@ -532,7 +540,7 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	)
 	require.NoError(t, err, "creating new file writer failed")
 
-	testData := &marshTestRecord{foo: "hello world!", bar: 1234567}
+	testData := &marshTestRecord{foo: "hello world!", bar: 1234567, baz: []marshTestGroup{{quux: 23}, {quux: 42}}}
 	require.NoError(t, hlWriter.Write(testData), "writing object using marshaller failed")
 
 	require.NoError(t, hlWriter.Close())
@@ -552,15 +560,29 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 type marshTestRecord struct {
 	foo string
 	bar int64
+	baz []marshTestGroup
+}
+
+type marshTestGroup struct {
+	quux int64
 }
 
 func (r *marshTestRecord) MarshalParquet(obj interfaces.MarshalObject) error {
 	obj.AddField("foo").SetByteArray([]byte(r.foo))
 	obj.AddField("bar").SetInt64(r.bar)
+	list := obj.AddField("baz").List()
+	for _, b := range r.baz {
+		grp := list.Add().Group()
+		grp.AddField("quux").SetInt64(b.quux)
+	}
+
+	fmt.Printf("marshal data: %s", spew.Sdump(obj.GetData()))
 	return nil
 }
 
 func (r *marshTestRecord) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
+	fmt.Printf("unmarshal data: %s", spew.Sdump(obj.GetData()))
+
 	foo := obj.GetField("foo")
 	if err := foo.Error(); err != nil {
 		return err
@@ -584,6 +606,30 @@ func (r *marshTestRecord) UnmarshalParquet(obj interfaces.UnmarshalObject) error
 	}
 
 	r.bar = barValue
+
+	bazList, err := obj.GetField("baz").List()
+	if err != nil {
+		return err
+	}
+
+	for bazList.Next() {
+		v, err := bazList.Value()
+		if err != nil {
+			return err
+		}
+
+		grp, err := v.Group()
+		if err != nil {
+			return err
+		}
+
+		quux, err := grp.GetField("quux").Int64()
+		if err != nil {
+			return err
+		}
+
+		r.baz = append(r.baz, marshTestGroup{quux: quux})
+	}
 
 	return nil
 }
