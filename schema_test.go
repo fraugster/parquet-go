@@ -83,9 +83,7 @@ func TestColumnSize(t *testing.T) {
 		arr, size := sf.Generate(rand.Intn(1000) + 1)
 		sf.Col.reset(parquet.FieldRepetitionType_REQUIRED, 0, 0)
 		for i := range arr {
-			b, err := sf.Col.add(arr[i], 0, 0, 0)
-
-			require.True(t, b)
+			err := sf.Col.add(arr[i], 0, 0, 0)
 			require.NoError(t, err)
 		}
 		require.Equal(t, size, sf.Col.values.size)

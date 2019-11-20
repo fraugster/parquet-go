@@ -545,3 +545,58 @@ func TestReadWriteMultiLevel(t *testing.T) {
 	_, err = r.NextRow()
 	require.Equal(t, io.EOF, err)
 }
+
+func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := ParseSchemaDefinition(
+		`message test_msg {
+			required group baz (LIST) {
+				repeated group list {
+					required group element {
+						required int64 quux;
+					}
+				}
+			}
+		}`)
+
+	require.NoError(t, err, "parsing schema definition failed")
+
+	buf := &bytes.Buffer{}
+	hlWriter := NewFileWriter(
+		buf,
+		CompressionCodec(parquet.CompressionCodec_SNAPPY),
+		CreatedBy("floor-unittest"),
+		UseSchemaDefinition(sd),
+	)
+
+	require.NoError(t, err, "creating new file writer failed")
+
+	testData := map[string]interface{}{
+		"baz": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{
+					"element": map[string]interface{}{
+						"quux": int64(23),
+					},
+				},
+				{
+					"element": map[string]interface{}{
+						"quux": int64(42),
+					},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, hlWriter.AddData(testData), "writing object using marshaller failed")
+
+	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err, "opening file failed")
+
+	readData, err := hlReader.NextRow()
+	require.NoError(t, err)
+	require.Equal(t, testData, readData, "written and read data don't match")
+}

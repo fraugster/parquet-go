@@ -79,7 +79,7 @@ func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, error) {
+func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 	// if the current column is repeated, we should increase the maxRL here
 	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -93,11 +93,11 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 	if v == nil {
 		cs.appendRDLevel(rL, dL)
 		cs.values.addValue(nil, 0)
-		return false, nil
+		return nil
 	}
 	vals, err := cs.getValues(v)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if len(vals) == 0 {
 		// the MaxRl might be increased in the beginning and increased again in the next call but for nil its not important
@@ -118,7 +118,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) (bool, er
 		}
 	}
 
-	return true, nil
+	return nil
 }
 
 // getRDLevelAt return the next rLevel in the read position, if there is no value left, it returns true
