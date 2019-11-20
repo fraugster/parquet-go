@@ -474,5 +474,4 @@ func TestZeroRL(t *testing.T) {
 	read, err := row.getData()
 	require.NoError(t, err)
 	assert.Equal(t, data, read)
-
 }
