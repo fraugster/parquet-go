@@ -827,8 +827,8 @@ func (p *schemaParser) validateLogicalTypes(col *Column) {
 				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.element.Name)
 			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
-			if col.element.GetType() != parquet.Type_INT64 {
-				p.errorf("field %s is annotated as TIMESTAMP but is not an int64", col.element.Name)
+			if col.element.GetType() != parquet.Type_INT64 && col.element.GetType() != parquet.Type_INT96 {
+				p.errorf("field %s is annotated as TIMESTAMP but is not an int64/int96", col.element.Name)
 			}
 		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIME():
 			t := col.element.GetLogicalType().TIME

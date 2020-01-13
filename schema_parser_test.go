@@ -213,6 +213,9 @@ func TestSchemaParser(t *testing.T) {
 			required int64 ts (TIMESTAMP(NANOS, false));
 		}`, false},
 		{`message foo {
+			required int96 ts (TIMESTAMP(NANOS, false));
+		}`, false},
+		{`message foo {
 			required int32 ts (TIMESTAMP(NANOS, false));
 		}`, true}, // all TIMESTAMPs must be int64.
 		{`message foo {
