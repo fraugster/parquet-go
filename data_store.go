@@ -21,6 +21,8 @@ type ColumnStore struct {
 	enc       parquet.Encoding
 	allowDict bool
 	readPos   int
+
+	skipped bool
 	typedColumnStore
 }
 
@@ -67,6 +69,7 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	cs.rLevels.reset(bits.Len16(maxR))
 	cs.dLevels.reset(bits.Len16(maxD))
 	cs.readPos = 0
+	cs.skipped = false
 
 	cs.typedColumnStore.reset(rep)
 }
@@ -152,6 +155,10 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 }
 
 func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
+	if cs.skipped {
+		return nil, 0, nil
+	}
+
 	if cs.readPos >= cs.rLevels.count || cs.readPos >= cs.dLevels.count {
 		return nil, 0, errors.New("out of range")
 	}

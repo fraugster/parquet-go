@@ -262,6 +262,34 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 	return pages, nil
 }
 
+func skipChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) error {
+	if chunk.FilePath != nil {
+		return fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
+	}
+
+	c := col.Index()
+	// chunk.FileOffset is useless so ChunkMetaData is required here
+	// as we cannot read it from r
+	// see https://issues.apache.org/jira/browse/PARQUET-291
+	if chunk.MetaData == nil {
+		return errors.Errorf("missing meta data for Column %c", c)
+	}
+
+	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
+		return errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
+			typ, chunk.MetaData.Type)
+	}
+
+	offset := chunk.MetaData.DataPageOffset
+	if chunk.MetaData.DictionaryPageOffset != nil {
+		offset = *chunk.MetaData.DictionaryPageOffset
+	}
+
+	offset += chunk.MetaData.TotalCompressedSize
+	_, err := r.Seek(offset, io.SeekStart)
+	return err
+}
+
 func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
@@ -360,6 +388,13 @@ func readRowGroup(r io.ReadSeeker, schema schemaReader, rowGroups *parquet.RowGr
 	schema.setNumRecords(rowGroups.NumRows)
 	for _, c := range dataCols {
 		chunk := rowGroups.Columns[c.Index()]
+		if !schema.isSelected(c.flatName) {
+			if err := skipChunk(r, c, chunk); err != nil {
+				return err
+			}
+			c.data.skipped = true
+			continue
+		}
 		pages, err := readChunk(r, c, chunk)
 		if err != nil {
 			return err

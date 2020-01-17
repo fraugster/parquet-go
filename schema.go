@@ -259,6 +259,9 @@ type schema struct {
 	root       *Column
 	numRecords int64
 	readOnly   int
+
+	// selected columns in reading. if the size is zero, it means all the columns
+	selectedColumn []string
 }
 
 // TODO(f0rud): a hacky way to make sure the root is not nil (because of my wrong assumption of the root element) at the last minute. fix it
@@ -276,6 +279,28 @@ func (r *schema) ensureRoot() {
 			element:  nil,
 		}
 	}
+}
+
+func (r *schema) setSelectedColumns(selected ...string) {
+	r.selectedColumn = selected
+}
+
+func (r *schema) isSelected(path string) bool {
+	if len(r.selectedColumn) == 0 {
+		return true
+	}
+
+	for _, pattern := range r.selectedColumn {
+		if pattern == path {
+			return true
+		}
+
+		if strings.HasPrefix(path, pattern+".") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *schema) getSchemaArray() []*parquet.SchemaElement {
@@ -843,6 +868,8 @@ type schemaReader interface {
 	schemaCommon
 	setNumRecords(int64)
 	getData() (map[string]interface{}, error)
+	setSelectedColumns(selected ...string)
+	isSelected(string) bool
 }
 
 // schemaWriter is a writer and generator for the schema

@@ -18,8 +18,11 @@ type FileReader struct {
 	skipRowGroup     bool
 }
 
-// NewFileReader try to create a reader from a stream
-func NewFileReader(r io.ReadSeeker) (*FileReader, error) {
+// NewFileReader try to create a reader from a stream, the columns is for reading specific columns. the pattern is like this:
+// name : means the column name in the root, if the name is a group, then this means all the column inside the group
+// name.inner : means the column inner inside the name group
+// also if there is an unselected required group in the same level as one selected column, the result contains an empty map for that group
+func NewFileReader(r io.ReadSeeker, columns ...string) (*FileReader, error) {
 	meta, err := readFileMetaData(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading file meta data failed")
@@ -29,6 +32,8 @@ func NewFileReader(r io.ReadSeeker) (*FileReader, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "creating schema failed")
 	}
+
+	schema.setSelectedColumns(columns...)
 	// Reset the reader to the beginning of the file
 	if _, err := r.Seek(4, io.SeekStart); err != nil {
 		return nil, err
