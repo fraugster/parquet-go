@@ -209,8 +209,6 @@ func lexText(l *schemaLexer) stateFn {
 		l.emit(itemComma)
 	case isAlpha(r):
 		return lexIdentifier
-	case r == '\n': // ignore newlines
-		return lexText
 	default:
 		l.errorf("unknown start of token '%v'", r)
 	}
@@ -218,7 +216,7 @@ func lexText(l *schemaLexer) stateFn {
 }
 
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t'
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
 func isDigit(r rune) bool {
