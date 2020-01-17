@@ -370,6 +370,8 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo {
 			required double foo (LIST);
 		}`, true}, // invalid type for LIST.
+		{`
+message foo { }`, false},
 	}
 
 	for idx, tt := range testData {
