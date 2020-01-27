@@ -378,7 +378,7 @@ func (r *schema) sortIndex() {
 }
 
 func (r *schema) SetSchemaDefinition(sd *SchemaDefinition) {
-	cp, err := ParseSchemaDefinition(sd.String())
+	cp, err := CopySchema(sd)
 	if err != nil {
 		panic(err)
 	}
