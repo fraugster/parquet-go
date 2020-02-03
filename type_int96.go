@@ -101,7 +101,7 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 			vals[j] = typed[j]
 		}
 	default:
-		return nil, errors.Errorf("unsupported type for storing in Int96 column %T => %+v", v, v)
+		return nil, errors.Errorf("unsupported type for storing in Int96 column: %T => %+v", v, v)
 	}
 
 	return vals, nil

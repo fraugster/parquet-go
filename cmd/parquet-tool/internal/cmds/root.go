@@ -8,9 +8,10 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "parquet-tool",
-	Short: "parquet-tool is a copy of parquet-tool in pure Go",
+	Short: "parquet-tool is a tool to work with parquet file in pure Go",
 }
 
+// Execute try to find and execute the command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("Failed to execute command: %q", err)

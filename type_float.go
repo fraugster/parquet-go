@@ -124,7 +124,7 @@ func (f *floatStore) getValues(v interface{}) ([]interface{}, error) {
 			vals[j] = typed[j]
 		}
 	default:
-		return nil, errors.Errorf("unsupported type for storing in int32 column %T => %+v", v, v)
+		return nil, errors.Errorf("unsupported type for storing in float32 column: %T => %+v", v, v)
 	}
 
 	return vals, nil
