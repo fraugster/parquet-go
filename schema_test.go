@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 var sizeFixture = []struct {
@@ -94,7 +95,7 @@ func TestSchemaCopy(t *testing.T) {
 	schema := `message txn {
   optional boolean is_fraud;
 }`
-	def, err := ParseSchemaDefinition(schema)
+	def, err := parquetschema.ParseSchemaDefinition(schema)
 	require.NoError(t, err)
 	buf := &bytes.Buffer{}
 	writer := NewFileWriter(buf, UseSchemaDefinition(def))

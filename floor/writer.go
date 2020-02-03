@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fraugster/parquet-go/floor/interfaces"
+	"github.com/fraugster/parquet-go/parquetschema"
 
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
@@ -67,14 +68,14 @@ func (w *Writer) Write(obj interface{}) error {
 
 type reflectMarshaller struct {
 	obj       interface{}
-	schemaDef *goparquet.SchemaDefinition
+	schemaDef *parquetschema.SchemaDefinition
 }
 
 func (m *reflectMarshaller) MarshalParquet(record interfaces.MarshalObject) error {
 	return m.marshal(record, reflect.ValueOf(m.obj), m.schemaDef)
 }
 
-func (m *reflectMarshaller) marshal(record interfaces.MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) marshal(record interfaces.MarshalObject, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if err := m.decodeStruct(record, value, schemaDef); err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (m *reflectMarshaller) marshal(record interfaces.MarshalObject, value refle
 	return nil
 }
 
-func (m *reflectMarshaller) decodeStruct(record interfaces.MarshalObject, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeStruct(record interfaces.MarshalObject, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Type().Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return errors.New("object is nil")
@@ -115,7 +116,7 @@ func (m *reflectMarshaller) decodeStruct(record interfaces.MarshalObject, value 
 	return nil
 }
 
-func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil
@@ -208,7 +209,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	}
 }
 
-func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
@@ -232,7 +233,7 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalEleme
 	return nil
 }
 
-func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
@@ -255,7 +256,7 @@ func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, 
 	return nil
 }
 
-func (m *reflectMarshaller) decodeMap(field interfaces.MarshalElement, value reflect.Value, schemaDef *goparquet.SchemaDefinition) error {
+func (m *reflectMarshaller) decodeMap(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.IsNil() {
 		return nil
 	}

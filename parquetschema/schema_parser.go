@@ -1,4 +1,4 @@
-package goparquet
+package parquetschema
 
 import (
 	"fmt"
@@ -269,13 +269,13 @@ loop:
 type schemaParser struct {
 	l     *schemaLexer
 	token item
-	root  *Column
+	root  *ColumnDefinition
 }
 
 func newSchemaParser(text string) *schemaParser {
 	return &schemaParser{
 		l:    lex(text),
-		root: &Column{},
+		root: &ColumnDefinition{SchemaElement: &parquet.SchemaElement{}},
 	}
 }
 
@@ -287,7 +287,7 @@ func (p *schemaParser) parse() (err error) {
 	p.next()
 	p.expect(itemEOF)
 
-	for _, c := range p.root.children {
+	for _, c := range p.root.Children {
 		fixFlatName("", c)
 	}
 
@@ -317,15 +317,12 @@ func (p *schemaParser) expect(typ itemType) {
 	}
 
 	if p.token.typ != typ {
-		//log.Printf("expected %s, got %s instead", typ, p.token)
 		p.errorf("expected %s, got %s instead", typ, p.token)
 	}
-	//log.Printf("expect %s successful, token = %v", typ, p.token)
 }
 
 func (p *schemaParser) next() {
 	p.token = p.l.nextItem()
-	//log.Printf("next token: %s", p.token)
 }
 
 func (p *schemaParser) parseMessage() {
@@ -335,7 +332,7 @@ func (p *schemaParser) parseMessage() {
 	p.next()
 	p.expect(itemIdentifier)
 
-	p.root.name = p.token.val
+	p.root.SchemaElement.Name = p.token.val
 
 	// TODO: add support for logical type annotations as mentioned here:
 	// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/schema/MessageType.java#L65
@@ -343,16 +340,31 @@ func (p *schemaParser) parseMessage() {
 	p.next()
 	p.expect(itemLeftBrace)
 
-	p.root.children = p.parseMessageBody()
-	for _, c := range p.root.children {
-		recursiveFix(c, "", 0, 0)
+	p.root.Children = p.parseMessageBody()
+	for _, c := range p.root.Children {
+		recursiveFix(c, "")
 	}
 
 	p.expect(itemRightBrace)
 }
 
-func (p *schemaParser) parseMessageBody() []*Column {
-	var cols []*Column
+func recursiveFix(col *ColumnDefinition, path string) {
+	col.FlatName = path + "." + col.SchemaElement.Name
+	if path == "" {
+		col.FlatName = col.SchemaElement.Name
+	}
+
+	for i := range col.Children {
+		recursiveFix(col.Children[i], col.FlatName)
+	}
+
+	if nc := int32(len(col.Children)); nc > 0 {
+		col.SchemaElement.NumChildren = &nc
+	}
+}
+
+func (p *schemaParser) parseMessageBody() []*ColumnDefinition {
+	var cols []*ColumnDefinition
 	p.expect(itemLeftBrace)
 	for {
 		p.next()
@@ -365,44 +377,42 @@ func (p *schemaParser) parseMessageBody() []*Column {
 	}
 }
 
-func (p *schemaParser) parseColumnDefinition() *Column {
-	col := &Column{
-		element: &parquet.SchemaElement{},
+func (p *schemaParser) parseColumnDefinition() *ColumnDefinition {
+	col := &ColumnDefinition{
+		SchemaElement: &parquet.SchemaElement{},
 	}
 
 	switch p.token.typ {
 	case itemRepeated:
-		col.rep = parquet.FieldRepetitionType_REPEATED
+		col.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REPEATED)
 	case itemOptional:
-		col.rep = parquet.FieldRepetitionType_OPTIONAL
+		col.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_OPTIONAL)
 	case itemRequired:
-		col.rep = parquet.FieldRepetitionType_REQUIRED
+		col.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED)
 	default:
 		p.errorf("invalid field repetition type %q", p.token.val)
 	}
-
-	params := &ColumnParameters{}
 
 	p.next()
 
 	if p.token.typ == itemGroup {
 		p.next()
 		p.expect(itemIdentifier)
-		col.name = p.token.val
+		col.SchemaElement.Name = p.token.val
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			params.ConvertedType = p.parseConvertedType()
+			col.SchemaElement.ConvertedType = p.parseConvertedType()
 			p.next()
 		}
 
-		col.children = p.parseMessageBody()
+		col.Children = p.parseMessageBody()
 
 		p.expect(itemRightBrace)
 	} else {
-		col.element.Type = p.getTokenType()
+		col.SchemaElement.Type = p.getTokenType()
 
-		if col.element.GetType() == parquet.Type_FIXED_LEN_BYTE_ARRAY {
+		if col.SchemaElement.GetType() == parquet.Type_FIXED_LEN_BYTE_ARRAY {
 			p.next()
 			p.expect(itemLeftParen)
 			p.next()
@@ -415,7 +425,7 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 
 			byteArraySize := int32(i)
 
-			params.TypeLength = &byteArraySize
+			col.SchemaElement.TypeLength = &byteArraySize
 
 			p.next()
 			p.expect(itemRightParen)
@@ -423,35 +433,27 @@ func (p *schemaParser) parseColumnDefinition() *Column {
 
 		p.next()
 		p.expect(itemIdentifier)
-		col.name = p.token.val
+		col.SchemaElement.Name = p.token.val
 
 		p.next()
 		if p.token.typ == itemLeftParen {
-			params.LogicalType, params.ConvertedType = p.parseLogicalOrConvertedType()
-			if params.LogicalType != nil && params.LogicalType.IsSetDECIMAL() {
-				col.element.Scale = &params.LogicalType.DECIMAL.Scale
-				col.element.Precision = &params.LogicalType.DECIMAL.Precision
+			col.SchemaElement.LogicalType, col.SchemaElement.ConvertedType = p.parseLogicalOrConvertedType()
+			if col.SchemaElement.LogicalType != nil && col.SchemaElement.LogicalType.IsSetDECIMAL() {
+				col.SchemaElement.Scale = &col.SchemaElement.LogicalType.DECIMAL.Scale
+				col.SchemaElement.Precision = &col.SchemaElement.LogicalType.DECIMAL.Precision
 			}
 			p.next()
 		}
 
 		if p.token.typ == itemEqual {
-			params.FieldID = p.parseFieldID()
+			col.SchemaElement.FieldID = p.parseFieldID()
 			p.next()
 		}
 
-		col.data = p.getColumnStore(col.element, params)
 		p.expect(itemSemicolon)
 	}
 
-	col.params = params
-	col.element = col.buildElement()
-
 	return col
-}
-
-func int32Ptr(i int32) *int32 {
-	return &i
 }
 
 func (p *schemaParser) isValidType(typ string) {
@@ -488,45 +490,6 @@ func (p *schemaParser) getTokenType() *parquet.Type {
 		p.errorf("unsupported type %q", p.token.val)
 		return nil
 	}
-}
-
-func (p *schemaParser) getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) *ColumnStore {
-	if elem.Type == nil {
-		return nil
-	}
-
-	var (
-		colStore *ColumnStore
-		err      error
-	)
-
-	typ := elem.GetType()
-
-	switch typ {
-	case parquet.Type_BYTE_ARRAY:
-		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_FLOAT:
-		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_DOUBLE:
-		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_BOOLEAN:
-		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN, params)
-	case parquet.Type_INT32:
-		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_INT64:
-		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_INT96:
-		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true, params)
-	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, params)
-	default:
-		p.errorf("unsupported type %q when creating Column store", typ.String())
-	}
-	if err != nil {
-		p.errorf("creating Column store for type %q failed: %v", typ.String(), err)
-	}
-
-	return colStore
 }
 
 func (p *schemaParser) parseLogicalOrConvertedType() (*parquet.LogicalType, *parquet.ConvertedType) {
@@ -742,207 +705,207 @@ func (p *schemaParser) parseFieldID() *int32 {
 	return &i32
 }
 
-func fixFlatName(prefix string, col *Column) {
-	flatName := col.name
+func fixFlatName(prefix string, col *ColumnDefinition) {
+	flatName := col.SchemaElement.Name
 	if prefix != "" {
 		flatName = prefix + "." + flatName
 	}
 
-	col.flatName = flatName
+	col.FlatName = flatName
 
-	for _, c := range col.children {
+	for _, c := range col.Children {
 		fixFlatName(flatName, c)
 	}
 }
 
-func (p *schemaParser) validateLogicalTypes(col *Column) {
-	if col.element != nil && (col.element.LogicalType != nil || col.element.ConvertedType != nil) {
+func (p *schemaParser) validateLogicalTypes(col *ColumnDefinition) {
+	if col.SchemaElement != nil && (col.SchemaElement.LogicalType != nil || col.SchemaElement.ConvertedType != nil) {
 		switch {
-		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetLIST()) || col.element.GetConvertedType() == parquet.ConvertedType_LIST:
+		case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetLIST()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_LIST:
 			// TODO: add support for backward compatibility:
 			// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
-			if col.element.Type != nil {
-				p.errorf("field %s is not a group but annotated as LIST", col.element.Name)
+			if col.SchemaElement.Type != nil {
+				p.errorf("field %s is not a group but annotated as LIST", col.SchemaElement.Name)
 			}
-			if rep := col.element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
-				p.errorf("field %s is a LIST but has repetition type %s", col.element.Name, rep)
+			if rep := col.SchemaElement.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("field %s is a LIST but has repetition type %s", col.SchemaElement.Name, rep)
 			}
-			if len(col.children) != 1 {
-				p.errorf("field %s is a LIST but has %d children", len(col.children))
+			if len(col.Children) != 1 {
+				p.errorf("field %s is a LIST but has %d children", len(col.Children))
 			}
-			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
-				p.errorf("field %s is a LIST but its child is not a repeated group", col.element.Name)
+			if col.Children[0].SchemaElement.Type != nil || col.Children[0].SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("field %s is a LIST but its child is not a repeated group", col.SchemaElement.Name)
 			}
-			if col.children[0].name != "list" {
-				p.errorf("field %s is a LIST but its child is not named \"list\"", col.element.Name)
+			if col.Children[0].SchemaElement.Name != "list" {
+				p.errorf("field %s is a LIST but its child is not named \"list\"", col.SchemaElement.Name)
 			}
-			if len(col.children[0].children) != 1 {
-				p.errorf("field %s.list has %d children", col.element.Name)
+			if len(col.Children[0].Children) != 1 {
+				p.errorf("field %s.list has %d children", col.SchemaElement.Name)
 			}
-			if col.children[0].children[0].element.Name != "element" {
-				p.errorf("%s.list has a child but it's called %q, not \"element\"", col.element.Name, col.children[0].children[0].element.Name)
+			if col.Children[0].Children[0].SchemaElement.Name != "element" {
+				p.errorf("%s.list has a child but it's called %q, not \"element\"", col.SchemaElement.Name, col.Children[0].Children[0].SchemaElement.Name)
 			}
-			if rep := col.children[0].children[0].element.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
-				p.errorf("%s.list.element has disallowed repetition type %s", col.element.Name, rep)
+			if rep := col.Children[0].Children[0].SchemaElement.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+				p.errorf("%s.list.element has disallowed repetition type %s", col.SchemaElement.Name, rep)
 			}
-		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetMAP()) || col.element.GetConvertedType() == parquet.ConvertedType_MAP:
-			if col.element.Type != nil {
-				p.errorf("field %s is not a group but annotated as MAP", col.element.Name)
+		case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetMAP()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_MAP:
+			if col.SchemaElement.Type != nil {
+				p.errorf("field %s is not a group but annotated as MAP", col.SchemaElement.Name)
 			}
-			if len(col.children) != 1 {
-				p.errorf("field %s is a MAP but has %d children", len(col.children))
+			if len(col.Children) != 1 {
+				p.errorf("field %s is a MAP but has %d children", len(col.Children))
 			}
-			if col.children[0].element.Type != nil || col.children[0].element.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
-				p.errorf("filed %s is a MAP but its child is not a repeated group", col.element.Name)
+			if col.Children[0].SchemaElement.Type != nil || col.Children[0].SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+				p.errorf("filed %s is a MAP but its child is not a repeated group", col.SchemaElement.Name)
 			}
-			if col.children[0].name != "key_value" {
-				p.errorf("field %s is a MAP but its child is not named \"key_value\"", col.element.Name)
+			if col.Children[0].SchemaElement.Name != "key_value" {
+				p.errorf("field %s is a MAP but its child is not named \"key_value\"", col.SchemaElement.Name)
 			}
 			foundKey := false
 			foundValue := false
-			for _, c := range col.children[0].children {
-				switch c.element.Name {
+			for _, c := range col.Children[0].Children {
+				switch c.SchemaElement.Name {
 				case "key":
-					if c.element.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
-						p.errorf("field %s.key_value.key is not of repetition type \"required\"", col.element.Name)
+					if c.SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
+						p.errorf("field %s.key_value.key is not of repetition type \"required\"", col.SchemaElement.Name)
 					}
 					foundKey = true
 				case "value":
 					foundValue = true
 					// nothing else to check.
 				default:
-					p.errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.element.Name, c.element.Name)
+					p.errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.SchemaElement.Name, c.SchemaElement.Name)
 				}
 			}
 			if !foundKey {
-				p.errorf("field %[1]s is missing %[1]s.key_value.key", col.element.Name)
+				p.errorf("field %[1]s is missing %[1]s.key_value.key", col.SchemaElement.Name)
 			}
 			if !foundValue {
-				p.errorf("field %[1]s is missing %[1]s.key_value.value", col.element.Name)
+				p.errorf("field %[1]s is missing %[1]s.key_value.value", col.SchemaElement.Name)
 			}
-		case (col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDATE()) || col.element.GetConvertedType() == parquet.ConvertedType_DATE:
-			if col.element.GetType() != parquet.Type_INT32 {
-				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.element.Name)
+		case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetDATE()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_DATE:
+			if col.SchemaElement.GetType() != parquet.Type_INT32 {
+				p.errorf("field %[1]s is annotated as DATE but is not an int32", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIMESTAMP():
-			if col.element.GetType() != parquet.Type_INT64 && col.element.GetType() != parquet.Type_INT96 {
-				p.errorf("field %s is annotated as TIMESTAMP but is not an int64/int96", col.element.Name)
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetTIMESTAMP():
+			if col.SchemaElement.GetType() != parquet.Type_INT64 && col.SchemaElement.GetType() != parquet.Type_INT96 {
+				p.errorf("field %s is annotated as TIMESTAMP but is not an int64/int96", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetTIME():
-			t := col.element.GetLogicalType().TIME
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetTIME():
+			t := col.SchemaElement.GetLogicalType().TIME
 			switch {
 			case t.Unit.IsSetNANOS():
-				if col.element.GetType() != parquet.Type_INT64 {
-					p.errorf("field %s is annotated as TIME(NANOS, %t) but is not an int64", col.element.Name, t.IsAdjustedToUTC)
+				if col.SchemaElement.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as TIME(NANOS, %t) but is not an int64", col.SchemaElement.Name, t.IsAdjustedToUTC)
 				}
 			case t.Unit.IsSetMICROS():
-				if col.element.GetType() != parquet.Type_INT64 {
-					p.errorf("field %s is annotated as TIME(MICROS, %t) but is not an int64", col.element.Name, t.IsAdjustedToUTC)
+				if col.SchemaElement.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as TIME(MICROS, %t) but is not an int64", col.SchemaElement.Name, t.IsAdjustedToUTC)
 				}
 			case t.Unit.IsSetMILLIS():
-				if col.element.GetType() != parquet.Type_INT32 {
-					p.errorf("field %s is annotated as TIME(MILLIS, %t) but is not an int32", col.element.Name, t.IsAdjustedToUTC)
+				if col.SchemaElement.GetType() != parquet.Type_INT32 {
+					p.errorf("field %s is annotated as TIME(MILLIS, %t) but is not an int32", col.SchemaElement.Name, t.IsAdjustedToUTC)
 				}
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetUUID():
-			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 16 {
-				p.errorf("field %s is annotated as UUID but is not a fixed_len_byte_array(16)", col.element.Name)
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetUUID():
+			if col.SchemaElement.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.SchemaElement.GetTypeLength() != 16 {
+				p.errorf("field %s is annotated as UUID but is not a fixed_len_byte_array(16)", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetENUM():
-			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
-				p.errorf("field %s is annotated as ENUM but is not a binary", col.element.Name)
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetENUM():
+			if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as ENUM but is not a binary", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetJSON():
-			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
-				p.errorf("field %s is annotated as JSON but is not a binary", col.element.Name)
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetJSON():
+			if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as JSON but is not a binary", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetBSON():
-			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
-				p.errorf("field %s is annotated as BSON but is not a binary", col.element.Name)
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetBSON():
+			if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as BSON but is not a binary", col.SchemaElement.Name)
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetDECIMAL():
-			dec := col.element.GetLogicalType().DECIMAL
-			switch col.element.GetType() {
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetDECIMAL():
+			dec := col.SchemaElement.GetLogicalType().DECIMAL
+			switch col.SchemaElement.GetType() {
 			case parquet.Type_INT32:
 				if dec.Precision < 1 || dec.Precision > 9 {
-					p.errorf("field %s is int32 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 9", col.element.Name, dec.Precision)
+					p.errorf("field %s is int32 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 9", col.SchemaElement.Name, dec.Precision)
 				}
 			case parquet.Type_INT64:
 				if dec.Precision < 1 || dec.Precision > 18 {
-					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 18", col.element.Name, dec.Precision)
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= 18", col.SchemaElement.Name, dec.Precision)
 				}
 			case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-				n := *col.element.TypeLength
+				n := *col.SchemaElement.TypeLength
 				maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1)) - 1))
 				if dec.Precision < 1 || dec.Precision > maxDigits {
-					p.errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.element.Name, n, dec.Precision, maxDigits)
+					p.errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.SchemaElement.Name, n, dec.Precision, maxDigits)
 				}
 			case parquet.Type_BYTE_ARRAY:
 				if dec.Precision < 1 {
-					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision", col.element.Name, dec.Precision)
+					p.errorf("field %s is int64 and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision", col.SchemaElement.Name, dec.Precision)
 				}
 			default:
-				p.errorf("field %s is annotated as DECIMAL but type %s is unsupported", col.element.Name, col.element.GetType().String())
+				p.errorf("field %s is annotated as DECIMAL but type %s is unsupported", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.LogicalType != nil && col.element.GetLogicalType().IsSetINTEGER():
-			bitWidth := col.element.LogicalType.INTEGER.BitWidth
-			isSigned := col.element.LogicalType.INTEGER.IsSigned
+		case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetINTEGER():
+			bitWidth := col.SchemaElement.LogicalType.INTEGER.BitWidth
+			isSigned := col.SchemaElement.LogicalType.INTEGER.IsSigned
 			switch bitWidth {
 			case 8, 16, 32:
-				if col.element.GetType() != parquet.Type_INT32 {
-					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.element.Name, bitWidth, isSigned, col.element.GetType().String())
+				if col.SchemaElement.GetType() != parquet.Type_INT32 {
+					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.SchemaElement.Name, bitWidth, isSigned, col.SchemaElement.GetType().String())
 				}
 			case 64:
-				if col.element.GetType() != parquet.Type_INT64 {
-					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.element.Name, bitWidth, isSigned, col.element.GetType().String())
+				if col.SchemaElement.GetType() != parquet.Type_INT64 {
+					p.errorf("field %s is annotated as INT(%d, %t) but element type is %s", col.SchemaElement.Name, bitWidth, isSigned, col.SchemaElement.GetType().String())
 				}
 			default:
 				p.errorf("invalid bitWidth %d", bitWidth)
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_UTF8:
-			if col.element.GetType() != parquet.Type_BYTE_ARRAY {
-				p.errorf("field %s is annotated as UTF8 but element type is %s, not binary", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UTF8:
+			if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
+				p.errorf("field %s is annotated as UTF8 but element type is %s, not binary", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
-			if col.element.GetType() != parquet.Type_INT32 {
-				p.errorf("field %s is annotated as TIME_MILLIS but element type is %s, not int32", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
+			if col.SchemaElement.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as TIME_MILLIS but element type is %s, not int32", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
-			if col.element.GetType() != parquet.Type_INT64 {
-				p.errorf("field %s is annotated as TIME_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
+			if col.SchemaElement.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIME_MICROS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
-			if col.element.GetType() != parquet.Type_INT64 {
-				p.errorf("field %s is annotated as TIMESTAMP_MILLIS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
+			if col.SchemaElement.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MILLIS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
-			if col.element.GetType() != parquet.Type_INT64 {
-				p.errorf("field %s is annotated as TIMESTAMP_MICROS but element type is %s, not int64", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
+			if col.SchemaElement.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as TIMESTAMP_MICROS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil &&
-			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_UINT_16 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_UINT_32 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_INT_8 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_INT_16 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_INT_32):
-			if col.element.GetType() != parquet.Type_INT32 {
-				p.errorf("field %s is annotated as %s but element type is %s, not int32", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil &&
+			(col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_16 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_32 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_8 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_16 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_32):
+			if col.SchemaElement.GetType() != parquet.Type_INT32 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int32", col.SchemaElement.Name, col.SchemaElement.GetConvertedType().String(), col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil &&
-			(col.element.GetConvertedType() == parquet.ConvertedType_UINT_64 ||
-				col.element.GetConvertedType() == parquet.ConvertedType_INT_64):
-			if col.element.GetType() != parquet.Type_INT64 {
-				p.errorf("field %s is annotated as %s but element type is %s, not int64", col.element.Name, col.element.GetConvertedType().String(), col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil &&
+			(col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_64 ||
+				col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_64):
+			if col.SchemaElement.GetType() != parquet.Type_INT64 {
+				p.errorf("field %s is annotated as %s but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetConvertedType().String(), col.SchemaElement.GetType().String())
 			}
-		case col.element.ConvertedType != nil && col.element.GetConvertedType() == parquet.ConvertedType_INTERVAL:
-			if col.element.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.element.GetTypeLength() != 12 {
-				p.errorf("field %s is annotated as INTERVAL but element type is %s, not fixed_len_byte_array(12)", col.element.Name, col.element.GetType().String())
+		case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INTERVAL:
+			if col.SchemaElement.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.SchemaElement.GetTypeLength() != 12 {
+				p.errorf("field %s is annotated as INTERVAL but element type is %s, not fixed_len_byte_array(12)", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 			}
 		}
 	}
 
-	for _, c := range col.children {
+	for _, c := range col.Children {
 		p.validateLogicalTypes(c)
 	}
 }
