@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 func TestSchemaDefinition(t *testing.T) {
@@ -39,9 +40,33 @@ func TestNilSchemaDef(t *testing.T) {
 	require.Equal(t, "message empty {\n}\n", sd.String())
 }
 
+func TestSchemaElement(t *testing.T) {
+	var sd *SchemaDefinition
+
+	require.Nil(t, sd.SchemaElement())
+
+	sd = &SchemaDefinition{}
+	require.Nil(t, sd.SchemaElement())
+
+	sd, err := ParseSchemaDefinition(`message foo { required int64 bar; }`)
+	require.NoError(t, err)
+
+	require.NotNil(t, sd.SchemaElement())
+
+	require.Equal(t, &parquet.SchemaElement{
+		Name: "foo",
+	}, sd.SchemaElement())
+}
+
 func TestInvalidSchema(t *testing.T) {
 	_, err := ParseSchemaDefinition("")
 	require.Error(t, err)
+}
+
+func TestSchemaDefinitionFromColumnDefinition(t *testing.T) {
+	require.Nil(t, SchemaDefinitionFromColumnDefinition(nil))
+
+	require.NotNil(t, SchemaDefinitionFromColumnDefinition(&ColumnDefinition{}))
 }
 
 func TestParseAndGenerateSchema(t *testing.T) {
@@ -71,6 +96,10 @@ func TestParseAndGenerateSchema(t *testing.T) {
   required int32 ll (INT_32);
   required int64 mm (INT_64);
   required fixed_len_byte_array(12) nn (INTERVAL);
+  required int64 tt1 (TIME(NANOS, true));
+  required int64 tt2 (TIME(MICROS, true));
+  required int32 tt3 (TIME(MILLIS, true));
+  required int96 oo;
 }
 `
 
@@ -78,4 +107,19 @@ func TestParseAndGenerateSchema(t *testing.T) {
 	require.NoError(t, err, "parsing schema definition failed")
 
 	require.Equal(t, schema, schemaDef.String(), "expected and actual schema definition does not match")
+}
+
+func TestSubSchema(t *testing.T) {
+	schema := `message foo {
+		required group bar {
+			required int64 baz;
+		}
+	}`
+
+	schemaDef, err := ParseSchemaDefinition(schema)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	require.Equal(t, "message bar {\n  required int64 baz;\n}\n", schemaDef.SubSchema("bar").String())
+
+	require.Nil(t, schemaDef.SubSchema("does-not-exist"))
 }

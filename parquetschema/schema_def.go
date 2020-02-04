@@ -132,18 +132,10 @@ func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
 	return nil
 }
 
-// Children is used for iterate over children of this definition.
-func (sd *SchemaDefinition) Children(iter func(column ColumnDefinition)) {
-	for i := range sd.RootColumn.Children {
-		iter(*sd.RootColumn.Children[i])
-	}
-}
-
 // SchemaElement returns the schema element associated with the current
 // schema definition. If no schema element is present, then nil is returned.
 func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
 	if sd == nil || sd.RootColumn == nil {
-		fmt.Println("SchemaElement is nil!")
 		return nil
 	}
 

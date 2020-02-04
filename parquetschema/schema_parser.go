@@ -409,9 +409,9 @@ func (p *schemaParser) parseColumnDefinition() *ColumnDefinition {
 			p.next()
 			p.expect(itemNumber)
 
-			i, err := strconv.ParseInt(p.token.val, 10, 32)
-			if err != nil || i < 0 {
-				p.errorf("invalid fixed_len_byte_array length %q", p.token.val)
+			i, err := strconv.ParseUint(p.token.val, 10, 32)
+			if err != nil {
+				p.errorf("invalid fixed_len_byte_array length %q: %v", p.token.val, err)
 			}
 
 			byteArraySize := int32(i)
