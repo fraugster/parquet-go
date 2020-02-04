@@ -15,7 +15,6 @@ type SchemaDefinition struct {
 
 // ColumnDefinition represents the schema definition of a column and optionally its children.
 type ColumnDefinition struct {
-	FlatName      string
 	Children      []*ColumnDefinition
 	SchemaElement *parquet.SchemaElement
 }

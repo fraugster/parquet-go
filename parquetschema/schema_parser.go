@@ -287,10 +287,6 @@ func (p *schemaParser) parse() (err error) {
 	p.next()
 	p.expect(itemEOF)
 
-	for _, c := range p.root.Children {
-		fixFlatName("", c)
-	}
-
 	p.validateLogicalTypes(p.root)
 
 	return nil
@@ -342,24 +338,19 @@ func (p *schemaParser) parseMessage() {
 
 	p.root.Children = p.parseMessageBody()
 	for _, c := range p.root.Children {
-		recursiveFix(c, "")
+		recursiveFix(c)
 	}
 
 	p.expect(itemRightBrace)
 }
 
-func recursiveFix(col *ColumnDefinition, path string) {
-	col.FlatName = path + "." + col.SchemaElement.Name
-	if path == "" {
-		col.FlatName = col.SchemaElement.Name
+func recursiveFix(col *ColumnDefinition) {
+	if nc := int32(len(col.Children)); nc > 0 {
+		col.SchemaElement.NumChildren = &nc
 	}
 
 	for i := range col.Children {
-		recursiveFix(col.Children[i], col.FlatName)
-	}
-
-	if nc := int32(len(col.Children)); nc > 0 {
-		col.SchemaElement.NumChildren = &nc
+		recursiveFix(col.Children[i])
 	}
 }
 
@@ -703,19 +694,6 @@ func (p *schemaParser) parseFieldID() *int32 {
 	i32 := int32(i)
 
 	return &i32
-}
-
-func fixFlatName(prefix string, col *ColumnDefinition) {
-	flatName := col.SchemaElement.Name
-	if prefix != "" {
-		flatName = prefix + "." + flatName
-	}
-
-	col.FlatName = flatName
-
-	for _, c := range col.Children {
-		fixFlatName(flatName, c)
-	}
 }
 
 func (p *schemaParser) validateLogicalTypes(col *ColumnDefinition) {

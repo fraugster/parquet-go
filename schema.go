@@ -413,10 +413,9 @@ func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Co
 	}
 
 	col := &Column{
-		name:     root.SchemaElement.GetName(),
-		flatName: root.FlatName,
-		rep:      root.SchemaElement.GetRepetitionType(),
-		params:   params,
+		name:   root.SchemaElement.GetName(),
+		rep:    root.SchemaElement.GetRepetitionType(),
+		params: params,
 	}
 
 	if len(root.Children) > 0 {
@@ -912,7 +911,6 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 
 func createColumnDefinitionFromColumn(c *Column) *parquetschema.ColumnDefinition {
 	col := &parquetschema.ColumnDefinition{
-		FlatName:      c.FlatName(),
 		SchemaElement: c.Element(),
 	}
 
