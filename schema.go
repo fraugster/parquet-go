@@ -416,7 +416,6 @@ func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Co
 		name:     root.SchemaElement.GetName(),
 		flatName: root.FlatName,
 		rep:      root.SchemaElement.GetRepetitionType(),
-		element:  root.SchemaElement,
 		params:   params,
 	}
 
@@ -435,6 +434,8 @@ func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Co
 		}
 		col.data = dataColumn
 	}
+
+	col.element = col.buildElement()
 
 	return col, nil
 }
