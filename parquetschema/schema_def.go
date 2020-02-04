@@ -29,7 +29,7 @@ func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition
 }
 
 // ParseSchemaDefinition parses a textual schema definition and returns
-// an object, or an error if parsing has failed. The textual schema definition
+// a SchemaDefinition object, or an error if parsing has failed. The textual schema definition
 // needs to adhere to the following grammar:
 //
 //	message ::= 'message' <identifier> '{' <message-body> '}'
@@ -78,7 +78,7 @@ func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition
 //		| 'ENUM'
 //		| 'JSON'
 //		| 'BSON'
-//      | 'INT' '(' <bit-width> ',' <boolean> ')'
+//		| 'INT' '(' <bit-width> ',' <boolean> ')'
 //		| 'DECIMAL' '(' <precision> ',' <scale> ')'
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
@@ -91,6 +91,7 @@ func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition
 //	bit-width ::= '8' | '16' | '32' | '64'
 //	precision := <number>
 //	scale := <number>
+// For examples of textual schema definitions, please take a look at schema-files/*.schema.
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
 	if err := p.parse(); err != nil {
@@ -102,6 +103,10 @@ func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	}, nil
 }
 
+// String returns a textual representation of the schema definition. This textual representation
+// adheres to the format accepted by the ParseSchemaDefinition function. A textual schema definition
+// parsed by ParseSchemaDefinition and turned back into a string by this method repeatedly will
+// always remain the same, save for differences in the emitted whitespaces.
 func (sd *SchemaDefinition) String() string {
 	if sd == nil || sd.RootColumn == nil {
 		return "message empty {\n}\n"
