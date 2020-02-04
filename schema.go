@@ -388,7 +388,7 @@ func (r *schema) sortIndex() {
 func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
 	r.schemaDef = sd
 
-	root, err := createColumnFromColumnDefinition(r.schemaDef.Root())
+	root, err := createColumnFromColumnDefinition(r.schemaDef.RootColumn)
 	if err != nil {
 		return err
 	}

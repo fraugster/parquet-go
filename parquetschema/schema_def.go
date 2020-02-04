@@ -10,7 +10,7 @@ import (
 
 // SchemaDefinition represents a valid textual schema definition.
 type SchemaDefinition struct {
-	col *ColumnDefinition
+	RootColumn *ColumnDefinition
 }
 
 // ColumnDefinition represents the schema definition of a column and optionally its children.
@@ -19,18 +19,13 @@ type ColumnDefinition struct {
 	SchemaElement *parquet.SchemaElement
 }
 
-// Root returns the root element of the schema definition
-func (sd *SchemaDefinition) Root() *ColumnDefinition {
-	return sd.col
-}
-
-// SchemaDefinitionFromColumnDefinition creates a new schema definition from the root column definition.
+// SchemaDefinitionFromColumnDefinition creates a new schema definition from the provided root column definition.
 func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition {
 	if c == nil {
 		return nil
 	}
 
-	return &SchemaDefinition{col: c}
+	return &SchemaDefinition{RootColumn: c}
 }
 
 // ParseSchemaDefinition parses a textual schema definition and returns
@@ -103,20 +98,20 @@ func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	}
 
 	return &SchemaDefinition{
-		col: p.root,
+		RootColumn: p.root,
 	}, nil
 }
 
 func (sd *SchemaDefinition) String() string {
-	if sd == nil || sd.col == nil {
+	if sd == nil || sd.RootColumn == nil {
 		return "message empty {\n}\n"
 	}
 
 	buf := new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "message %s {\n", sd.col.SchemaElement.Name)
+	fmt.Fprintf(buf, "message %s {\n", sd.RootColumn.SchemaElement.Name)
 
-	printCols(buf, sd.col.Children, 2)
+	printCols(buf, sd.RootColumn.Children, 2)
 
 	fmt.Fprintf(buf, "}\n")
 
@@ -127,10 +122,10 @@ func (sd *SchemaDefinition) String() string {
 // that matches the provided name. If no such child exists, nil is
 // returned.
 func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
-	for _, c := range sd.col.Children {
+	for _, c := range sd.RootColumn.Children {
 		if c.SchemaElement.Name == name {
 			return &SchemaDefinition{
-				col: c,
+				RootColumn: c,
 			}
 		}
 	}
@@ -139,20 +134,20 @@ func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
 
 // Children is used for iterate over children of this definition.
 func (sd *SchemaDefinition) Children(iter func(column ColumnDefinition)) {
-	for i := range sd.col.Children {
-		iter(*sd.col.Children[i])
+	for i := range sd.RootColumn.Children {
+		iter(*sd.RootColumn.Children[i])
 	}
 }
 
 // SchemaElement returns the schema element associated with the current
 // schema definition. If no schema element is present, then nil is returned.
 func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
-	if sd == nil || sd.col == nil {
+	if sd == nil || sd.RootColumn == nil {
 		fmt.Println("SchemaElement is nil!")
 		return nil
 	}
 
-	return sd.col.SchemaElement
+	return sd.RootColumn.SchemaElement
 }
 
 func printCols(w io.Writer, cols []*ColumnDefinition, indent int) {
