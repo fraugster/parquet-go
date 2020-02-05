@@ -183,7 +183,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	case reflect.Uint, reflect.Uint8, reflect.Uint16:
 		field.SetInt32(int32(value.Uint()))
 		return nil
-	case reflect.Uint32, reflect.Uint64: // TODO: a uint64 doesn't necessarily fit into an int64
+	case reflect.Uint32, reflect.Uint64:
 		field.SetInt64(int64(value.Uint()))
 		return nil
 	case reflect.Float32:

@@ -367,6 +367,51 @@ func elem(data interface{}) interfaces.UnmarshalElement {
 	return interfaces.NewUnmarshallElement(data)
 }
 
+func TestReflectUnmarshaller(t *testing.T) {
+	obj1 := struct {
+		Foo int64
+	}{}
+
+	sd, err := parquetschema.ParseSchemaDefinition(`message test { required int64 foo; }`)
+	require.NoError(t, err)
+
+	um := &reflectUnmarshaller{obj: obj1, schemaDef: sd}
+
+	data := interfaces.NewUnmarshallObject(map[string]interface{}{"foo": int64(42)})
+
+	err = um.UnmarshalParquet(data)
+	require.EqualError(t, err, "you need to provide an object of type *struct { Foo int64 } to unmarshal into")
+
+	i64 := int64(23)
+	obj2 := &i64
+
+	um.obj = obj2
+
+	err = um.UnmarshalParquet(data)
+	require.EqualError(t, err, "provided object of type *int64 is not a struct")
+
+	um.obj = &obj1
+
+	err = um.UnmarshalParquet(data)
+	require.NoError(t, err)
+}
+
+func TestUnmarshallerFieldNameStructTag(t *testing.T) {
+	obj1 := struct {
+		Foo int64 `parquet:"bar"`
+	}{}
+
+	sd, err := parquetschema.ParseSchemaDefinition(`message test { required int64 bar; }`)
+	require.NoError(t, err)
+
+	um := &reflectUnmarshaller{obj: &obj1, schemaDef: sd}
+
+	data := interfaces.NewUnmarshallObject(map[string]interface{}{"bar": int64(42)})
+
+	err = um.UnmarshalParquet(data)
+	require.NoError(t, err)
+}
+
 func TestFillValue(t *testing.T) {
 	um := &reflectUnmarshaller{}
 
