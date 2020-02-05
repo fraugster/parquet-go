@@ -12,6 +12,7 @@ import (
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 func TestDecodeStruct(t *testing.T) {
@@ -324,7 +325,7 @@ func TestDecodeStruct(t *testing.T) {
 	}
 
 	for idx, tt := range testData {
-		sd, err := goparquet.ParseSchemaDefinition(tt.Schema)
+		sd, err := parquetschema.ParseSchemaDefinition(tt.Schema)
 		assert.NoError(t, err, "%d. parsing schema failed", idx)
 		obj := interfaces.NewMarshallObject(nil)
 		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
@@ -341,7 +342,7 @@ func TestDecodeStruct(t *testing.T) {
 func TestWriteFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required int64 foo;
 			optional binary bar (STRING);
@@ -461,7 +462,7 @@ func strPtr(s string) *string {
 func TestWriteReadByteArrays(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required fixed_len_byte_array(4) foo;
 			optional fixed_len_byte_array(4) bar;
@@ -515,7 +516,7 @@ func TestWriteReadByteArrays(t *testing.T) {
 func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required binary foo (STRING);
 			required int64 bar;

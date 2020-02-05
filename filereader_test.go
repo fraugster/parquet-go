@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 func buildTestStream(t *testing.T) []byte {
-	schema, err := ParseSchemaDefinition(`message msg {
+	schema, err := parquetschema.ParseSchemaDefinition(`message msg {
   required int64 a;
   required int64 b;
   optional group x {

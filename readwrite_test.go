@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 /*
@@ -529,7 +530,7 @@ func TestReadWriteMultiLevel(t *testing.T) {
 }
 `
 	buf := &bytes.Buffer{}
-	sd, err := ParseSchemaDefinition(sc)
+	sd, err := parquetschema.ParseSchemaDefinition(sc)
 	require.NoError(t, err)
 	w := NewFileWriter(buf, UseSchemaDefinition(sd))
 
@@ -549,7 +550,7 @@ func TestReadWriteMultiLevel(t *testing.T) {
 func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group baz (LIST) {
 				repeated group list {
