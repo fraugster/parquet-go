@@ -23,3 +23,10 @@
 * (\*dataPageWriterV1).write(): there is a redundant loop and copy if the value encoder is a dictEncoder.
 * (\*dataPageReaderV2).read(): check whether it is correct to subtract the level size from the compressed size
 * dataPageWriterV2: add support for CRC.
+* schema.go: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple reader but its better to add concurrency support to the file reader itself
+* schema.go: add validation so every parent at least have one child.
+* (\*schema).ensureRoot(): a hacky way to make sure the root is not nil (because of my wrong assumption of the root element) at the last minute. fix it
+* (\*schema).ensureRoot(): provide a way to override the root column name
+* parquet-tool cat: add support for detailed schema (-d)
+* parquet-tool head: add support for detailed schema (-d)
+* parquet-tool schema: add support for detailed schema (-d)

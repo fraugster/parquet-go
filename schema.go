@@ -9,16 +9,13 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
-// TODO: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple
-// reader but its better to add concurrency support to the file reader itself
-// TODO: add validation so every parent at least have one child.
-
 const (
 	_ int = iota
 	listParent
 	mapParent
 )
 
+// Column is composed of schema-related information as well as the actual column store object.
 type Column struct {
 	index          int
 	name, flatName string
@@ -94,7 +91,6 @@ func (c *Column) Index() int {
 func (c *Column) Element() *parquet.SchemaElement {
 	if c.element == nil {
 		// If this is a no-element node, we need to re-create element every time to make sure the content is always up-to-date
-		// TODO: if its read only, we can build it
 		return c.buildElement()
 	}
 	return c.element
@@ -215,7 +211,7 @@ func (c *Column) getFirstRDLevel() (int32, int32, bool) {
 		return c.data.getRDLevelAt(-1)
 	}
 
-	// there should be at lease 1 child, // TODO : add validation
+	// there should be at lease 1 child,
 	for i := range c.children {
 		rl, dl, last := c.children[i].getFirstRDLevel()
 		if last {
@@ -272,13 +268,12 @@ type schema struct {
 	selectedColumn []string
 }
 
-// TODO(f0rud): a hacky way to make sure the root is not nil (because of my wrong assumption of the root element) at the last minute. fix it
 func (r *schema) ensureRoot() {
 	if r.root == nil {
 		r.root = &Column{
 			index:    0,
-			name:     "msg", // TODO: provide way of overriding this.
-			flatName: "",    // the flat name for root element is empty
+			name:     "msg",
+			flatName: "", // the flat name for root element is empty
 			data:     nil,
 			children: []*Column{},
 			rep:      0,
@@ -694,7 +689,6 @@ func (r *schema) AddData(m map[string]interface{}) error {
 }
 
 func (r *schema) getData() (map[string]interface{}, error) {
-	// TODO: keep track of read row count
 	d, _, err := r.root.getData()
 	if err != nil {
 		return nil, err
@@ -725,7 +719,6 @@ func recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, repLvl uint16)
 	return nil
 }
 
-// TODO: maxRepLvl is available in the *Column at definition time, we can remove it here
 func recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) error {
 	var data = m.(map[string]interface{})
 	for i := range c {
@@ -785,7 +778,10 @@ func recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl
 func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, name string, idx int, dLevel, rLevel uint16) (int, error) {
 	s := schema[idx]
 
-	// TODO: validate Name is not empty
+	if s.Name == "" {
+		return 0, errors.Errorf("name in schema on index %d is empty", idx)
+	}
+
 	if s.RepetitionType == nil {
 		return 0, errors.Errorf("field RepetitionType is nil in index %d", idx)
 	}
@@ -855,7 +851,6 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	}
 	c.flatName = name
 	c.name = s.Name
-	// TODO : Do more validation here
 	c.element = s
 	c.children = make([]*Column, 0, l)
 	c.rep = *s.RepetitionType

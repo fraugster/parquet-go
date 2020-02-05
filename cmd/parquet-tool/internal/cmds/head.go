@@ -14,8 +14,6 @@ func init() {
 	rootCmd.AddCommand(headCmd)
 }
 
-// TODO: add support for detailed schema (-d)
-
 var headCmd = &cobra.Command{
 	Use:   "head file-name.parquet",
 	Short: "Prints the first n record of the Parquet file",
