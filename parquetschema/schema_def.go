@@ -1,4 +1,4 @@
-package goparquet
+package parquetschema
 
 import (
 	"bytes"
@@ -10,11 +10,26 @@ import (
 
 // SchemaDefinition represents a valid textual schema definition.
 type SchemaDefinition struct {
-	col *Column
+	RootColumn *ColumnDefinition
+}
+
+// ColumnDefinition represents the schema definition of a column and optionally its children.
+type ColumnDefinition struct {
+	Children      []*ColumnDefinition
+	SchemaElement *parquet.SchemaElement
+}
+
+// SchemaDefinitionFromColumnDefinition creates a new schema definition from the provided root column definition.
+func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition {
+	if c == nil {
+		return nil
+	}
+
+	return &SchemaDefinition{RootColumn: c}
 }
 
 // ParseSchemaDefinition parses a textual schema definition and returns
-// an object, or an error if parsing has failed. The textual schema definition
+// a SchemaDefinition object, or an error if parsing has failed. The textual schema definition
 // needs to adhere to the following grammar:
 //
 //	message ::= 'message' <identifier> '{' <message-body> '}'
@@ -63,7 +78,7 @@ type SchemaDefinition struct {
 //		| 'ENUM'
 //		| 'JSON'
 //		| 'BSON'
-//      | 'INT' '(' <bit-width> ',' <boolean> ')'
+//		| 'INT' '(' <bit-width> ',' <boolean> ')'
 //		| 'DECIMAL' '(' <precision> ',' <scale> ')'
 //	field-id-definition ::= '=' <number>
 //	number ::= <digit>+
@@ -76,6 +91,7 @@ type SchemaDefinition struct {
 //	bit-width ::= '8' | '16' | '32' | '64'
 //	precision := <number>
 //	scale := <number>
+// For examples of textual schema definitions, please take a look at schema-files/*.schema.
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
 	if err := p.parse(); err != nil {
@@ -83,20 +99,24 @@ func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	}
 
 	return &SchemaDefinition{
-		col: p.root,
+		RootColumn: p.root,
 	}, nil
 }
 
+// String returns a textual representation of the schema definition. This textual representation
+// adheres to the format accepted by the ParseSchemaDefinition function. A textual schema definition
+// parsed by ParseSchemaDefinition and turned back into a string by this method repeatedly will
+// always remain the same, save for differences in the emitted whitespaces.
 func (sd *SchemaDefinition) String() string {
-	if sd.col == nil {
+	if sd == nil || sd.RootColumn == nil {
 		return "message empty {\n}\n"
 	}
 
 	buf := new(bytes.Buffer)
 
-	fmt.Fprintf(buf, "message %s {\n", sd.col.Name())
+	fmt.Fprintf(buf, "message %s {\n", sd.RootColumn.SchemaElement.Name)
 
-	printCols(buf, sd.col.children, 2)
+	printCols(buf, sd.RootColumn.Children, 2)
 
 	fmt.Fprintf(buf, "}\n")
 
@@ -107,38 +127,31 @@ func (sd *SchemaDefinition) String() string {
 // that matches the provided name. If no such child exists, nil is
 // returned.
 func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
-	for _, c := range sd.col.children {
-		if c.name == name {
+	for _, c := range sd.RootColumn.Children {
+		if c.SchemaElement.Name == name {
 			return &SchemaDefinition{
-				col: c,
+				RootColumn: c,
 			}
 		}
 	}
 	return nil
 }
 
-// Children is used for iterate over children of this definition.
-func (sd *SchemaDefinition) Children(iter func(column Column)) {
-	for i := range sd.col.children {
-		iter(*sd.col.children[i])
-	}
-}
-
 // SchemaElement returns the schema element associated with the current
 // schema definition. If no schema element is present, then nil is returned.
 func (sd *SchemaDefinition) SchemaElement() *parquet.SchemaElement {
-	if sd == nil {
+	if sd == nil || sd.RootColumn == nil {
 		return nil
 	}
 
-	return sd.col.element
+	return sd.RootColumn.SchemaElement
 }
 
-func printCols(w io.Writer, cols []*Column, indent int) {
+func printCols(w io.Writer, cols []*ColumnDefinition, indent int) {
 	for _, col := range cols {
 		printIndent(w, indent)
 
-		elem := col.Element()
+		elem := col.SchemaElement
 
 		switch elem.GetRepetitionType() {
 		case parquet.FieldRepetitionType_REPEATED:
@@ -156,7 +169,7 @@ func printCols(w io.Writer, cols []*Column, indent int) {
 				fmt.Fprintf(w, " (%s)", elem.GetConvertedType().String())
 			}
 			fmt.Fprintf(w, " {\n")
-			printCols(w, col.children, indent+2)
+			printCols(w, col.Children, indent+2)
 
 			printIndent(w, indent)
 			fmt.Fprintf(w, "}\n")

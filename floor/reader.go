@@ -11,6 +11,7 @@ import (
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 // NewReader returns a new high-level parquet file reader.
@@ -91,7 +92,7 @@ func (r *Reader) Scan(obj interface{}) error {
 
 type reflectUnmarshaller struct {
 	obj       interface{}
-	schemaDef *goparquet.SchemaDefinition
+	schemaDef *parquetschema.SchemaDefinition
 }
 
 func (um *reflectUnmarshaller) UnmarshalParquet(record interfaces.UnmarshalObject) error {
@@ -113,7 +114,7 @@ func (um *reflectUnmarshaller) UnmarshalParquet(record interfaces.UnmarshalObjec
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record interfaces.UnmarshalObject, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record interfaces.UnmarshalObject, schemaDef *parquetschema.SchemaDefinition) error {
 	typ := value.Type()
 
 	numFields := typ.NumField()
@@ -144,7 +145,7 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record interfaces
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
 		value = value.Elem()
@@ -278,7 +279,7 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.Un
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_MAP {
 		return fmt.Errorf("filling map but schema element %s is not annotated as MAP", elem.GetName())
 	}
@@ -321,7 +322,7 @@ func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.Unma
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	byteSlice, err := data.ByteArray()
 	if err != nil {
 		return err
@@ -338,7 +339,7 @@ func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data in
 	return nil
 }
 
-func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *goparquet.SchemaDefinition) error {
+func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
 		return fmt.Errorf("filling slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
@@ -412,6 +413,6 @@ func (r *Reader) Err() error {
 
 // GetSchemaDefinition returns the schema definition of the parquet
 // file.
-func (r *Reader) GetSchemaDefinition() *goparquet.SchemaDefinition {
+func (r *Reader) GetSchemaDefinition() *parquetschema.SchemaDefinition {
 	return r.r.GetSchemaDefinition()
 }

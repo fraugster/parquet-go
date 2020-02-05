@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 // FileWriter is a parquet file writer
@@ -95,9 +96,11 @@ func MaxRowGroupSize(size int64) FileWriterOption {
 }
 
 // UseSchemaDefinition ...
-func UseSchemaDefinition(sd *SchemaDefinition) FileWriterOption {
+func UseSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
-		fw.SetSchemaDefinition(sd)
+		if err := fw.SetSchemaDefinition(sd); err != nil {
+			panic(err)
+		}
 	}
 }
 

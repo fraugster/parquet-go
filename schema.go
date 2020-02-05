@@ -1,10 +1,12 @@
 package goparquet
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 // TODO: the current design suggest every reader is only on one chunk and its not concurrent support. we can use multiple
@@ -35,6 +37,11 @@ type Column struct {
 	element *parquet.SchemaElement
 
 	params *ColumnParameters
+}
+
+// Children returns the column's child columns.
+func (c *Column) Children() []*Column {
+	return c.children
 }
 
 func (c *Column) pathArray() []string {
@@ -256,6 +263,7 @@ func (c *Column) getData() (interface{}, int32, error) {
 }
 
 type schema struct {
+	schemaDef  *parquetschema.SchemaDefinition
 	root       *Column
 	numRecords int64
 	readOnly   int
@@ -377,17 +385,97 @@ func (r *schema) sortIndex() {
 	fn(&r.root.children)
 }
 
-func (r *schema) SetSchemaDefinition(sd *SchemaDefinition) {
-	cp, err := CopySchema(sd)
+func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
+	r.schemaDef = sd
+
+	root, err := createColumnFromColumnDefinition(r.schemaDef.RootColumn)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	r.root = cp.col
+	r.root = root
 
 	for _, c := range r.root.children {
 		recursiveFix(c, "", 0, 0)
 	}
+
+	return nil
+}
+
+func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Column, error) {
+	params := &ColumnParameters{
+		LogicalType:   root.SchemaElement.LogicalType,
+		ConvertedType: root.SchemaElement.ConvertedType,
+		TypeLength:    root.SchemaElement.TypeLength,
+		FieldID:       root.SchemaElement.FieldID,
+		Scale:         root.SchemaElement.Scale,
+		Precision:     root.SchemaElement.Precision,
+	}
+
+	col := &Column{
+		name:   root.SchemaElement.GetName(),
+		rep:    root.SchemaElement.GetRepetitionType(),
+		params: params,
+	}
+
+	if len(root.Children) > 0 {
+		for _, c := range root.Children {
+			childColumn, err := createColumnFromColumnDefinition(c)
+			if err != nil {
+				return nil, err
+			}
+			col.children = append(col.children, childColumn)
+		}
+	} else {
+		dataColumn, err := getColumnStore(root.SchemaElement, params)
+		if err != nil {
+			return nil, err
+		}
+		col.data = dataColumn
+	}
+
+	col.element = col.buildElement()
+
+	return col, nil
+}
+
+func getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) (*ColumnStore, error) {
+	if elem.Type == nil {
+		return nil, nil
+	}
+
+	var (
+		colStore *ColumnStore
+		err      error
+	)
+
+	typ := elem.GetType()
+
+	switch typ {
+	case parquet.Type_BYTE_ARRAY:
+		colStore, err = NewByteArrayStore(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_FLOAT:
+		colStore, err = NewFloatStore(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_DOUBLE:
+		colStore, err = NewDoubleStore(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_BOOLEAN:
+		colStore, err = NewBooleanStore(parquet.Encoding_PLAIN, params)
+	case parquet.Type_INT32:
+		colStore, err = NewInt32Store(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_INT64:
+		colStore, err = NewInt64Store(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_INT96:
+		colStore, err = NewInt96Store(parquet.Encoding_PLAIN, true, params)
+	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
+		colStore, err = NewFixedByteArrayStore(parquet.Encoding_PLAIN, true, params)
+	default:
+		return nil, fmt.Errorf("unsupported type %q when creating Column store", typ.String())
+	}
+	if err != nil {
+		return nil, fmt.Errorf("creating Column store for type %q failed: %v", typ.String(), err)
+	}
+
+	return colStore, nil
 }
 
 // ColumnParameters contains common parameters related to a column.
@@ -817,14 +905,24 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 		}
 	}
 	r.sortIndex()
+	r.schemaDef = parquetschema.SchemaDefinitionFromColumnDefinition(createColumnDefinitionFromColumn(r.root))
 	return nil
 }
 
-func (r *schema) GetSchemaDefinition() *SchemaDefinition {
-	cp := SchemaDefinition{
-		col: r.root,
+func createColumnDefinitionFromColumn(c *Column) *parquetschema.ColumnDefinition {
+	col := &parquetschema.ColumnDefinition{
+		SchemaElement: c.Element(),
 	}
-	def, err := ParseSchemaDefinition(cp.String())
+
+	for _, child := range c.Children() {
+		col.Children = append(col.Children, createColumnDefinitionFromColumn(child))
+	}
+
+	return col
+}
+
+func (r *schema) GetSchemaDefinition() *parquetschema.SchemaDefinition {
+	def, err := parquetschema.ParseSchemaDefinition(r.schemaDef.String())
 	if err != nil {
 		panic(err)
 	}
@@ -854,8 +952,8 @@ type schemaCommon interface {
 	GetColumnByName(path string) *Column
 
 	// GetSchemaDefinition returns the schema definition.
-	GetSchemaDefinition() *SchemaDefinition
-	SetSchemaDefinition(*SchemaDefinition)
+	GetSchemaDefinition() *parquetschema.SchemaDefinition
+	SetSchemaDefinition(*parquetschema.SchemaDefinition) error
 
 	// Internal functions
 	rowGroupNumRecords() int64

@@ -12,12 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 func TestReadFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required int64 foo;
 			optional binary bar (STRING);
@@ -88,10 +89,10 @@ func TestReadFile(t *testing.T) {
 func TestReadWriteMap(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group foo (MAP) {
-				repeated group key_value {
+				repeated group key_value (MAP_KEY_VALUE) {
 					required binary key (STRING);
 					required int32 value;
 				}
@@ -145,7 +146,7 @@ func TestReadWriteMap(t *testing.T) {
 	t.Logf("count = %d", count)
 
 	for idx, elem := range result {
-		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data")
+		require.Equal(t, testData[idx], elem, "%d. read result doesn't match expected data", idx)
 	}
 
 	require.NoError(t, hlReader.Close())
@@ -154,7 +155,7 @@ func TestReadWriteMap(t *testing.T) {
 func TestReadWriteSlice(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group foo (LIST) {
 				repeated group list {
@@ -220,7 +221,7 @@ func TestReadWriteSlice(t *testing.T) {
 func TestReadWriteArray(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group foo (LIST) {
 				repeated group list {
@@ -287,7 +288,7 @@ func TestReadWriteArray(t *testing.T) {
 func TestReadWriteSpecialTypes(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	sd, err := goparquet.ParseSchemaDefinition(
+	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required fixed_len_byte_array(16) theid (UUID);
 			required binary clientstr (ENUM);
@@ -388,7 +389,7 @@ func TestFillValue(t *testing.T) {
 	require.NoError(t, um.fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), elem([]byte("hello world!")), nil))
 	require.Error(t, um.fillValue(reflect.New(reflect.TypeOf([]byte{})).Elem(), elem(int64(1000000)), nil))
 
-	sd, err := goparquet.ParseSchemaDefinition(`message test {
+	sd, err := parquetschema.ParseSchemaDefinition(`message test {
 		required int32 date (DATE);
 		required int64 tsnano (TIMESTAMP(NANOS, true));
 		required int64 tsmicro (TIMESTAMP(MICROS, true));
