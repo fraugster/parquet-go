@@ -382,7 +382,7 @@ func readPageData(col *Column, pages []pageReader) error {
 	return nil
 }
 
-func readRowGroup(r io.ReadSeeker, schema schemaReader, rowGroups *parquet.RowGroup) error {
+func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGroup) error {
 	dataCols := schema.Columns()
 	schema.resetData()
 	schema.setNumRecords(rowGroups.NumRows)

@@ -11,9 +11,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-// DefaultHashFunc is used to handle duplicate values, the result can not be an slice and the library use it as a map key.
-// default is fnv hash in std lib
-var DefaultHashFunc = fnvHashFunc
+// DefaultHashFunc is used to generate a hash value to detect and handle duplicate values.
+// The function has to return any type that can be used as a map key. In particular, the
+// result can not be a slice. The default implementation used the fnv hash function as
+// implemented in Go's standard library.
+var DefaultHashFunc func([]byte) interface{}
+
+func init() {
+	DefaultHashFunc = fnvHashFunc
+}
 
 type byteReader struct {
 	io.Reader

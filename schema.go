@@ -19,6 +19,11 @@ const (
 	mapParent
 )
 
+// Column is composed of a schema definition for the column, a column store
+// that contains the implementation to write the data to a parquet file, and
+// any additional parameters that are necessary to correctly write the data.
+// Please the NewDataColumn, NewListColumn or NewMapColumn functions to create
+// a Column object correctly.
 type Column struct {
 	index          int
 	name, flatName string
@@ -65,32 +70,32 @@ func (c *Column) getSchemaArray() []*parquet.SchemaElement {
 	return ret
 }
 
-// MaxDefinitionLevel returns the maximum definition level for this column
+// MaxDefinitionLevel returns the maximum definition level for this column.
 func (c *Column) MaxDefinitionLevel() uint16 {
 	return c.maxD
 }
 
-// MaxRepetitionLevel returns the maximum repetition value for this column
+// MaxRepetitionLevel returns the maximum repetition value for this column.
 func (c *Column) MaxRepetitionLevel() uint16 {
 	return c.maxR
 }
 
-// FlatName returns the name of the column and its parents separated with dot
+// FlatName returns the name of the column and its parents in dotted notation.
 func (c *Column) FlatName() string {
 	return c.flatName
 }
 
-// Name return the column name
+// Name returns the column name.
 func (c *Column) Name() string {
 	return c.name
 }
 
-// Index return the index of the column in schema, zero based
+// Index returns the index of the column in schema, zero based.
 func (c *Column) Index() int {
 	return c.index
 }
 
-// Element returns the thrift parquet element
+// Element returns schema element definition of the column.
 func (c *Column) Element() *parquet.SchemaElement {
 	if c.element == nil {
 		// If this is a no-element node, we need to re-create element every time to make sure the content is always up-to-date
@@ -100,8 +105,8 @@ func (c *Column) Element() *parquet.SchemaElement {
 	return c.element
 }
 
-// Type returns the parquet type of the value, if this is a group, then it returns nil
-// also it returns the basic parquet types, not the logical and converted type
+// Type returns the parquet type of the value. If the column is a group, then the
+// method will return nil.
 func (c *Column) Type() *parquet.Type {
 	if c.data == nil {
 		return nil
@@ -110,17 +115,18 @@ func (c *Column) Type() *parquet.Type {
 	return parquet.TypePtr(c.data.parquetType())
 }
 
-// RepetitionType returns the repetition type for the current column
+// RepetitionType returns the repetition type for the current column.
 func (c *Column) RepetitionType() *parquet.FieldRepetitionType {
 	return &c.rep
 }
 
-// DataColumn indicates if the column is data column, otherwise it's a group
+// DataColumn returns true if the column is data column, false otherwise.
 func (c *Column) DataColumn() bool {
 	return c.data != nil
 }
 
-// ChildrenCount returns the number of children on a group, returns -1 on data column
+// ChildrenCount returns the number of children in a group. If the column is
+// a data column, it returns -1.
 func (c *Column) ChildrenCount() int {
 	if c.data != nil {
 		return -1
@@ -488,7 +494,8 @@ type ColumnParameters struct {
 	Precision     *int32
 }
 
-// NewDataColumn create new column, not a group
+// NewDataColumn creates a new data column of the provided field repetition type, using
+// the provided column store to write data. Do not use this function to create a group.
 func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) *Column {
 	return &Column{
 		data:     store,
@@ -498,7 +505,9 @@ func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) *Column 
 	}
 }
 
-// NewListColumn return a new LIST in parquet file
+// NewListColumn return a new LIST column, which is a group of converted type LIST
+// with a repeated group named "list" as child which then contains a child which is
+// the element column.
 func NewListColumn(element *Column, rep parquet.FieldRepetitionType) (*Column, error) {
 	// the higher level element doesn't need name, but all lower level does.
 	element.name = "element"
@@ -523,7 +532,9 @@ func NewListColumn(element *Column, rep parquet.FieldRepetitionType) (*Column, e
 	}, nil
 }
 
-// NewMapColumn return a new MAP in parquet file
+// NewMapColumn returns a new MAP column, which is a group of converted type LIST
+// with a repeated group named "key_value" of converted type MAP_KEY_VALUE. This
+// group in turn contains two columns "key" and "value".
 func NewMapColumn(key, value *Column, rep parquet.FieldRepetitionType) (*Column, error) {
 	// the higher level element doesn't need name, but all lower level does.
 	if key.rep != parquet.FieldRepetitionType_REQUIRED {
@@ -559,8 +570,8 @@ func NewMapColumn(key, value *Column, rep parquet.FieldRepetitionType) (*Column,
 	}, nil
 }
 
-// AddGroup add a group to the parquet schema, path is the dot separated path of the group,
-// the parent group should be there or it will return an error
+// AddGroup adds a new group to the parquet schema. The provided path is written in dotted notation.
+// All parent elements in this dot-separated path need to exist, otherwise the method returns an error.
 func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	return r.addColumnOrGroup(path, &Column{
 		children: []*Column{},
@@ -570,8 +581,9 @@ func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	})
 }
 
-// AddColumn is for adding a column to the parquet schema, it resets the store
-// path is the dot separated path of the group, the parent group should be there or it will return an error
+// AddColumn adds a single column to the parquet schema. The path is provided in dotted notation. All
+// parent elements in this dot-separated path need to exist, otherwise the method returns an error. Any
+// data contained in the column store is reset.
 func (r *schema) AddColumn(path string, col *Column) error {
 	return r.addColumnOrGroup(path, col)
 }
@@ -945,7 +957,10 @@ func (r *schema) rowGroupNumRecords() int64 {
 	return r.numRecords
 }
 
-type schemaCommon interface {
+// SchemaCommon contains methods shared by FileReader and FileWriter
+// to retrieve and set information related to the parquet schema and
+// columns that are used by the reader resp. writer.
+type SchemaCommon interface {
 	// Columns return only data columns, not all columns
 	Columns() []*Column
 	// Return a column by its name
@@ -961,18 +976,19 @@ type schemaCommon interface {
 	getSchemaArray() []*parquet.SchemaElement
 }
 
-// schemaReader is a reader for the schema in file
-type schemaReader interface {
-	schemaCommon
+// SchemaReader is an interface with methods necessary in the FileReader.
+type SchemaReader interface {
+	SchemaCommon
 	setNumRecords(int64)
 	getData() (map[string]interface{}, error)
 	setSelectedColumns(selected ...string)
 	isSelected(string) bool
 }
 
-// schemaWriter is a writer and generator for the schema
-type schemaWriter interface {
-	schemaCommon
+// SchemaWriter is an interface with methods necessary in the FileWriter
+// to add groups and columns and to write data.
+type SchemaWriter interface {
+	SchemaCommon
 
 	AddData(m map[string]interface{}) error
 	AddGroup(path string, rep parquet.FieldRepetitionType) error
@@ -980,7 +996,7 @@ type schemaWriter interface {
 	DataSize() int64
 }
 
-func makeSchema(meta *parquet.FileMetaData) (schemaReader, error) {
+func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
 	}

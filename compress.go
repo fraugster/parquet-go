@@ -18,8 +18,9 @@ var (
 	compressorLock sync.RWMutex
 )
 
-// BlockCompressor is an interface for handling the compressors for the parquet file
 type (
+	// BlockCompressor is an interface to describe of a block compressor to be used
+	// in compressing the content of parquet files.
 	BlockCompressor interface {
 		CompressBlock([]byte) ([]byte, error)
 		DecompressBlock([]byte) ([]byte, error)
@@ -120,7 +121,12 @@ func newBlockReader(in io.Reader, codec parquet.CompressionCodec, compressedSize
 	return bytes.NewReader(res), nil
 }
 
-// RegisterBlockCompressor can plug new kind of block compressor to the library
+// RegisterBlockCompressor is a function to to register additional block compressors to the package. By default,
+// only UNCOMPRESSED, GZIP and SNAPPY are supported as parquet compression algorithms. The parquet file format
+// supports more compression algorithms, such as LZO, BROTLI, LZ4 and ZSTD. To limit the amount of external dependencies,
+// the number of supported algorithms was reduced to a core set. If you want to use any of the other compression
+// algorithms, please provide your own implementation of it in a way that satisfies the BlockCompressor interface,
+// and register it using this function from your code.
 func RegisterBlockCompressor(method parquet.CompressionCodec, compressor BlockCompressor) {
 	compressorLock.Lock()
 	defer compressorLock.Unlock()

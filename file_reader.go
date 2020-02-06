@@ -7,10 +7,11 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// FileReader is the parquet file reader
+// FileReader is used to read data from a parquet file. Always use NewFileReader to create
+// such an object.
 type FileReader struct {
 	meta *parquet.FileMetaData
-	schemaReader
+	SchemaReader
 	reader io.ReadSeeker
 
 	rowGroupPosition int
@@ -18,10 +19,9 @@ type FileReader struct {
 	skipRowGroup     bool
 }
 
-// NewFileReader try to create a reader from a stream, the columns is for reading specific columns. the pattern is like this:
-// name : means the column name in the root, if the name is a group, then this means all the column inside the group
-// name.inner : means the column inner inside the name group
-// also if there is an unselected required group in the same level as one selected column, the result contains an empty map for that group
+// NewFileReader creates a new FileReader. You can limit the columns that are read by providing
+// the names of the specific columns to read using dotted notation. If no columns are provided,
+// then all columns are read.
 func NewFileReader(r io.ReadSeeker, columns ...string) (*FileReader, error) {
 	meta, err := readFileMetaData(r)
 	if err != nil {
@@ -40,7 +40,7 @@ func NewFileReader(r io.ReadSeeker, columns ...string) (*FileReader, error) {
 	}
 	return &FileReader{
 		meta:         meta,
-		schemaReader: schema,
+		SchemaReader: schema,
 		reader:       r,
 	}, nil
 }
@@ -51,21 +51,22 @@ func (f *FileReader) readRowGroup() error {
 		return io.EOF
 	}
 	f.rowGroupPosition++
-	return readRowGroup(f.reader, f.schemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
+	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
-// RawGroupCount return the number of row groups in file
-func (f *FileReader) RawGroupCount() int {
+// RowGroupCount returns the number of row groups in the parquet file.
+func (f *FileReader) RowGroupCount() int {
 	return len(f.meta.RowGroups)
 }
 
-// NumRows return the number of rows in the current file reader, based on parquet meta data without loading the row groups
+// NumRows returns the number of rows in the parquet file. This information is directly taken from
+// the file's meta data.
 func (f *FileReader) NumRows() int64 {
 	return f.meta.NumRows
 }
 
 func (f *FileReader) advanceIfNeeded() error {
-	if f.rowGroupPosition == 0 || f.currentRecord >= f.schemaReader.rowGroupNumRecords() || f.skipRowGroup {
+	if f.rowGroupPosition == 0 || f.currentRecord >= f.SchemaReader.rowGroupNumRecords() || f.skipRowGroup {
 		if err := f.readRowGroup(); err != nil {
 			f.skipRowGroup = true
 			return err
@@ -77,31 +78,31 @@ func (f *FileReader) advanceIfNeeded() error {
 	return nil
 }
 
-// RowGroupNumRows returns the number of rows in the current active RowGroup
+// RowGroupNumRows returns the number of rows in the current RowGroup.
 func (f *FileReader) RowGroupNumRows() (int64, error) {
 	if err := f.advanceIfNeeded(); err != nil {
 		return 0, err
 	}
 
-	return f.schemaReader.rowGroupNumRecords(), nil
+	return f.SchemaReader.rowGroupNumRecords(), nil
 }
 
-// NextRow try to read next row from the parquet file, it loads the next row group if required
+// NextRow reads the next row from the parquet file. If required, it will load the next row group.
 func (f *FileReader) NextRow() (map[string]interface{}, error) {
 	if err := f.advanceIfNeeded(); err != nil {
 		return nil, err
 	}
 
 	f.currentRecord++
-	return f.schemaReader.getData()
+	return f.SchemaReader.getData()
 }
 
-// SkipRowGroup skips the current loaded row group and advance to the next row group
+// SkipRowGroup skips the currently loaded row group and advances to the next row group.
 func (f *FileReader) SkipRowGroup() {
 	f.skipRowGroup = true
 }
 
-// PreLoad is used to load the row group if required. it does nothing if the row group is already loaded
+// PreLoad is used to load the row group if required. It does nothing if the row group is already loaded.
 func (f *FileReader) PreLoad() error {
 	return f.advanceIfNeeded()
 }

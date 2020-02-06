@@ -8,8 +8,10 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// ColumnStore is in memory of column store to buffer the column value before writing into a page and read the values
-// in the reader mode
+// ColumnStore is the read/write implementation for a column. It buffers a single
+// column's data that is to be written to a parquet file, knows how to encode this
+// data and will choose an optimal way according to heuristics. It also ensures the
+// correct decoding of column data to be read.
 type ColumnStore struct {
 	repTyp parquet.FieldRepetitionType
 
@@ -253,7 +255,7 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 	}
 }
 
-// NewBooleanStore create new boolean store
+// NewBooleanStore creates new column store to store boolean values.
 func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
@@ -263,8 +265,9 @@ func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnSto
 	return newStore(&booleanStore{ColumnParameters: params}, enc, false), nil
 }
 
-// NewInt32Store create a new int32 store, the allowDict is a hint, no means no dictionary, but yes means if the data
-// is good for dictionary, then yes, otherwise no.
+// NewInt32Store create a new column store to store int32 values. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewInt32Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
@@ -274,7 +277,9 @@ func NewInt32Store(enc parquet.Encoding, allowDict bool, params *ColumnParameter
 	return newStore(&int32Store{ColumnParameters: params}, enc, allowDict), nil
 }
 
-// NewInt64Store creates a new int64 store
+// NewInt64Store creates a new column store to store int64 values. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewInt64Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
@@ -284,7 +289,9 @@ func NewInt64Store(enc parquet.Encoding, allowDict bool, params *ColumnParameter
 	return newStore(&int64Store{ColumnParameters: params}, enc, allowDict), nil
 }
 
-// NewInt96Store creates a new int96 store
+// NewInt96Store creates a new column store to store int96 values. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewInt96Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -296,7 +303,9 @@ func NewInt96Store(enc parquet.Encoding, allowDict bool, params *ColumnParameter
 	return newStore(store, enc, allowDict), nil
 }
 
-// NewFloatStore creates a float (float32) store
+// NewFloatStore creates a new column store to store float (float32) values. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewFloatStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -306,7 +315,9 @@ func NewFloatStore(enc parquet.Encoding, allowDict bool, params *ColumnParameter
 	return newStore(&floatStore{ColumnParameters: params}, enc, allowDict), nil
 }
 
-// NewDoubleStore creates a double (float64) store
+// NewDoubleStore creates a new column store to store double (float64) values. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewDoubleStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
@@ -316,7 +327,9 @@ func NewDoubleStore(enc parquet.Encoding, allowDict bool, params *ColumnParamete
 	return newStore(&doubleStore{ColumnParameters: params}, enc, allowDict), nil
 }
 
-// NewByteArrayStore creates a byte array storage
+// NewByteArrayStore creates a new column store to store byte arrays. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewByteArrayStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
@@ -326,7 +339,9 @@ func NewByteArrayStore(enc parquet.Encoding, allowDict bool, params *ColumnParam
 	return newStore(&byteArrayStore{ColumnParameters: params}, enc, allowDict), nil
 }
 
-// NewFixedByteArrayStore creates a fixed size byte array storage, all element in this storage should be the same size
+// NewFixedByteArrayStore creates a new column store to store fixed size byte arrays. If allowDict is true,
+// then using a dictionary is considered by the column store depending on its heuristics.
+// If allowDict is false, a dictionary will never be used to encode the data.
 func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:

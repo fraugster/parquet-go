@@ -180,7 +180,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema schemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc) (*parquet.ColumnChunk, error) {
+func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	var (
@@ -267,7 +267,7 @@ func writeChunk(w writePos, schema schemaWriter, col *Column, codec parquet.Comp
 	return ch, nil
 }
 
-func writeRowGroup(w writePos, schema schemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc) ([]*parquet.ColumnChunk, error) {
+func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc) ([]*parquet.ColumnChunk, error) {
 	dataCols := schema.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
