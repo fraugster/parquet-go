@@ -461,7 +461,7 @@ func TestValidate(t *testing.T) {
 						Name: "foo",
 					},
 					Children: []*ColumnDefinition{
-						&ColumnDefinition{
+						{
 							SchemaElement: &parquet.SchemaElement{
 								Name: "bar",
 							},
@@ -478,7 +478,7 @@ func TestValidate(t *testing.T) {
 						Name: "foo",
 					},
 					Children: []*ColumnDefinition{
-						&ColumnDefinition{
+						{
 							SchemaElement: &parquet.SchemaElement{
 								Name: "bar",
 								Type: parquet.TypePtr(parquet.Type_BOOLEAN),
@@ -496,13 +496,13 @@ func TestValidate(t *testing.T) {
 						Name: "foo",
 					},
 					Children: []*ColumnDefinition{
-						&ColumnDefinition{
+						{
 							SchemaElement: &parquet.SchemaElement{
 								Name: "bar",
 								Type: parquet.TypePtr(parquet.Type_BYTE_ARRAY),
 							},
 							Children: []*ColumnDefinition{
-								&ColumnDefinition{
+								{
 									SchemaElement: &parquet.SchemaElement{
 										Name: "baz",
 										Type: parquet.TypePtr(parquet.Type_BOOLEAN),
