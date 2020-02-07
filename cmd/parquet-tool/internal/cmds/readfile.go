@@ -20,7 +20,6 @@ func catFile(w io.Writer, address string, n int64) error {
 
 	reader, err := goparquet.NewFileReader(fl)
 	if err != nil {
-		// TODO: using fatal actually by-pass the defer, do it better
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 
@@ -79,7 +78,6 @@ func metaFile(w io.Writer, address string) error {
 
 	reader, err := goparquet.NewFileReader(fl)
 	if err != nil {
-		// TODO: using fatal actually by-pass the defer, do it better
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 

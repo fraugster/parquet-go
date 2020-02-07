@@ -99,12 +99,12 @@ func (um *reflectUnmarshaller) UnmarshalParquet(record interfaces.UnmarshalObjec
 	objValue := reflect.ValueOf(um.obj)
 
 	if objValue.Kind() != reflect.Ptr {
-		return errors.New("you didn't provide a pointer to an object") // TODO: improve error message
+		return fmt.Errorf("you need to provide an object of type *%T to unmarshal into", um.obj)
 	}
 
 	objValue = objValue.Elem()
 	if objValue.Kind() != reflect.Struct {
-		return errors.New("provided object is not a struct")
+		return fmt.Errorf("provided object of type %T is not a struct", um.obj)
 	}
 
 	if err := um.fillStruct(objValue, record, um.schemaDef); err != nil {

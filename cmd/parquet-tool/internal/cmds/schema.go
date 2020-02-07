@@ -13,8 +13,6 @@ func init() {
 	rootCmd.AddCommand(schemaCmd)
 }
 
-// TODO: add support for detailed schema (-d)
-
 var schemaCmd = &cobra.Command{
 	Use:   "schema file-name.parquet",
 	Short: "Print the parquet file schema",
@@ -31,7 +29,6 @@ var schemaCmd = &cobra.Command{
 
 		reader, err := goparquet.NewFileReader(fl)
 		if err != nil {
-			// TODO: using fatal actually by-pass the defer, do it better
 			log.Fatalf("Failed to read the parquet header: %q", err)
 		}
 

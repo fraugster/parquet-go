@@ -14,7 +14,7 @@ type FileWriter struct {
 	w writePos
 
 	version int32
-	// TODO: make it internal, its not good to expose the schema here
+
 	schemaWriter
 
 	totalNumRecords int64
@@ -115,7 +115,6 @@ func WithDataPageV2() FileWriterOption {
 func (fw *FileWriter) FlushRowGroup() error {
 	// Write the entire row group
 	if fw.rowGroupNumRecords() == 0 {
-		// TODO: maybe simply return nil?
 		return errors.New("nothing to write")
 	}
 
@@ -134,7 +133,7 @@ func (fw *FileWriter) FlushRowGroup() error {
 		Columns:        cc,
 		TotalByteSize:  0,
 		NumRows:        fw.rowGroupNumRecords(),
-		SortingColumns: nil, // TODO: support Sorting
+		SortingColumns: nil,
 	})
 	fw.totalNumRecords += fw.rowGroupNumRecords()
 	// flush the schema
@@ -184,7 +183,7 @@ func (fw *FileWriter) Close() error {
 		RowGroups:        fw.rowGroups,
 		KeyValueMetadata: kv,
 		CreatedBy:        &fw.createdBy,
-		ColumnOrders:     nil, // TODO: support for column order
+		ColumnOrders:     nil,
 	}
 
 	pos := fw.w.Pos()

@@ -62,7 +62,6 @@ func getBits(idx int, bitSize, size, left, pos int, rev bool) string {
 	if rev {
 		op = ">>"
 	}
-	//return fmt.Sprintf("uint32(data[%d]&%d)%s%d", idx, int(math.Pow(2, float64(size))-1), op, size-left+pos)
 	return fmt.Sprintf("uint%d(data[%d])%s%d", bitSize, idx, op, size-left+pos)
 }
 

@@ -283,7 +283,6 @@ func getOne(arr interface{}) interface{} {
 	return v.Index(0).Interface()
 }
 
-// TODO : Add test for Min and Max
 type storeFixtures struct {
 	name  string
 	store *ColumnStore

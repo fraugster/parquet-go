@@ -7,8 +7,6 @@ import (
 	"github.com/fraugster/parquet-go/parquet"
 )
 
-// TODO: rewrite using packed array
-
 type booleanPlainDecoder struct {
 	r    io.Reader
 	left []bool

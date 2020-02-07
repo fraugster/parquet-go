@@ -80,11 +80,11 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 		Type:                 parquet.PageType_DICTIONARY_PAGE,
 		UncompressedPageSize: int32(unComp),
 		CompressedPageSize:   int32(comp),
-		Crc:                  nil, // TODO: add crc?
+		Crc:                  nil,
 		DictionaryPageHeader: &parquet.DictionaryPageHeader{
 			NumValues: dp.col.data.values.numDistinctValues(),
 			Encoding:  parquet.Encoding_PLAIN, // PLAIN_DICTIONARY is deprecated in the Parquet 2.0 specification
-			IsSorted:  nil,                    // TODO: add sorted dictionary?
+			IsSorted:  nil,
 		},
 	}
 	return ph

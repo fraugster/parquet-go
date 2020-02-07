@@ -7,8 +7,13 @@ import (
 
 var fieldNameFunc = fieldNameToLower
 
-// TODO: replace this with a more sophisticated implementation,
-// possibly involving the struct tag.
 func fieldNameToLower(field reflect.StructField) string {
-	return strings.ToLower(field.Name)
+	parquetStructTag, ok := field.Tag.Lookup("parquet")
+	if !ok {
+		return strings.ToLower(field.Name)
+	}
+
+	parquetStructTagFields := strings.Split(parquetStructTag, ",")
+
+	return strings.TrimSpace(parquetStructTagFields[0])
 }

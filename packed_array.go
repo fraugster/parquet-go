@@ -10,7 +10,6 @@ import (
 // most memory efficient structure due to the large number of values. Memory
 // storage requirements for the packed array are ~1/8th compared to
 // []uint16 array.
-//TODO: use this on the boolean storage
 type packedArray struct {
 	count int
 	bw    int
@@ -61,7 +60,6 @@ func (pa *packedArray) appendSingle(v int32) {
 	pa.count++
 }
 
-// TODO : cache the block
 func (pa *packedArray) at(pos int) (int32, error) {
 	if pos < 0 || pos >= pa.count {
 		return 0, errors.New("out of range")

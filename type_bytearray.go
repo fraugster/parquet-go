@@ -170,7 +170,6 @@ func (b *byteArrayDeltaLengthEncoder) encodeValues(values []interface{}) error {
 }
 
 func (b *byteArrayDeltaLengthEncoder) Close() error {
-	// TODO: Do we need to change this values? (128 and 4)
 	enc := &int32DeltaBPEncoder{
 		deltaBitPackEncoder32: deltaBitPackEncoder32{
 			blockSize:      128,
@@ -257,7 +256,6 @@ func (b *byteArrayDeltaEncoder) init(w io.Writer) error {
 
 func (b *byteArrayDeltaEncoder) encodeValues(values []interface{}) error {
 	if b.prefixLens == nil {
-		// TODO: increase the cap by copy?
 		b.prefixLens = make([]interface{}, 0, len(values))
 		b.values.lens = make([]interface{}, 0, len(values))
 	}
@@ -327,7 +325,6 @@ func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
 }
 
 func (is *byteArrayStore) maxValue() []byte {
-	// TODO: copy?
 	return is.max
 }
 
@@ -348,7 +345,7 @@ func (is *byteArrayStore) setMinMax(j []byte) error {
 		is.max = j
 		return nil
 	}
-	// TODO : verify the compare
+
 	if bytes.Compare(j, is.min) < 0 {
 		is.min = j
 	}
