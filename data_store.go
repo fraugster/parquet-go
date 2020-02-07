@@ -29,12 +29,10 @@ type ColumnStore struct {
 }
 
 // useDictionary is simply a function to decide to use dictionary or not,
-// TODO: the logic here is very simple, we need to rethink it
 func (cs *ColumnStore) useDictionary() bool {
 	if !cs.allowDict {
 		return false
 	}
-	// TODO: Better number?
 	if len(cs.values.data) > math.MaxInt16 {
 		return false
 	}
@@ -56,7 +54,6 @@ func (cs *ColumnStore) repetitionType() parquet.FieldRepetitionType {
 	return cs.repTyp
 }
 
-// TODO: need to handle reset without losing the schema. maybe remove te `reset` argument and add a new function?
 func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16) {
 	if cs.typedColumnStore == nil {
 		panic("generic should be used with typed column store")
@@ -182,7 +179,7 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 		return v, maxD, err
 	}
 
-	// the first rLevel in current object is always less than maxR (only for the repeated values) // TODO : validate that on first value?
+	// the first rLevel in current object is always less than maxR (only for the repeated values)
 	// the next data in this object, should have maxR as the rLevel. the first rLevel less than maxR means the value
 	// is from the next object and we should not touch it in this call
 

@@ -331,9 +331,6 @@ func (p *schemaParser) parseMessage() {
 
 	p.root.SchemaElement.Name = p.token.val
 
-	// TODO: add support for logical type annotations as mentioned here:
-	// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/schema/MessageType.java#L65
-
 	p.next()
 	p.expect(itemLeftBrace)
 
@@ -670,7 +667,6 @@ func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
 
 	typStr := p.token.val
 
-	// TODO: is this correct? compare with Java implementation.
 	convertedType, err := parquet.ConvertedTypeFromString(typStr)
 	if err != nil {
 		p.errorf("invalid converted type %q", typStr)
@@ -739,8 +735,6 @@ func (col *ColumnDefinition) validate(isRoot bool) error {
 	if col.SchemaElement != nil && (col.SchemaElement.LogicalType != nil || col.SchemaElement.ConvertedType != nil) {
 		switch {
 		case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetLIST()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_LIST:
-			// TODO: add support for backward compatibility:
-			// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
 			if col.SchemaElement.Type != nil {
 				return fmt.Errorf("field %s is not a group but annotated as LIST", col.SchemaElement.Name)
 			}

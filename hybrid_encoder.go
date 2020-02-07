@@ -52,16 +52,6 @@ func (he *hybridEncoder) write(items ...[]byte) error {
 	return nil
 }
 
-// TODO: this function is not used, since we are using the bp always.
-//func (he *hybridEncoder) rleEncode(count int, value int32) error {
-//	header := count << 1 // indicate this is a rle run
-//
-//	buf := make([]byte, 4) // big enough for int
-//	cnt := binary.PutUvarint(buf, uint64(header))
-//
-//	return he.write(buf[:cnt], encodeRLEValue(value, he.bitWidth))
-//}
-
 func (he *hybridEncoder) bpEncode() error {
 	// If the bit width is zero, no need to write any
 	if he.bitWidth == 0 {

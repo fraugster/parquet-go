@@ -232,7 +232,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 
 	encodings := make([]parquet.Encoding, 0, 3)
 	encodings = append(encodings,
-		parquet.Encoding_RLE, // TODO: used For rLevel and dLevel is it required here to?
+		parquet.Encoding_RLE,
 		col.data.encoding(),
 	)
 	if useDict {
@@ -251,11 +251,11 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 			NumValues:             int64(col.data.values.numValues() + col.data.values.nullValueCount()),
 			TotalUncompressedSize: totalUnComp,
 			TotalCompressedSize:   totalComp,
-			KeyValueMetadata:      nil, // TODO: add key/value metadata support
+			KeyValueMetadata:      nil,
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
 			DictionaryPageOffset:  dictPageOffset,
-			Statistics:            nil, // TODO: add statistics
+			Statistics:            nil,
 			EncodingStats:         nil,
 		},
 		OffsetIndexOffset: nil,

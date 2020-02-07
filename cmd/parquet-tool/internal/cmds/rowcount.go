@@ -29,7 +29,6 @@ var rowCountCmd = &cobra.Command{
 
 		reader, err := goparquet.NewFileReader(fl)
 		if err != nil {
-			// TODO: using fatal actually by-pass the defer, do it better
 			log.Fatalf("Failed to read the parquet header: %q", err)
 		}
 

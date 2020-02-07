@@ -7,8 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: dictionary encoding is not a good design, the best way is to handle the dictionary in the final stage, not in encoding level
-
 type dictDecoder struct {
 	values []interface{}
 

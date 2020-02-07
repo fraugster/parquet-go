@@ -120,7 +120,6 @@ func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec 
 		}
 	}
 
-	// TODO: (F0rud) I am not sure if this is correct to subtract the level size from the compressed size here
 	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
 	if err != nil {
 		return err
@@ -149,7 +148,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		Type:                 parquet.PageType_DATA_PAGE_V2,
 		UncompressedPageSize: int32(unComp + defSize + repSize),
 		CompressedPageSize:   int32(comp + defSize + repSize),
-		Crc:                  nil, // TODO: add crc?
+		Crc:                  nil,
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			NumNulls:                   dp.col.data.values.nullValueCount(),

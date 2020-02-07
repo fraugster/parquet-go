@@ -359,7 +359,6 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 func readPageData(col *Column, pages []pageReader) error {
 	s := col.getColumnStore()
 	for i := range pages {
-		// TODO: reuse data
 		data := make([]interface{}, pages[i].numValues())
 		n, dl, rl, err := pages[i].readValues(data)
 		if err != nil {
@@ -373,8 +372,7 @@ func readPageData(col *Column, pages []pageReader) error {
 		// using append to make sure we handle the multiple data page correctly
 		s.rLevels.appendArray(rl)
 		s.dLevels.appendArray(dl)
-		// TODO : having a dictEncoder/decoder is wrong. they should be a plain decoder for header and a int32 hybrid for
-		// values. the mix should happen here not in the dict itself
+
 		s.values.values = append(s.values.values, data...)
 		s.values.noDictMode = true
 	}

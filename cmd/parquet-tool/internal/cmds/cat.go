@@ -11,8 +11,6 @@ func init() {
 	rootCmd.AddCommand(catCmd)
 }
 
-// TODO: add support for detailed schema (-d)
-
 var catCmd = &cobra.Command{
 	Use:   "cat file-name.parquet",
 	Short: "Print the parquet file content",
