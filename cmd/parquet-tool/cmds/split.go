@@ -21,7 +21,7 @@ var (
 )
 
 func init() {
-	partSize = splitFile.PersistentFlags().StringP("part-size", "s", "100MB", "The target size of parquet files, it is not the *exact* size on the output")
+	partSize = splitFile.PersistentFlags().StringP("file-size", "s", "100MB", "The target size of parquet files, it is not the *exact* size on the output")
 	targetFolder = splitFile.PersistentFlags().StringP("target-folder", "t", "", "Target folder to write the files, use the source file folder if it's empty")
 	rowGroupSize = splitFile.PersistentFlags().StringP("row-group-size", "r", "128MB", "Uncompressed row group size")
 	compressionMethod = splitFile.PersistentFlags().StringP("compression", "c", "Snappy", "Compression method, valid values are Snappy, Gzip, None")
@@ -30,7 +30,7 @@ func init() {
 
 var splitFile = &cobra.Command{
 	Use:   "split file-name.parquet",
-	Short: "Split the parquet file into multiple parquet file",
+	Short: "Split the parquet file into multiple parquet files",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
 			_ = cmd.Usage()
@@ -44,7 +44,7 @@ var splitFile = &cobra.Command{
 
 		pSize, err := humanToByte(*partSize)
 		if err != nil {
-			log.Fatalf("Invalid part size: %q", *partSize)
+			log.Fatalf("Invalid file size: %q", *partSize)
 		}
 
 		comp := parquet.CompressionCodec_UNCOMPRESSED
@@ -67,7 +67,7 @@ var splitFile = &cobra.Command{
 
 		reader, err := goparquet.NewFileReader(fl)
 		if err != nil {
-			log.Fatalf("Read the parquet failed: %q", err)
+			log.Fatalf("could not create parquet reader: %q", err)
 		}
 
 		opts := []goparquet.FileWriterOption{
