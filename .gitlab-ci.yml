@@ -20,4 +20,8 @@ lint:
   script:
     - go install 
     - golangci-lint run
-      
+
+compatibility:
+  stage: test
+  script:
+    - docker build -f ./compatibility/Dockerfile .
