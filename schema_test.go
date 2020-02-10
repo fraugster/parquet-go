@@ -98,7 +98,7 @@ func TestSchemaCopy(t *testing.T) {
 	def, err := parquetschema.ParseSchemaDefinition(schema)
 	require.NoError(t, err)
 	buf := &bytes.Buffer{}
-	writer := NewFileWriter(buf, UseSchemaDefinition(def))
+	writer := NewFileWriter(buf, WithSchemaDefinition(def))
 
 	for i := 0; i < 3; i++ {
 		var d interface{}
@@ -121,7 +121,7 @@ func TestSchemaCopy(t *testing.T) {
 	buf3 := &bytes.Buffer{}
 	reader, err := NewFileReader(buf2)
 	require.NoError(t, err)
-	writer2 := NewFileWriter(buf3, UseSchemaDefinition(reader.GetSchemaDefinition()))
+	writer2 := NewFileWriter(buf3, WithSchemaDefinition(reader.GetSchemaDefinition()))
 
 	for {
 		rec, err := reader.NextRow()

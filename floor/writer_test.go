@@ -364,9 +364,9 @@ func TestWriteFile(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/test.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err, "creating new file writer failed")
 
@@ -479,9 +479,9 @@ func TestWriteReadByteArrays(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/bytearrays.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err, "creating new file writer failed")
 
@@ -538,9 +538,9 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/marshaller.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err, "creating new file writer failed")
 

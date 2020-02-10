@@ -25,7 +25,7 @@ func buildTestStream(t *testing.T) []byte {
 `)
 	require.NoError(t, err)
 	buf := &bytes.Buffer{}
-	pw := NewFileWriter(buf, UseSchemaDefinition(schema))
+	pw := NewFileWriter(buf, WithSchemaDefinition(schema))
 	for i := 0; i < 10000; i++ {
 		data := map[string]interface{}{
 			"a": rand.Int63(),

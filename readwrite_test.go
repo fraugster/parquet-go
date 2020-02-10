@@ -13,23 +13,6 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
-/*
-func TestReadFile(t *testing.T) {
-	rf, err := os.Open("files/pilot_random.parquet")
-	if err != nil {
-		t.Fatalf("opening file failed: %v", err)
-	}
-	defer rf.Close()
-
-	r, err := NewFileReader(rf)
-	if err != nil {
-		t.Fatalf("creating file reader failed: %v", err)
-	}
-
-	fmt.Printf("%s", r.schemaReader.String())
-}
-*/
-
 func TestWriteThenReadFile(t *testing.T) {
 	testFunc := func(opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
@@ -89,8 +72,8 @@ func TestWriteThenReadFile(t *testing.T) {
 		}
 	}
 
-	testFunc(CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
-	testFunc(CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"), WithDataPageV2())
+	testFunc(WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
+	testFunc(WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
 }
 
 func TestWriteThenReadFileRepeated(t *testing.T) {
@@ -99,7 +82,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create fooStore")
@@ -145,7 +128,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 
 	fooStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create fooStore")
@@ -204,7 +187,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create fooStore")
@@ -253,7 +236,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 
 	blaStore, err := NewInt64Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create fooStore")
@@ -326,7 +309,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 
 	fooStore, err := NewInt64Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create fooStore")
@@ -435,7 +418,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 	valueStore, err := NewInt64Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create valueStore")
 	require.NoError(t, w.AddGroup("baz", parquet.FieldRepetitionType_OPTIONAL))
@@ -481,7 +464,7 @@ func TestWriteEmptyDict(t *testing.T) {
 	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
-	w := NewFileWriter(wf, CompressionCodec(parquet.CompressionCodec_SNAPPY), CreatedBy("parquet-go-unittest"))
+	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 	valueStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create valueStore")
 	require.NoError(t, w.AddColumn("value", NewDataColumn(valueStore, parquet.FieldRepetitionType_OPTIONAL)))
@@ -532,7 +515,7 @@ func TestReadWriteMultiLevel(t *testing.T) {
 	buf := &bytes.Buffer{}
 	sd, err := parquetschema.ParseSchemaDefinition(sc)
 	require.NoError(t, err)
-	w := NewFileWriter(buf, UseSchemaDefinition(sd))
+	w := NewFileWriter(buf, WithSchemaDefinition(sd))
 
 	require.NoError(t, w.AddData(map[string]interface{}{}))
 	require.NoError(t, w.Close())
@@ -566,9 +549,9 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	buf := &bytes.Buffer{}
 	hlWriter := NewFileWriter(
 		buf,
-		CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		CreatedBy("floor-unittest"),
-		UseSchemaDefinition(sd),
+		WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		WithCreator("floor-unittest"),
+		WithSchemaDefinition(sd),
 	)
 
 	require.NoError(t, err, "creating new file writer failed")

@@ -32,9 +32,9 @@ func TestReadFile(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/readtest.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err, "creating parquet file writer failed")
 
@@ -104,9 +104,9 @@ func TestReadWriteMap(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/map.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err)
 
@@ -169,9 +169,9 @@ func TestReadWriteSlice(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/list.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err)
 
@@ -235,9 +235,9 @@ func TestReadWriteArray(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/array.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err)
 
@@ -303,9 +303,9 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 
 	hlWriter, err := NewFileWriter(
 		"files/specialtypes.parquet",
-		goparquet.CompressionCodec(parquet.CompressionCodec_SNAPPY),
-		goparquet.CreatedBy("floor-unittest"),
-		goparquet.UseSchemaDefinition(sd),
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
 	)
 	require.NoError(t, err)
 
