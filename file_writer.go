@@ -9,13 +9,13 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
-// FileWriter is a parquet file writer
+// FileWriter is used to write data to a parquet file. Always use NewFileWriter
+// to create such an object.
 type FileWriter struct {
 	w writePos
 
 	version int32
-
-	schemaWriter
+	SchemaWriter
 
 	totalNumRecords int64
 	kvStore         map[string]string
@@ -33,7 +33,8 @@ type FileWriter struct {
 // FileWriterOption describes an option function that is applied to a FileWriter when it is created.
 type FileWriterOption func(fw *FileWriter)
 
-// NewFileWriter create a new writer.
+// NewFileWriter creates a new FileWriter. You can provide FileWriterOptions to influence the
+// file writer's behaviour.
 func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 	fw := &FileWriter{
 		w: &writePosStruct{
@@ -41,7 +42,7 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 			pos: 0,
 		},
 		version:      1,
-		schemaWriter: &schema{},
+		SchemaWriter: &schema{},
 		kvStore:      make(map[string]string),
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",
@@ -55,14 +56,14 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 	return fw
 }
 
-// FileVersion set the version of the file itself.
+// FileVersion sets the version of the file itself.
 func FileVersion(version int32) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.version = version
 	}
 }
 
-// CreatedBy sets the creator of the file
+// CreatedBy sets the creator of the file.
 func CreatedBy(createdBy string) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.createdBy = createdBy
@@ -76,7 +77,7 @@ func CompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
 	}
 }
 
-// MetaData set the meta data on the file
+// MetaData sets the meta data on the file.
 func MetaData(data map[string]string) FileWriterOption {
 	return func(fw *FileWriter) {
 		if data != nil {
@@ -95,7 +96,7 @@ func MaxRowGroupSize(size int64) FileWriterOption {
 	}
 }
 
-// UseSchemaDefinition ...
+// UseSchemaDefinition sets the schema definition to use for this parquet file.
 func UseSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
 		if err := fw.SetSchemaDefinition(sd); err != nil {
@@ -104,14 +105,16 @@ func UseSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	}
 }
 
-// WithDataPageV2 the library is using page v1 as default, this option is for changing to page v2
+// WithDataPageV2 enables the writer to write pages in the new V2 format. By default,
+// the library is using the V1 format. Please be aware that this may cause compatibility
+// issues with older implementations of parquet.
 func WithDataPageV2() FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.newPage = newDataPageV2Writer
 	}
 }
 
-// FlushRowGroup is to write the row group into the file
+// FlushRowGroup writes the current row group to the parquet file.
 func (fw *FileWriter) FlushRowGroup() error {
 	// Write the entire row group
 	if fw.rowGroupNumRecords() == 0 {
@@ -124,7 +127,7 @@ func (fw *FileWriter) FlushRowGroup() error {
 		}
 	}
 
-	cc, err := writeRowGroup(fw.w, fw.schemaWriter, fw.codec, fw.newPage)
+	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage)
 	if err != nil {
 		return err
 	}
@@ -137,26 +140,29 @@ func (fw *FileWriter) FlushRowGroup() error {
 	})
 	fw.totalNumRecords += fw.rowGroupNumRecords()
 	// flush the schema
-	fw.schemaWriter.resetData()
+	fw.SchemaWriter.resetData()
 
 	return nil
 }
 
-// AddData add a new record to the current row group and flush it if the auto flush is enabled and the size
-// is more than the auto flush size
+// AddData adds a new record to the current row group and flushes it if auto-flush is enabled and the size
+// is equal to or greater than the configured maximum row group size.
 func (fw *FileWriter) AddData(m map[string]interface{}) error {
-	if err := fw.schemaWriter.AddData(m); err != nil {
+	if err := fw.SchemaWriter.AddData(m); err != nil {
 		return err
 	}
 
-	if fw.rowGroupFlushSize > 0 && fw.schemaWriter.DataSize() >= fw.rowGroupFlushSize {
+	if fw.rowGroupFlushSize > 0 && fw.SchemaWriter.DataSize() >= fw.rowGroupFlushSize {
 		return fw.FlushRowGroup()
 	}
 
 	return nil
 }
 
-// Close is the finalizer for the parquet file, you SHOULD call it to finalize the write
+// Close flushes the current row group if necessary and writes the meta data footer
+// to the file. Please be aware that this only finalizes the writing process. If you
+// provided a file as io.Writer when creating the FileWriter, you still need to Close
+// that file handle separately.
 func (fw *FileWriter) Close() error {
 	if fw.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(); err != nil {
@@ -199,16 +205,16 @@ func (fw *FileWriter) Close() error {
 	return writeFull(fw.w, magic)
 }
 
-// CurrentRowGroupSize is the size of current row group data (not including definition/repetition levels and parquet headers
-// just a rough estimation of data size in plain format, uncompressed. if the encoding is different than plain, the final
-// size depends on the data
+// CurrentRowGroupSize returns a rough estimation of the uncompressed size of the current row group data. If you selected
+// a compression format other than UNCOMPRESSED, the final size will most likely be smaller and will dpeend on how well
+// your data can be compressed.
 func (fw *FileWriter) CurrentRowGroupSize() int64 {
-	return fw.schemaWriter.DataSize()
+	return fw.SchemaWriter.DataSize()
 }
 
-// CurrentFileSize returns the size of data written in file, so far. this is not contains the data in current row group
-// just the written data. after closing the file, the size is always more than this since we write the footer on closing
-// the file.
+// CurrentFileSize returns the amount of data written to the file so far. This does not include data that is in the
+// current row group and has not been flushed yet. After closing the file, the size will be even larger since the
+// footer is appended to the file upon closing.
 func (fw *FileWriter) CurrentFileSize() int64 {
 	return fw.w.Pos()
 }

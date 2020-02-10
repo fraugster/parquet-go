@@ -110,7 +110,7 @@ type dataPageWriterV1 struct {
 	dictionary bool
 }
 
-func (dp *dataPageWriterV1) init(schema schemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil

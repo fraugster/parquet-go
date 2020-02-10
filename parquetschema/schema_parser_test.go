@@ -5,6 +5,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 func TestSchemaParser(t *testing.T) {
@@ -367,7 +368,16 @@ func TestSchemaParser(t *testing.T) {
 			required double foo (LIST);
 		}`, true}, // invalid type for LIST.
 		{`
-message foo { }`, false},
+message foo { }`, false}, // this is necessary because we once had a parser bug when the first character of the parsed text was a newline.
+		{`message foo {
+			required group bar (MAP) {
+				repeated group key_value (MAP_KEY_VALUE) {
+					required int64 key;
+					required int64 value;
+				}
+				optional double baz;
+			}
+		}`, true}, // underneath the MAP group there is not only a key_value (MAP_KEY_VALUE), but also the field baz, which should not be there.
 	}
 
 	for idx, tt := range testData {
@@ -405,4 +415,114 @@ func TestLineNumber(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.Contains(t, err.Error(), "line 13:")
+}
+
+func TestValidate(t *testing.T) {
+	testData := []struct {
+		schemaDef *SchemaDefinition
+		expectErr bool
+	}{
+		{
+			schemaDef: nil,
+			expectErr: true,
+		},
+		{
+			schemaDef: &SchemaDefinition{},
+			expectErr: true,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{},
+			},
+			expectErr: true,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Name: "foo",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Name: "foo",
+					},
+					Children: []*ColumnDefinition{
+						{
+							SchemaElement: &parquet.SchemaElement{
+								Name: "bar",
+							},
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Name: "foo",
+					},
+					Children: []*ColumnDefinition{
+						{
+							SchemaElement: &parquet.SchemaElement{
+								Name: "bar",
+								Type: parquet.TypePtr(parquet.Type_BOOLEAN),
+							},
+						},
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			schemaDef: &SchemaDefinition{
+				RootColumn: &ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Name: "foo",
+					},
+					Children: []*ColumnDefinition{
+						{
+							SchemaElement: &parquet.SchemaElement{
+								Name: "bar",
+								Type: parquet.TypePtr(parquet.Type_BYTE_ARRAY),
+							},
+							Children: []*ColumnDefinition{
+								{
+									SchemaElement: &parquet.SchemaElement{
+										Name: "baz",
+										Type: parquet.TypePtr(parquet.Type_BOOLEAN),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for idx, tt := range testData {
+		err := tt.schemaDef.Validate()
+		if tt.expectErr {
+			assert.Error(t, err, "%d. validation didn't fail", idx)
+		} else {
+			assert.NoError(t, err, "%d. validation failed", idx)
+		}
+	}
 }

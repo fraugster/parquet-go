@@ -78,7 +78,7 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.Equal(t, "foo", cols[0].FlatName())
 		require.Equal(t, "bar", cols[1].Name())
 		require.Equal(t, "bar", cols[1].FlatName())
-		for g := 0; g < r.RawGroupCount(); g++ {
+		for g := 0; g < r.RowGroupCount(); g++ {
 			require.NoError(t, r.readRowGroup(), "Reading row group failed")
 			for i := 0; i < int(r.rowGroupNumRecords()); i++ {
 				data, err := r.getData()
@@ -178,7 +178,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 	require.NoError(t, r.readRowGroup())
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
-	root := r.schemaReader.(*schema).root
+	root := r.SchemaReader.(*schema).root
 	for i := range data {
 		_, ok := data[i]["foo"]
 		rL, dL, b := root.getFirstRDLevel()

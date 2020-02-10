@@ -23,10 +23,9 @@ func jdToTime(jd uint32, nsec uint64) time.Time {
 	return time.Unix(sec, int64(nsec))
 }
 
-// Int96ToTime is a utility function to convert go time.Time into a Int96 Julian Date (https://en.wikipedia.org/wiki/Julian_day)
-// WARNING: this function is limited to the times after Unix epoch (Jan 01. 1970) and can not convert dates before that.
-// This time, does not contains a monotonic clock reading and also time.Unix(sec, nsec) creates time in the current machines
-// time zone.
+// Int96ToTime is a utility function to convert a Int96 Julian Date timestamp (https://en.wikipedia.org/wiki/Julian_day) to a time.Time.
+// Please be aware that this function is limited to timestamps after the Unix epoch (Jan 01 1970 00:00:00 UTC) and cannot
+// convert timestamps before that. The returned time does not contain a monotonic clock reading and is in the machine's current time zone.
 func Int96ToTime(parquetDate [12]byte) time.Time {
 	nano := binary.LittleEndian.Uint64(parquetDate[:8])
 	dt := binary.LittleEndian.Uint32(parquetDate[8:])
@@ -34,7 +33,9 @@ func Int96ToTime(parquetDate [12]byte) time.Time {
 	return jdToTime(dt, nano)
 }
 
-// TimeToInt96 convert go time.Time into Int96 Julian Date
+// TimeToInt96 is a utility function to convert a time.Time to an Int96 Julian Date timestamp (https://en.wikipedia.org/wiki/Julian_day).
+// Please be aware that this function is limited to timestamps after the Unix epoch (Jan 01 1970 00:00:00 UTC) and cannot convert
+// timestamps before that.
 func TimeToInt96(t time.Time) [12]byte {
 	var parquetDate [12]byte
 	days, nSecs := timeToJD(t)

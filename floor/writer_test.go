@@ -199,12 +199,13 @@ func TestDecodeStruct(t *testing.T) {
 		{
 			Input: struct {
 				Foo struct {
-					C chan int
+					C   chan int
+					Bar int
 				}
 			}{},
 			ExpectedOutput: nil,
 			ExpectErr:      true,
-			Schema:         `message foo { required group foo { } }`,
+			Schema:         `message foo { required group foo { optional int64 bar; } }`,
 		},
 		{
 			Input: struct {
@@ -327,6 +328,9 @@ func TestDecodeStruct(t *testing.T) {
 	for idx, tt := range testData {
 		sd, err := parquetschema.ParseSchemaDefinition(tt.Schema)
 		assert.NoError(t, err, "%d. parsing schema failed", idx)
+		if err != nil {
+			continue
+		}
 		obj := interfaces.NewMarshallObject(nil)
 		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
 		err = m.MarshalParquet(obj)
