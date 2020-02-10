@@ -71,9 +71,9 @@ var splitFile = &cobra.Command{
 		}
 
 		opts := []goparquet.FileWriterOption{
-			goparquet.UseSchemaDefinition(reader.GetSchemaDefinition()),
-			goparquet.CompressionCodec(comp),
-			goparquet.MaxRowGroupSize(rgSize),
+			goparquet.WithSchemaDefinition(reader.GetSchemaDefinition()),
+			goparquet.WithCompressionCodec(comp),
+			goparquet.WithMaxRowGroupSize(rgSize),
 		}
 
 		for i := 1; ; i++ {

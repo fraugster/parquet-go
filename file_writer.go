@@ -63,22 +63,22 @@ func FileVersion(version int32) FileWriterOption {
 	}
 }
 
-// CreatedBy sets the creator of the file.
-func CreatedBy(createdBy string) FileWriterOption {
+// WithCreator sets the creator in the meta data of the file.
+func WithCreator(createdBy string) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.createdBy = createdBy
 	}
 }
 
-// CompressionCodec sets the compression codec used when writing the file.
-func CompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
+// WithCompressionCodec sets the compression codec used when writing the file.
+func WithCompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.codec = codec
 	}
 }
 
-// MetaData sets the meta data on the file.
-func MetaData(data map[string]string) FileWriterOption {
+// WithMetaData sets the key-value meta data on the file.
+func WithMetaData(data map[string]string) FileWriterOption {
 	return func(fw *FileWriter) {
 		if data != nil {
 			fw.kvStore = data
@@ -88,16 +88,16 @@ func MetaData(data map[string]string) FileWriterOption {
 	}
 }
 
-// MaxRowGroupSize sets the rough maximum size of a row group before it shall
+// WithMaxRowGroupSize sets the rough maximum size of a row group before it shall
 // be flushed automatically.
-func MaxRowGroupSize(size int64) FileWriterOption {
+func WithMaxRowGroupSize(size int64) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.rowGroupFlushSize = size
 	}
 }
 
-// UseSchemaDefinition sets the schema definition to use for this parquet file.
-func UseSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
+// WithSchemaDefinition sets the schema definition to use for this parquet file.
+func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
 		if err := fw.SetSchemaDefinition(sd); err != nil {
 			panic(err)
