@@ -144,6 +144,10 @@ func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet
 }
 
 func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool) *parquet.PageHeader {
+	enc := dp.col.data.encoding()
+	if dp.dictionary {
+		enc = parquet.Encoding_RLE_DICTIONARY
+	}
 	ph := &parquet.PageHeader{
 		Type:                 parquet.PageType_DATA_PAGE_V2,
 		UncompressedPageSize: int32(unComp + defSize + repSize),
@@ -153,7 +157,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
 			NumNulls:                   dp.col.data.values.nullValueCount(),
 			NumRows:                    int32(dp.schema.rowGroupNumRecords()),
-			Encoding:                   dp.col.data.encoding(),
+			Encoding:                   enc,
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),
 			IsCompressed:               isCompressed,
