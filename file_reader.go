@@ -54,6 +54,14 @@ func (f *FileReader) readRowGroup() error {
 	return readRowGroup(f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
+// CurrentRowGroup returns information about the current row group.
+func (f *FileReader) CurrentRowGroup() *parquet.RowGroup {
+	if f == nil || f.meta == nil || f.meta.RowGroups == nil || f.rowGroupPosition-1 >= len(f.meta.RowGroups) {
+		return nil
+	}
+	return f.meta.RowGroups[f.rowGroupPosition-1]
+}
+
 // RowGroupCount returns the number of row groups in the parquet file.
 func (f *FileReader) RowGroupCount() int {
 	return len(f.meta.RowGroups)

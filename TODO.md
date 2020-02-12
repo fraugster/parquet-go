@@ -8,7 +8,6 @@
 * in readPageData, evaluate whether it's possible to reuse data to reduce memory pressure.
 * readPageData: having a dictEncoder/decoder is wrong. they should be a plain decoder for header and a int32 hybrid for values. the mix should happen here not in the dict itself
 * writeChunk: check whether parquet.Encoding\_RLE is actually required.
-* writeChunk: add key/value metadata support in column chunks.
 * writeChunk: implement support for statistics.
 * rethink decision logic in (\*ColumnStore).useDictionary(), the current one is very simple.
 * improve (\*ColumnStore).reset() so that it works without losing schema information in the typed column store.

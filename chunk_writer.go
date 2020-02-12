@@ -1,6 +1,8 @@
 package goparquet
 
 import (
+	"sort"
+
 	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -180,7 +182,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc) (*parquet.ColumnChunk, error) {
+func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	var (
@@ -240,6 +242,15 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		encodings = append(encodings, parquet.Encoding_RLE_DICTIONARY)
 	}
 
+	keyValueMetaData := make([]*parquet.KeyValue, 0, len(kvMetaData))
+	for k, v := range kvMetaData {
+		value := v
+		keyValueMetaData = append(keyValueMetaData, &parquet.KeyValue{Key: k, Value: &value})
+	}
+	sort.Slice(keyValueMetaData, func(i, j int) bool {
+		return keyValueMetaData[i].Key < keyValueMetaData[j].Key
+	})
+
 	ch := &parquet.ColumnChunk{
 		FilePath:   nil, // No support for external
 		FileOffset: chunkOffset,
@@ -251,7 +262,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 			NumValues:             int64(col.data.values.numValues() + col.data.values.nullValueCount()),
 			TotalUncompressedSize: totalUnComp,
 			TotalCompressedSize:   totalComp,
-			KeyValueMetadata:      nil,
+			KeyValueMetadata:      keyValueMetaData,
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
 			DictionaryPageOffset:  dictPageOffset,
@@ -267,11 +278,11 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 	return ch, nil
 }
 
-func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc) ([]*parquet.ColumnChunk, error) {
+func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
 	dataCols := schema.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		ch, err := writeChunk(w, schema, ci, codec, pageFn)
+		ch, err := writeChunk(w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
 		if err != nil {
 			return nil, err
 		}
