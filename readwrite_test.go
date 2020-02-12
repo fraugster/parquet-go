@@ -632,15 +632,15 @@ func TestWriteWithFlushGroupMeataDataThenRead(t *testing.T) {
 
 	require.Equal(t, []string{"foo"}, cols[0].MetaData.PathInSchema)
 	require.Equal(t, []*parquet.KeyValue{
-		&parquet.KeyValue{Key: "a", Value: strPtr("hello")},
-		&parquet.KeyValue{Key: "b", Value: strPtr("friendo")},
-		&parquet.KeyValue{Key: "c", Value: strPtr("!")},
+		{Key: "a", Value: strPtr("hello")},
+		{Key: "b", Value: strPtr("friendo")},
+		{Key: "c", Value: strPtr("!")},
 	}, cols[0].MetaData.KeyValueMetadata)
 
 	require.Equal(t, []string{"x", "bar"}, cols[1].MetaData.PathInSchema)
 	require.Equal(t, []*parquet.KeyValue{
-		&parquet.KeyValue{Key: "a", Value: strPtr("goodbye")},
-		&parquet.KeyValue{Key: "b", Value: strPtr("world")},
+		{Key: "a", Value: strPtr("goodbye")},
+		{Key: "b", Value: strPtr("world")},
 	}, cols[1].MetaData.KeyValueMetadata)
 }
 
