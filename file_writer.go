@@ -89,7 +89,9 @@ func WithMetaData(data map[string]string) FileWriterOption {
 }
 
 // WithMaxRowGroupSize sets the rough maximum size of a row group before it shall
-// be flushed automatically.
+// be flushed automatically. Please note that enabling auto-flush will not allow
+// you to set per-column-chunk meta-data upon calling FlushRowGroup. If you
+// require this feature, you need to flush your rowgroups manually.
 func WithMaxRowGroupSize(size int64) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.rowGroupFlushSize = size
@@ -114,8 +116,69 @@ func WithDataPageV2() FileWriterOption {
 	}
 }
 
+type flushRowGroupOptionHandle struct {
+	cols   map[string]map[string]string
+	global map[string]string
+}
+
+func newFlushRowGroupOptionHandle() *flushRowGroupOptionHandle {
+	return &flushRowGroupOptionHandle{
+		cols:   make(map[string]map[string]string),
+		global: make(map[string]string),
+	}
+}
+
+func (h *flushRowGroupOptionHandle) getMetaData(col string) map[string]string {
+	data := make(map[string]string)
+
+	for k, v := range h.global {
+		data[k] = v
+	}
+
+	colKV := h.cols[col]
+	if colKV != nil {
+		for k, v := range colKV {
+			data[k] = v
+		}
+	}
+
+	if len(data) > 0 {
+		return data
+	}
+	return nil
+}
+
+// FlushRowGroupOption is an option to pass additiona configuration to FlushRowGroup.
+type FlushRowGroupOption func(h *flushRowGroupOptionHandle)
+
+// WithRowGroupMetaDataForColumn adds key-value metadata to a particular column that is identified
+// by its full dotted-notation name.
+func WithRowGroupMetaDataForColumn(col string, kv map[string]string) FlushRowGroupOption {
+	return func(h *flushRowGroupOptionHandle) {
+		colKV := h.cols[col]
+		if colKV == nil {
+			colKV = make(map[string]string)
+		}
+		for k, v := range kv {
+			colKV[k] = v
+		}
+		h.cols[col] = colKV
+	}
+}
+
+// WithRowGroupMetaData adds key-value metadata to all columns. Please note that if you use the same
+// key both in the meta data for all columns as well as in column-specific meta data
+// (using MetaDataForColumn), the column-specific meta data has preference.
+func WithRowGroupMetaData(kv map[string]string) FlushRowGroupOption {
+	return func(h *flushRowGroupOptionHandle) {
+		for k, v := range kv {
+			h.global[k] = v
+		}
+	}
+}
+
 // FlushRowGroup writes the current row group to the parquet file.
-func (fw *FileWriter) FlushRowGroup() error {
+func (fw *FileWriter) FlushRowGroup(opts ...FlushRowGroupOption) error {
 	// Write the entire row group
 	if fw.rowGroupNumRecords() == 0 {
 		return errors.New("nothing to write")
@@ -127,7 +190,13 @@ func (fw *FileWriter) FlushRowGroup() error {
 		}
 	}
 
-	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage)
+	h := newFlushRowGroupOptionHandle()
+
+	for _, o := range opts {
+		o(h)
+	}
+
+	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage, h)
 	if err != nil {
 		return err
 	}
@@ -159,13 +228,14 @@ func (fw *FileWriter) AddData(m map[string]interface{}) error {
 	return nil
 }
 
-// Close flushes the current row group if necessary and writes the meta data footer
-// to the file. Please be aware that this only finalizes the writing process. If you
-// provided a file as io.Writer when creating the FileWriter, you still need to Close
-// that file handle separately.
-func (fw *FileWriter) Close() error {
+// Close flushes the current row group if necessary, taking the provided
+// options into account, and writes the meta data footer to the file.
+// Please be aware that this only finalizes the writing process. If you
+// provided a file as io.Writer when creating the FileWriter, you still need
+// to Close that file handle separately.
+func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
 	if fw.rowGroupNumRecords() > 0 {
-		if err := fw.FlushRowGroup(); err != nil {
+		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
 		}
 	}

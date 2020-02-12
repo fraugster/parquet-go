@@ -584,3 +584,66 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testData, readData, "written and read data don't match")
 }
+
+func TestWriteWithFlushGroupMeataDataThenRead(t *testing.T) {
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test_msg {
+			required int64 foo;
+			required group x {
+				required int64 bar;
+			}
+		}`)
+
+	require.NoError(t, err, "parsing schema definition failed")
+
+	buf := &bytes.Buffer{}
+	hlWriter := NewFileWriter(
+		buf,
+		WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		WithCreator("floor-unittest"),
+		WithSchemaDefinition(sd),
+	)
+
+	require.NoError(t, err, "creating new file writer failed")
+
+	testData := map[string]interface{}{
+		"foo": int64(23),
+		"x": map[string]interface{}{
+			"bar": int64(42),
+		},
+	}
+
+	require.NoError(t, hlWriter.AddData(testData), "writing object using marshaller failed")
+
+	require.NoError(t, hlWriter.Close(
+		WithRowGroupMetaData(map[string]string{"a": "hello", "b": "world"}),
+		WithRowGroupMetaDataForColumn("foo", map[string]string{"b": "friendo", "c": "!"}),
+		WithRowGroupMetaDataForColumn("x.bar", map[string]string{"a": "goodbye"}),
+	))
+
+	hlReader, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	require.NoError(t, hlReader.PreLoad())
+
+	rg := hlReader.CurrentRowGroup()
+	cols := rg.GetColumns()
+	require.Equal(t, 2, len(cols))
+
+	require.Equal(t, []string{"foo"}, cols[0].MetaData.PathInSchema)
+	require.Equal(t, []*parquet.KeyValue{
+		{Key: "a", Value: strPtr("hello")},
+		{Key: "b", Value: strPtr("friendo")},
+		{Key: "c", Value: strPtr("!")},
+	}, cols[0].MetaData.KeyValueMetadata)
+
+	require.Equal(t, []string{"x", "bar"}, cols[1].MetaData.PathInSchema)
+	require.Equal(t, []*parquet.KeyValue{
+		{Key: "a", Value: strPtr("goodbye")},
+		{Key: "b", Value: strPtr("world")},
+	}, cols[1].MetaData.KeyValueMetadata)
+}
+
+func strPtr(s string) *string {
+	return &s
+}
