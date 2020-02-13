@@ -251,6 +251,16 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		return keyValueMetaData[i].Key < keyValueMetaData[j].Key
 	})
 
+	nullCount := int64(col.data.values.nullValueCount())
+	distinctCount := int64(col.data.values.numDistinctValues())
+
+	stats := &parquet.Statistics{
+		MinValue:      col.data.minValue(),
+		MaxValue:      col.data.maxValue(),
+		NullCount:     &nullCount,
+		DistinctCount: &distinctCount,
+	}
+
 	ch := &parquet.ColumnChunk{
 		FilePath:   nil, // No support for external
 		FileOffset: chunkOffset,
@@ -266,7 +276,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
 			DictionaryPageOffset:  dictPageOffset,
-			Statistics:            nil,
+			Statistics:            stats,
 			EncodingStats:         nil,
 		},
 		OffsetIndexOffset: nil,
