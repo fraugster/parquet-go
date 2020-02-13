@@ -142,12 +142,18 @@ func (is *int32Store) reset(rep parquet.FieldRepetitionType) {
 }
 
 func (is *int32Store) maxValue() []byte {
+	if is.max == math.MinInt32 {
+		return nil
+	}
 	ret := make([]byte, 4)
 	binary.LittleEndian.PutUint32(ret, uint32(is.max))
 	return ret
 }
 
 func (is *int32Store) minValue() []byte {
+	if is.min == math.MaxInt32 {
+		return nil
+	}
 	ret := make([]byte, 4)
 	binary.LittleEndian.PutUint32(ret, uint32(is.min))
 	return ret

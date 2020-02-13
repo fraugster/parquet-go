@@ -143,12 +143,18 @@ func (is *int64Store) reset(rep parquet.FieldRepetitionType) {
 }
 
 func (is *int64Store) maxValue() []byte {
+	if is.max == math.MinInt64 {
+		return nil
+	}
 	ret := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ret, uint64(is.max))
 	return ret
 }
 
 func (is *int64Store) minValue() []byte {
+	if is.min == math.MaxInt64 {
+		return nil
+	}
 	ret := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ret, uint64(is.min))
 	return ret

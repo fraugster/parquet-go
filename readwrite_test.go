@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	testFunc := func(opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
-		wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		wf, err := os.OpenFile("files/test1.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		require.NoError(t, err, "creating file failed")
 
 		w := NewFileWriter(wf, opts...)
@@ -48,7 +49,7 @@ func TestWriteThenReadFile(t *testing.T) {
 
 		require.NoError(t, wf.Close())
 
-		rf, err := os.Open("files/test.parquet")
+		rf, err := os.Open("files/test1.parquet")
 		require.NoError(t, err, "opening file failed")
 		defer rf.Close()
 
@@ -79,7 +80,7 @@ func TestWriteThenReadFile(t *testing.T) {
 func TestWriteThenReadFileRepeated(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test2.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -106,7 +107,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test2.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -125,7 +126,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 func TestWriteThenReadFileOptional(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test3.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -152,7 +153,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test3.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -184,7 +185,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 func TestWriteThenReadFileNested(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test4.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -214,7 +215,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test4.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -233,7 +234,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 func TestWriteThenReadFileNested2(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test5.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -287,7 +288,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test5.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -306,7 +307,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 func TestWriteThenReadFileMap(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test6.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -396,7 +397,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test6.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -415,7 +416,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 func TestWriteThenReadFileNested3(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test7.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -442,7 +443,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test7.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -461,7 +462,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 func TestWriteEmptyDict(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test8.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -477,7 +478,7 @@ func TestWriteEmptyDict(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test8.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -491,6 +492,50 @@ func TestWriteEmptyDict(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{}, d)
 	}
+}
+
+func TestWriteTimeData(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test9.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+	defer wf.Close()
+
+	sd, err := parquetschema.ParseSchemaDefinition(`
+		message foo {
+			required int64 ts_nanos (TIMESTAMP(NANOS, true));
+			required int64 ts_micros (TIMESTAMP(MICROS, true));
+			required int64 ts_millis (TIMESTAMP(MILLIS, true));
+			required int32 date (DATE);
+			required int64 t_nanos (TIME(NANOS, false));
+			required int64 t_micros (TIME(MICROS, false));
+			required int32 t_millis (TIME(MILLIS, false));
+			optional int32 t_alwaysnull (TIME(MILLIS, false));
+		}
+	`)
+	require.NoError(t, err)
+
+	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
+
+	testData := []time.Time{
+		time.Date(2015, 5, 9, 14, 15, 45, 666777888, time.Local),
+		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.Local),
+	}
+
+	for _, tt := range testData {
+		w.AddData(map[string]interface{}{
+			"ts_nanos":  tt.UnixNano(),
+			"ts_micros": tt.UnixNano() / 1000,
+			"ts_millis": tt.UnixNano() / 1000000,
+			"date":      int32(tt.UnixNano() / (86400 * 1000000000)),
+			"t_nanos":   int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000000 + tt.Nanosecond()),
+			"t_micros":  int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000 + tt.Nanosecond()/1000),
+			"t_millis":  int32((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000 + tt.Nanosecond()/1000000),
+		})
+	}
+
+	require.NoError(t, w.FlushRowGroup())
+	require.NoError(t, w.Close())
 }
 
 func TestReadWriteMultiLevel(t *testing.T) {
@@ -531,8 +576,6 @@ func TestReadWriteMultiLevel(t *testing.T) {
 }
 
 func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
-	_ = os.Mkdir("files", 0755)
-
 	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group baz (LIST) {
