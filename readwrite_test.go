@@ -517,12 +517,12 @@ func TestWriteTimeData(t *testing.T) {
 	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
 
 	testData := []time.Time{
-		time.Date(2015, 5, 9, 14, 15, 45, 666777888, time.Local),
-		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.Local),
+		time.Date(2015, 5, 9, 14, 15, 45, 666777888, time.UTC),
+		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.UTC),
 	}
 
-	for idx, tt := range testData {
-		err := w.AddData(map[string]interface{}{
+	for _, tt := range testData {
+		require.NoError(t, w.AddData(map[string]interface{}{
 			"ts_nanos":  tt.UnixNano(),
 			"ts_micros": tt.UnixNano() / 1000,
 			"ts_millis": tt.UnixNano() / 1000000,
@@ -530,8 +530,7 @@ func TestWriteTimeData(t *testing.T) {
 			"t_nanos":   int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000000 + tt.Nanosecond()),
 			"t_micros":  int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000 + tt.Nanosecond()/1000),
 			"t_millis":  int32((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000 + tt.Nanosecond()/1000000),
-		})
-		require.NoError(t, err, "%d. AddData failed", idx)
+		}))
 	}
 
 	require.NoError(t, w.FlushRowGroup())
@@ -558,22 +557,22 @@ func TestWriteTimeData(t *testing.T) {
 	}{
 		{
 			[]string{"ts_nanos"},
-			[]byte{0x20, 0x63, 0x55, 0x62, 0xf0, 0x8c, 0xdc, 0x13},
-			[]byte{0x15, 0x25, 0x7b, 0xed, 0xf9, 0x92, 0xa, 0x6},
+			[]byte{0x20, 0xa3, 0xc6, 0xc3, 0x7c, 0x93, 0xdc, 0x13},
+			[]byte{0x15, 0xc5, 0x33, 0x1e, 0x40, 0x96, 0xa, 0x6},
 			0,
 			2,
 		},
 		{
 			[]string{"ts_micros"},
-			[]byte{0xd9, 0xea, 0xb8, 0x1a, 0xa5, 0x15, 0x5, 0x0},
-			[]byte{0x40, 0x69, 0x2c, 0x48, 0xec, 0x8b, 0x1, 0x0},
+			[]byte{0xd9, 0x32, 0xe0, 0xc7, 0xa6, 0x15, 0x5, 0x0},
+			[]byte{0x40, 0xd, 0xc0, 0x1e, 0xed, 0x8b, 0x1, 0x0},
 			0,
 			2,
 		},
 		{
 			[]string{"ts_millis"},
-			[]byte{0x2, 0x4c, 0x9a, 0x38, 0x4d, 0x1, 0x0, 0x0},
-			[]byte{0xdb, 0x4a, 0x35, 0x5b, 0x65, 0x0, 0x0, 0x0},
+			[]byte{0x2, 0x29, 0x8, 0x39, 0x4d, 0x1, 0x0, 0x0},
+			[]byte{0x5b, 0x39, 0x6c, 0x5b, 0x65, 0x0, 0x0, 0x0},
 			0,
 			2,
 		},
@@ -615,12 +614,11 @@ func TestWriteTimeData(t *testing.T) {
 	}
 
 	for idx, tt := range verificationData {
-		t.Logf("%d. metadata = %#v stats = %#v", idx, rg.Columns[idx].MetaData, rg.Columns[idx].MetaData.Statistics)
-		require.Equal(t, tt.pathInSchema, rg.Columns[idx].MetaData.PathInSchema, "%d. path in schema doesn't match", idx)
-		require.Equal(t, tt.maxValue, rg.Columns[idx].MetaData.Statistics.MaxValue, "%d. max value doesn't match", idx)
-		require.Equal(t, tt.minValue, rg.Columns[idx].MetaData.Statistics.MinValue, "%d. min value doesn't match", idx)
-		require.Equal(t, tt.nullCount, rg.Columns[idx].MetaData.Statistics.GetNullCount(), "%d. null count doesn't match", idx)
-		require.Equal(t, tt.distinctCount, rg.Columns[idx].MetaData.Statistics.GetDistinctCount(), "%d. distinct count doesn't match", idx)
+		assert.Equal(t, tt.pathInSchema, rg.Columns[idx].MetaData.PathInSchema, "%d. path in schema doesn't match", idx)
+		assert.Equal(t, tt.maxValue, rg.Columns[idx].MetaData.Statistics.MaxValue, "%d. max value doesn't match", idx)
+		assert.Equal(t, tt.minValue, rg.Columns[idx].MetaData.Statistics.MinValue, "%d. min value doesn't match", idx)
+		assert.Equal(t, tt.nullCount, rg.Columns[idx].MetaData.Statistics.GetNullCount(), "%d. null count doesn't match", idx)
+		assert.Equal(t, tt.distinctCount, rg.Columns[idx].MetaData.Statistics.GetDistinctCount(), "%d. distinct count doesn't match", idx)
 	}
 }
 
