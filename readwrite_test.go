@@ -499,7 +499,6 @@ func TestWriteTimeData(t *testing.T) {
 
 	wf, err := os.OpenFile("files/test9.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
-	defer wf.Close()
 
 	sd, err := parquetschema.ParseSchemaDefinition(`
 		message foo {
@@ -536,6 +535,96 @@ func TestWriteTimeData(t *testing.T) {
 
 	require.NoError(t, w.FlushRowGroup())
 	require.NoError(t, w.Close())
+	require.NoError(t, wf.Close())
+
+	rf, err := os.Open("files/test9.parquet")
+	require.NoError(t, err, "opening file failed")
+	defer rf.Close()
+
+	r, err := NewFileReader(rf)
+	require.NoError(t, err, "creating file reader failed")
+
+	require.NoError(t, r.PreLoad())
+
+	rg := r.CurrentRowGroup()
+
+	verificationData := []struct {
+		pathInSchema  []string
+		maxValue      []byte
+		minValue      []byte
+		nullCount     int64
+		distinctCount int64
+	}{
+		{
+			[]string{"ts_nanos"},
+			[]byte{0x20, 0x63, 0x55, 0x62, 0xf0, 0x8c, 0xdc, 0x13},
+			[]byte{0x15, 0x25, 0x7b, 0xed, 0xf9, 0x92, 0xa, 0x6},
+			0,
+			2,
+		},
+		{
+			[]string{"ts_micros"},
+			[]byte{0xd9, 0xea, 0xb8, 0x1a, 0xa5, 0x15, 0x5, 0x0},
+			[]byte{0x40, 0x69, 0x2c, 0x48, 0xec, 0x8b, 0x1, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"ts_millis"},
+			[]byte{0x2, 0x4c, 0x9a, 0x38, 0x4d, 0x1, 0x0, 0x0},
+			[]byte{0xdb, 0x4a, 0x35, 0x5b, 0x65, 0x0, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"date"},
+			[]byte{0xb4, 0x40, 0x0, 0x0},
+			[]byte{0xae, 0x13, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_nanos"},
+			[]byte{0x20, 0xa3, 0x3a, 0xd8, 0xb2, 0x2e, 0x0, 0x0},
+			[]byte{0x15, 0xc5, 0x81, 0x7d, 0x7c, 0x26, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_micros"},
+			[]byte{0xd9, 0xb2, 0x70, 0xf4, 0xb, 0x0, 0x0, 0x0},
+			[]byte{0x40, 0xcd, 0x3c, 0xda, 0x9, 0x0, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_millis"},
+			[]byte{0x2, 0x79, 0xf, 0x3},
+			[]byte{0x5b, 0xb1, 0x85, 0x2},
+			0,
+			2,
+		},
+		{
+			[]string{"t_alwaysnull"},
+			nil,
+			nil,
+			2,
+			0,
+		},
+	}
+
+	for idx, tt := range verificationData {
+		t.Logf("%d. metadata = %#v stats = %#v", idx, rg.Columns[idx].MetaData, rg.Columns[idx].MetaData.Statistics)
+		require.Equal(t, tt.pathInSchema, rg.Columns[idx].MetaData.PathInSchema, "%d. path in schema doesn't match", idx)
+		require.Equal(t, tt.maxValue, rg.Columns[idx].MetaData.Statistics.MaxValue, "%d. max value doesn't match", idx)
+		require.Equal(t, tt.minValue, rg.Columns[idx].MetaData.Statistics.MinValue, "%d. min value doesn't match", idx)
+		require.Equal(t, tt.nullCount, rg.Columns[idx].MetaData.Statistics.GetNullCount(), "%d. null count doesn't match", idx)
+		require.Equal(t, tt.distinctCount, rg.Columns[idx].MetaData.Statistics.GetDistinctCount(), "%d. distinct count doesn't match", idx)
+	}
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
 }
 
 func TestReadWriteMultiLevel(t *testing.T) {
