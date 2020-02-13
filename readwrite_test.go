@@ -521,8 +521,8 @@ func TestWriteTimeData(t *testing.T) {
 		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.Local),
 	}
 
-	for _, tt := range testData {
-		w.AddData(map[string]interface{}{
+	for idx, tt := range testData {
+		err := w.AddData(map[string]interface{}{
 			"ts_nanos":  tt.UnixNano(),
 			"ts_micros": tt.UnixNano() / 1000,
 			"ts_millis": tt.UnixNano() / 1000000,
@@ -531,6 +531,7 @@ func TestWriteTimeData(t *testing.T) {
 			"t_micros":  int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000 + tt.Nanosecond()/1000),
 			"t_millis":  int32((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000 + tt.Nanosecond()/1000000),
 		})
+		require.NoError(t, err, "%d. AddData failed", idx)
 	}
 
 	require.NoError(t, w.FlushRowGroup())
