@@ -1,0 +1,18 @@
+# CircleCI 2.0 configuration file for Go.
+#
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2.1
+
+orbs:
+  codecov: codecov/codecov@1.0.4
+
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.13
+
+    steps:
+      - checkout
+      - run: go test -race -coverprofile=coverage.txt -covermode=atomic
+      - codecov/upload:
+          file: coverage.txt
