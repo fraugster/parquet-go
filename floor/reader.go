@@ -157,8 +157,7 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.Un
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
 		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
-			switch {
-			case elem.GetLogicalType().IsSetTIME():
+			if elem.GetLogicalType().IsSetTIME() {
 				i, err := getIntValue(data)
 				if err != nil {
 					return err

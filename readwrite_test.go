@@ -330,6 +330,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 	quuxParams.LogicalType.DECIMAL.Precision = 5
 
 	quuxStore, err := NewInt32Store(parquet.Encoding_PLAIN, true, quuxParams)
+	require.NoError(t, err)
 
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))

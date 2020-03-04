@@ -135,11 +135,8 @@ func (h *flushRowGroupOptionHandle) getMetaData(col string) map[string]string {
 		data[k] = v
 	}
 
-	colKV := h.cols[col]
-	if colKV != nil {
-		for k, v := range colKV {
-			data[k] = v
-		}
+	for k, v := range h.cols[col] {
+		data[k] = v
 	}
 
 	if len(data) > 0 {

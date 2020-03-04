@@ -105,8 +105,8 @@ func TestDecodeStruct(t *testing.T) {
 				Foo struct {
 					Bar int64
 				}
-				Baz  uint32
 				Quux *bool
+				Baz  uint32
 				Blub bool
 			}{},
 			ExpectedOutput: map[string]interface{}{"foo": map[string]interface{}{"bar": int64(0)}, "baz": int64(0), "blub": false},
@@ -235,7 +235,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				Date time.Time
 			}{
-				Date: time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC),
+				Date: time.Date(1970, 1, 10, 0, 0, 0, 0, time.UTC),
 			},
 			ExpectedOutput: map[string]interface{}{"date": int32(9)},
 			ExpectErr:      false,
@@ -245,7 +245,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				Date time.Time
 			}{
-				Date: time.Date(1970, 01, 12, 23, 59, 59, 0, time.UTC),
+				Date: time.Date(1970, 1, 12, 23, 59, 59, 0, time.UTC),
 			},
 			ExpectedOutput: map[string]interface{}{"date": int32(11)},
 			ExpectErr:      false,
@@ -255,7 +255,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				TS time.Time
 			}{
-				TS: time.Date(1970, 01, 01, 0, 0, 23, 0, time.UTC),
+				TS: time.Date(1970, 1, 1, 0, 0, 23, 0, time.UTC),
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(23000)},
 			ExpectErr:      false,
@@ -265,7 +265,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				TS time.Time
 			}{
-				TS: time.Date(1970, 01, 01, 0, 0, 24, 0, time.UTC),
+				TS: time.Date(1970, 1, 1, 0, 0, 24, 0, time.UTC),
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(24000000)},
 			ExpectErr:      false,
@@ -275,7 +275,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				TS time.Time
 			}{
-				TS: time.Date(1970, 01, 01, 0, 0, 25, 2000, time.UTC),
+				TS: time.Date(1970, 1, 1, 0, 0, 25, 2000, time.UTC),
 			},
 			ExpectedOutput: map[string]interface{}{"ts": int64(25000002000)},
 			ExpectErr:      false,

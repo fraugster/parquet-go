@@ -126,8 +126,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
 		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
-			switch {
-			case elem.GetLogicalType().IsSetTIME():
+			if elem.GetLogicalType().IsSetTIME() {
 				switch {
 				case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
 					field.SetInt64(value.Interface().(Time).Nanoseconds())
@@ -163,7 +162,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 					return errors.New("invalid TIMESTAMP unit")
 				}
 				ts := value.Interface().(time.Time).UnixNano()
-				ts /= int64(factor)
+				ts /= factor
 				field.SetInt64(ts)
 				return nil
 			}

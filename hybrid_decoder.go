@@ -28,18 +28,19 @@ type levelDecoder interface {
 }
 
 type hybridDecoder struct {
+	r io.Reader
+
 	bitWidth     int
 	unpackerFn   unpack8int32Func
 	rleValueSize int
 
-	r io.Reader
+	bpRun [8]int32
 
 	rleCount uint32
 	rleValue int32
 
 	bpCount  uint32
 	bpRunPos uint8
-	bpRun    [8]int32
 
 	buffered bool
 }

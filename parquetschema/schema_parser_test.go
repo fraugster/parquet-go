@@ -104,21 +104,21 @@ func TestSchemaParser(t *testing.T) {
 					optional int64 element2;
 				}
 			}
-		}`, true}, //bar.list has 2 children.
+		}`, true}, // bar.list has 2 children.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
 					optional int64 invalid;
 				}
 			}
-		}`, true}, //bar.list has 1 child, but it's called invalid, not element.
+		}`, true}, // bar.list has 1 child, but it's called invalid, not element.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
 					repeated int64 element;
 				}
 			}
-		}`, true}, //bar.list.element is of the wrong repetition type.
+		}`, true}, // bar.list.element is of the wrong repetition type.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated group list {
@@ -389,7 +389,6 @@ message foo { }`, false}, // this is necessary because we once had a parser bug 
 		} else {
 			assert.NoError(t, err, "%d. expected no error, got error instead", idx)
 		}
-		//t.Logf("%d. msg = %s expect err = %t err = %v ; parsed message: %s", idx, tt.Msg, tt.ExpectErr, err, spew.Sdump(p.root))
 	}
 }
 

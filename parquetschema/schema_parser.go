@@ -357,7 +357,6 @@ func (p *schemaParser) parseMessageBody() []*ColumnDefinition {
 	p.expect(itemLeftBrace)
 	for {
 		p.next()
-		//log.Printf("token = %s", p.token)
 		if p.token.typ == itemRightBrace {
 			return cols
 		}
