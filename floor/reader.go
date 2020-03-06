@@ -145,6 +145,69 @@ func (um *reflectUnmarshaller) fillStruct(value reflect.Value, record interfaces
 	return nil
 }
 
+func (um *reflectUnmarshaller) fillTimeValue(elem *parquet.SchemaElement, value reflect.Value, data interfaces.UnmarshalElement) error {
+	i, err := getIntValue(data)
+	if err != nil {
+		return err
+	}
+
+	var t Time
+	switch {
+	case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
+		t = TimeFromNanoseconds(i)
+	case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
+		t = TimeFromMicroseconds(i)
+	case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
+		t = TimeFromMilliseconds(int32(i))
+	default:
+		return errors.New("invalid TIME unit")
+	}
+
+	if elem.GetLogicalType().TIME.GetIsAdjustedToUTC() {
+		t = t.UTC()
+	}
+
+	value.Set(reflect.ValueOf(t))
+	return nil
+}
+
+func (um *reflectUnmarshaller) fillTimestampValue(elem *parquet.SchemaElement, value reflect.Value, data interfaces.UnmarshalElement) error {
+	i, err := getIntValue(data)
+	if err != nil {
+		return err
+	}
+
+	var ts time.Time
+	switch {
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
+		ts = time.Unix(i/1000000000, i%1000000000)
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
+		ts = time.Unix(i/1000000, 1000*(i%1000000))
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
+		ts = time.Unix(i/1000, 1000000*(i%1000))
+	default:
+		return errors.New("invalid TIMESTAMP unit")
+	}
+
+	if elem.GetLogicalType().TIMESTAMP.GetIsAdjustedToUTC() {
+		ts = ts.UTC()
+	}
+
+	value.Set(reflect.ValueOf(ts))
+	return nil
+}
+
+func (um *reflectUnmarshaller) fillDateValue(value reflect.Value, data interfaces.UnmarshalElement) error {
+	i, err := getIntValue(data)
+	if err != nil {
+		return err
+	}
+
+	date := time.Unix(0, 0).UTC().Add(24 * time.Hour * time.Duration(i))
+	value.Set(reflect.ValueOf(date))
+	return nil
+}
+
 func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		value.Set(reflect.New(value.Type().Elem()))
@@ -156,32 +219,8 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.Un
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
-			if elem.GetLogicalType().IsSetTIME() {
-				i, err := getIntValue(data)
-				if err != nil {
-					return err
-				}
-
-				var t Time
-				switch {
-				case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
-					t = TimeFromNanoseconds(i)
-				case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
-					t = TimeFromMicroseconds(i)
-				case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
-					t = TimeFromMilliseconds(int32(i))
-				default:
-					return errors.New("invalid TIME unit")
-				}
-
-				if elem.GetLogicalType().TIME.GetIsAdjustedToUTC() {
-					t = t.UTC()
-				}
-
-				value.Set(reflect.ValueOf(t))
-				return nil
-			}
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
+			return um.fillTimeValue(elem, value, data)
 		}
 	}
 
@@ -189,38 +228,9 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.Un
 		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
 			switch {
 			case elem.GetLogicalType().IsSetDATE():
-				i, err := getIntValue(data)
-				if err != nil {
-					return err
-				}
-
-				date := time.Unix(0, 0).UTC().Add(24 * time.Hour * time.Duration(i))
-				value.Set(reflect.ValueOf(date))
-				return nil
+				return um.fillDateValue(value, data)
 			case elem.GetLogicalType().IsSetTIMESTAMP():
-				i, err := getIntValue(data)
-				if err != nil {
-					return err
-				}
-
-				var ts time.Time
-				switch {
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
-					ts = time.Unix(i/1000000000, i%1000000000)
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
-					ts = time.Unix(i/1000000, 1000*(i%1000000))
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
-					ts = time.Unix(i/1000, 1000000*(i%1000))
-				default:
-					return errors.New("invalid TIMESTAMP unit")
-				}
-
-				if elem.GetLogicalType().TIMESTAMP.GetIsAdjustedToUTC() {
-					ts = ts.UTC()
-				}
-
-				value.Set(reflect.ValueOf(ts))
-				return nil
+				return um.fillTimestampValue(elem, value, data)
 			}
 		}
 	}

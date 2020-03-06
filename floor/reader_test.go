@@ -15,6 +15,14 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
+func TestNewReaderFailures(t *testing.T) {
+	_, err := NewFileReader("file-does-not-exist.parquet")
+	require.Error(t, err)
+
+	_, err = NewFileReader("/dev/null")
+	require.Error(t, err)
+}
+
 func TestReadFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 

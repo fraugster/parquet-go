@@ -55,6 +55,91 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
+func getBooleanValuesDecoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesDecoder, error) {
+	switch pageEncoding {
+	case parquet.Encoding_PLAIN:
+		return &booleanPlainDecoder{}, nil
+	case parquet.Encoding_RLE:
+		return &booleanRLEDecoder{}, nil
+	case parquet.Encoding_RLE_DICTIONARY:
+		return &dictDecoder{values: dictValues}, nil
+	default:
+		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
+	}
+}
+
+func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesDecoder, error) {
+	switch pageEncoding {
+	case parquet.Encoding_PLAIN:
+		return &byteArrayPlainDecoder{}, nil
+	case parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY:
+		return &byteArrayDeltaLengthDecoder{}, nil
+	case parquet.Encoding_DELTA_BYTE_ARRAY:
+		return &byteArrayDeltaDecoder{}, nil
+	case parquet.Encoding_RLE_DICTIONARY:
+		return &dictDecoder{values: dictValues}, nil
+	default:
+		return nil, errors.Errorf("unsupported encoding %s for binary", pageEncoding)
+	}
+}
+
+func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, dictValues []interface{}) (valuesDecoder, error) {
+	switch pageEncoding {
+	case parquet.Encoding_PLAIN:
+		return &byteArrayPlainDecoder{length: len}, nil
+	case parquet.Encoding_DELTA_BYTE_ARRAY:
+		return &byteArrayDeltaDecoder{}, nil
+	case parquet.Encoding_RLE_DICTIONARY:
+		return &dictDecoder{values: dictValues}, nil
+	default:
+		return nil, errors.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
+	}
+}
+
+func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
+	var unSigned bool
+	if typ.ConvertedType != nil {
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
+			unSigned = true
+		}
+	}
+	if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+		unSigned = true
+	}
+	switch pageEncoding {
+	case parquet.Encoding_PLAIN:
+		return &int32PlainDecoder{unSigned: unSigned}, nil
+	case parquet.Encoding_DELTA_BINARY_PACKED:
+		return &int32DeltaBPDecoder{unSigned: unSigned}, nil
+	case parquet.Encoding_RLE_DICTIONARY:
+		return &dictDecoder{values: dictValues}, nil
+	default:
+		return nil, errors.Errorf("unsupported encoding %s for int32", pageEncoding)
+	}
+}
+
+func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
+	var unSigned bool
+	if typ.ConvertedType != nil {
+		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
+			unSigned = true
+		}
+	}
+	if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
+		unSigned = true
+	}
+	switch pageEncoding {
+	case parquet.Encoding_PLAIN:
+		return &int64PlainDecoder{unSigned: unSigned}, nil
+	case parquet.Encoding_DELTA_BINARY_PACKED:
+		return &int64DeltaBPDecoder{unSigned: unSigned}, nil
+	case parquet.Encoding_RLE_DICTIONARY:
+		return &dictDecoder{values: dictValues}, nil
+	default:
+		return nil, errors.Errorf("unsupported encoding %s for int64", pageEncoding)
+	}
+}
+
 func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
 	// Change the deprecated value
 	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
@@ -63,48 +148,16 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
-		switch pageEncoding {
-		case parquet.Encoding_PLAIN:
-			return &booleanPlainDecoder{}, nil
-		case parquet.Encoding_RLE:
-			return &booleanRLEDecoder{}, nil
-		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
-		}
+		return getBooleanValuesDecoder(pageEncoding, dictValues)
 
 	case parquet.Type_BYTE_ARRAY:
-		var ret valuesDecoder
-		switch pageEncoding {
-		case parquet.Encoding_PLAIN:
-			ret = &byteArrayPlainDecoder{}
-		case parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY:
-			ret = &byteArrayDeltaLengthDecoder{}
-		case parquet.Encoding_DELTA_BYTE_ARRAY:
-			ret = &byteArrayDeltaDecoder{}
-		case parquet.Encoding_RLE_DICTIONARY:
-			ret = &dictDecoder{values: dictValues}
-		}
+		return getByteArrayValuesDecoder(pageEncoding, dictValues)
 
-		if ret != nil {
-			return ret, nil
-		}
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
-		var ret valuesDecoder
-		switch pageEncoding {
-		case parquet.Encoding_PLAIN:
-			if typ.TypeLength == nil {
-				return nil, errors.Errorf("type %s with nil type len", typ.Type)
-			}
-
-			ret = &byteArrayPlainDecoder{length: int(*typ.TypeLength)}
-		case parquet.Encoding_DELTA_BYTE_ARRAY:
-			ret = &byteArrayDeltaDecoder{}
-		case parquet.Encoding_RLE_DICTIONARY:
-			ret = &dictDecoder{values: dictValues}
+		if typ.TypeLength == nil {
+			return nil, errors.Errorf("type %s with nil type len", typ.Type)
 		}
-		if ret != nil {
-			return ret, nil
-		}
+		return getFixedLenByteArrayValuesDecoder(pageEncoding, int(*typ.TypeLength), dictValues)
 	case parquet.Type_FLOAT:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
@@ -122,42 +175,10 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_INT32:
-		var unSigned bool
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
-				unSigned = true
-			}
-		}
-		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-			unSigned = true
-		}
-		switch pageEncoding {
-		case parquet.Encoding_PLAIN:
-			return &int32PlainDecoder{unSigned: unSigned}, nil
-		case parquet.Encoding_DELTA_BINARY_PACKED:
-			return &int32DeltaBPDecoder{unSigned: unSigned}, nil
-		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
-		}
+		return getInt32ValuesDecoder(pageEncoding, typ, dictValues)
 
 	case parquet.Type_INT64:
-		var unSigned bool
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
-				unSigned = true
-			}
-		}
-		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-			unSigned = true
-		}
-		switch pageEncoding {
-		case parquet.Encoding_PLAIN:
-			return &int64PlainDecoder{unSigned: unSigned}, nil
-		case parquet.Encoding_DELTA_BINARY_PACKED:
-			return &int64DeltaBPDecoder{unSigned: unSigned}, nil
-		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
-		}
+		return getInt64ValuesDecoder(pageEncoding, typ, dictValues)
 
 	case parquet.Type_INT96:
 		switch pageEncoding {
@@ -168,7 +189,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	default:
-		return nil, errors.Errorf("unsupported type: %s", typ.Type)
+		return nil, errors.Errorf("unsupported type %s", typ.Type)
 	}
 
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)

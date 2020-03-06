@@ -378,6 +378,12 @@ message foo { }`, false}, // this is necessary because we once had a parser bug 
 				optional double baz;
 			}
 		}`, true}, // underneath the MAP group there is not only a key_value (MAP_KEY_VALUE), but also the field baz, which should not be there.
+		{`message foo {
+			required fixed_len_byte_array(100000000000000000000000000000000000000000000000000000000) theid (UUID);
+		}`, true}, // length couldn't be parsed properly.
+		{`message foo {
+			required int64 bar = 20000000000000000000000;
+		}`, true}, // field ID couldn't be parsed properly
 	}
 
 	for idx, tt := range testData {
