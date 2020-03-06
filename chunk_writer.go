@@ -45,7 +45,6 @@ func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, s
 		return &dictEncoder{dictStore: *store}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
-
 	}
 }
 

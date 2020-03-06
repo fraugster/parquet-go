@@ -671,29 +671,29 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 
 	s, err := NewBooleanStore(parquet.Encoding_RLE, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("a", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("a", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
 	s, err = NewBooleanStore(parquet.Encoding_PLAIN, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("b", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("b", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
 	/* // the DELTA encodings don't seem to work at the moment.
 	s, err = NewByteArrayStore(parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, false, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("c", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("c", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
 	s, err = NewByteArrayStore(parquet.Encoding_DELTA_BYTE_ARRAY, false, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("d", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("d", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 	*/
 
 	s, err = NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("e", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("e", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
 	s, err = NewDoubleStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})
 	require.NoError(t, err)
-	w.AddColumn("f", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, w.AddColumn("f", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
 	testData := map[string]interface{}{
 		"a": true,

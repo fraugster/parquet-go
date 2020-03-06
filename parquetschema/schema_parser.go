@@ -569,7 +569,7 @@ func (p *schemaParser) parseTimestampLogicalType(lt *parquet.LogicalType) (ct *p
 	p.next()
 	p.expect(itemRightParen)
 
-	return
+	return ct
 }
 
 func (p *schemaParser) parseTimeLogicalType(lt *parquet.LogicalType) (ct *parquet.ConvertedType) {
@@ -610,7 +610,7 @@ func (p *schemaParser) parseTimeLogicalType(lt *parquet.LogicalType) (ct *parque
 	p.next()
 	p.expect(itemRightParen)
 
-	return
+	return ct
 }
 
 func (p *schemaParser) parseIntLogicalType(lt *parquet.LogicalType) *parquet.ConvertedType {

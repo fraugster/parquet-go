@@ -334,6 +334,7 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 			Client:    []byte("world"),
 			DataStr:   `{"foo":"bar","baz":23}`,
 			Data:      []byte(`{"quux":{"foo":"bar"}}`),
+			ignored:   23,
 		},
 	}
 
@@ -341,6 +342,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 		require.NoError(t, hlWriter.Write(tt))
 	}
 	require.NoError(t, hlWriter.Close())
+
+	testData[0].ignored = 0
 
 	hlReader, err := NewFileReader("files/specialtypes.parquet")
 	require.NoError(t, err)

@@ -40,9 +40,6 @@ linters:
     - gocritic
     - gocognit
     - gochecknoinits
-    - interfacer
-    - unused
-    - structcheck
 
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m

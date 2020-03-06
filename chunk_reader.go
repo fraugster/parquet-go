@@ -283,7 +283,7 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 	return pages, nil
 }
 
-func skipChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) error {
+func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	if chunk.FilePath != nil {
 		return fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
