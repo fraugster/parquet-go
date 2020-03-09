@@ -27,7 +27,7 @@ func (dp *dictPageReader) init(dict valuesDecoder) error {
 	return nil
 }
 
-func (dp *dictPageReader) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
 		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
 	}

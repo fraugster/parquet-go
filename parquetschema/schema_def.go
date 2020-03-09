@@ -217,6 +217,36 @@ func getSchemaType(elem *parquet.SchemaElement) string {
 	return fmt.Sprintf("UT:%s", elem.GetType())
 }
 
+func getTimestampLogicalType(t *parquet.LogicalType) string {
+	unit := ""
+	switch {
+	case t.TIMESTAMP.Unit.IsSetNANOS():
+		unit = "NANOS"
+	case t.TIMESTAMP.Unit.IsSetMICROS():
+		unit = "MICROS"
+	case t.TIMESTAMP.Unit.IsSetMILLIS():
+		unit = "MILLIS"
+	default:
+		unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
+	}
+	return fmt.Sprintf("TIMESTAMP(%s, %t)", unit, t.TIMESTAMP.IsAdjustedToUTC)
+}
+
+func getTimeLogicalType(t *parquet.LogicalType) string {
+	unit := ""
+	switch {
+	case t.TIME.Unit.IsSetNANOS():
+		unit = "NANOS"
+	case t.TIME.Unit.IsSetMICROS():
+		unit = "MICROS"
+	case t.TIME.Unit.IsSetMILLIS():
+		unit = "MILLIS"
+	default:
+		unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
+	}
+	return fmt.Sprintf("TIME(%s, %t)", unit, t.TIME.IsAdjustedToUTC)
+}
+
 func getSchemaLogicalType(t *parquet.LogicalType) string {
 	switch {
 	case t.IsSetSTRING():
@@ -224,31 +254,9 @@ func getSchemaLogicalType(t *parquet.LogicalType) string {
 	case t.IsSetDATE():
 		return "DATE"
 	case t.IsSetTIMESTAMP():
-		unit := ""
-		switch {
-		case t.TIMESTAMP.Unit.IsSetNANOS():
-			unit = "NANOS"
-		case t.TIMESTAMP.Unit.IsSetMICROS():
-			unit = "MICROS"
-		case t.TIMESTAMP.Unit.IsSetMILLIS():
-			unit = "MILLIS"
-		default:
-			unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
-		}
-		return fmt.Sprintf("TIMESTAMP(%s, %t)", unit, t.TIMESTAMP.IsAdjustedToUTC)
+		return getTimestampLogicalType(t)
 	case t.IsSetTIME():
-		unit := ""
-		switch {
-		case t.TIME.Unit.IsSetNANOS():
-			unit = "NANOS"
-		case t.TIME.Unit.IsSetMICROS():
-			unit = "MICROS"
-		case t.TIME.Unit.IsSetMILLIS():
-			unit = "MILLIS"
-		default:
-			unit = "BUG_UNKNOWN_TIMESTAMP_UNIT"
-		}
-		return fmt.Sprintf("TIME(%s, %t)", unit, t.TIME.IsAdjustedToUTC)
+		return getTimeLogicalType(t)
 	case t.IsSetUUID():
 		return "UUID"
 	case t.IsSetENUM():
