@@ -70,7 +70,7 @@ func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV2) read(r io.ReadSeeker, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	// 1- Uncompressed size is affected by the level lens.
 	// 2- In page V2 the rle size is in header, not in level stream
 	if ph.DataPageHeaderV2 == nil {

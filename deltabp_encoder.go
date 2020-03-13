@@ -12,24 +12,23 @@ import (
 )
 
 type deltaBitPackEncoder32 struct {
+	deltas   []int32
+	bitWidth []uint8
+	packed   [][]byte
+	w        io.Writer
+
 	// this value should be there before the init
 	blockSize      int // Must be multiply of 128
 	miniBlockCount int // blockSize % miniBlockCount should be 0
 
-	//
 	miniBlockValueCount int
 
-	w io.Writer
+	valuesCount int
+	buffer      *bytes.Buffer
 
 	firstValue    int32 // the first value to write
-	valuesCount   int
 	minDelta      int32
-	deltas        []int32
 	previousValue int32
-
-	buffer   *bytes.Buffer
-	bitWidth []uint8
-	packed   [][]byte
 }
 
 func (d *deltaBitPackEncoder32) init(w io.Writer) error {
@@ -72,14 +71,14 @@ func (d *deltaBitPackEncoder32) flush() error {
 
 	d.bitWidth = d.bitWidth[:0] //reset the bitWidth buffer
 	d.packed = d.packed[:0]
-	for i := 0; i < len(d.deltas); i += int(d.miniBlockValueCount) {
-		end := i + int(d.miniBlockValueCount)
+	for i := 0; i < len(d.deltas); i += d.miniBlockValueCount {
+		end := i + d.miniBlockValueCount
 		if end >= len(d.deltas) {
 			end = len(d.deltas)
 		}
 		// The cast to uint32 here, is the key. or the max not works at all
 		max := uint32(d.deltas[i])
-		buf := make([][8]int32, int(d.miniBlockValueCount)/8)
+		buf := make([][8]int32, d.miniBlockValueCount/8)
 		for j := i; j < end; j++ {
 			if max < uint32(d.deltas[j]) {
 				max = uint32(d.deltas[j])
@@ -231,14 +230,14 @@ func (d *deltaBitPackEncoder64) flush() error {
 
 	d.bitWidth = d.bitWidth[:0] //reset the bitWidth buffer
 	d.packed = d.packed[:0]
-	for i := 0; i < len(d.deltas); i += int(d.miniBlockValueCount) {
-		end := i + int(d.miniBlockValueCount)
+	for i := 0; i < len(d.deltas); i += d.miniBlockValueCount {
+		end := i + d.miniBlockValueCount
 		if end >= len(d.deltas) {
 			end = len(d.deltas)
 		}
 		// The cast to uint64 here, is the key. or the max not works at all
 		max := uint64(d.deltas[i])
-		buf := make([][8]int64, int(d.miniBlockValueCount)/8)
+		buf := make([][8]int64, d.miniBlockValueCount/8)
 		for j := i; j < end; j++ {
 			if max < uint64(d.deltas[j]) {
 				max = uint64(d.deltas[j])

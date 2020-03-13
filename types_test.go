@@ -13,17 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+=-")
-
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-
-	return string(b)
-}
-
 func buildRandArray(count int, fn func() interface{}) []interface{} {
 	ret := make([]interface{}, count)
 	for i := range ret {

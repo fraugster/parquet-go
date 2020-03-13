@@ -13,6 +13,8 @@ import (
 // data and will choose an optimal way according to heuristics. It also ensures the
 // correct decoding of column data to be read.
 type ColumnStore struct {
+	typedColumnStore
+
 	repTyp parquet.FieldRepetitionType
 
 	values *dictStore
@@ -20,12 +22,12 @@ type ColumnStore struct {
 	dLevels *packedArray
 	rLevels *packedArray
 
-	enc       parquet.Encoding
+	enc     parquet.Encoding
+	readPos int
+
 	allowDict bool
-	readPos   int
 
 	skipped bool
-	typedColumnStore
 }
 
 // useDictionary is simply a function to decide to use dictionary or not,

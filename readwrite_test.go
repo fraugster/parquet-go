@@ -331,6 +331,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 	quuxParams.LogicalType.DECIMAL.Precision = 5
 
 	quuxStore, err := NewInt32Store(parquet.Encoding_PLAIN, true, quuxParams)
+	require.NoError(t, err)
 
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
@@ -515,7 +516,6 @@ func TestWriteTimeData(t *testing.T) {
 	require.NoError(t, err)
 
 	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
-
 	testData := []time.Time{
 		time.Date(2015, 5, 9, 14, 15, 45, 666777888, time.UTC),
 		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.UTC),
@@ -622,6 +622,25 @@ func TestWriteTimeData(t *testing.T) {
 	}
 }
 
+func TestWriteNoRecords(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test10.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	sd, err := parquetschema.ParseSchemaDefinition(`
+		message txn_errors {
+			required binary the_id (STRING);
+			optional binary error (STRING);
+		}
+	`)
+
+	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
+
+	require.Error(t, w.Close())
+	require.NoError(t, wf.Close())
+}
+
 func int64Ptr(i int64) *int64 {
 	return &i
 }
@@ -716,7 +735,7 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	require.Equal(t, testData, readData, "written and read data don't match")
 }
 
-func TestWriteWithFlushGroupMeataDataThenRead(t *testing.T) {
+func TestWriteWithFlushGroupMetaDataThenRead(t *testing.T) {
 	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required int64 foo;
@@ -773,6 +792,62 @@ func TestWriteWithFlushGroupMeataDataThenRead(t *testing.T) {
 		{Key: "a", Value: strPtr("goodbye")},
 		{Key: "b", Value: strPtr("world")},
 	}, cols[1].MetaData.KeyValueMetadata)
+}
+
+func TestReadWriteColumeEncodings(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	w := NewFileWriter(buf)
+
+	s, err := NewBooleanStore(parquet.Encoding_RLE, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("a", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+
+	s, err = NewBooleanStore(parquet.Encoding_PLAIN, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("b", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+
+	/* // the DELTA encodings don't seem to work at the moment.
+	s, err = NewByteArrayStore(parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, false, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("c", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+
+	s, err = NewByteArrayStore(parquet.Encoding_DELTA_BYTE_ARRAY, false, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("d", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+	*/
+
+	s, err = NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("e", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+
+	s, err = NewDoubleStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, w.AddColumn("f", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
+
+	testData := map[string]interface{}{
+		"a": true,
+		"b": false,
+		//"c": []byte("hello"),
+		//"d": []byte("world"),
+		"e": float32(23.0),
+		"f": float64(42.0),
+	}
+
+	require.NoError(t, w.AddData(testData))
+
+	require.NoError(t, w.Close())
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	data, err := r.NextRow()
+	require.NoError(t, err)
+
+	require.Equal(t, testData, data)
+
+	_, err = r.NextRow()
+	require.Equal(t, io.EOF, err)
 }
 
 func strPtr(s string) *string {

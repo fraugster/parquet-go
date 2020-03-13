@@ -135,11 +135,8 @@ func (h *flushRowGroupOptionHandle) getMetaData(col string) map[string]string {
 		data[k] = v
 	}
 
-	colKV := h.cols[col]
-	if colKV != nil {
-		for k, v := range colKV {
-			data[k] = v
-		}
+	for k, v := range h.cols[col] {
+		data[k] = v
 	}
 
 	if len(data) > 0 {
@@ -234,7 +231,7 @@ func (fw *FileWriter) AddData(m map[string]interface{}) error {
 // provided a file as io.Writer when creating the FileWriter, you still need
 // to Close that file handle separately.
 func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
-	if fw.rowGroupNumRecords() > 0 {
+	if len(fw.rowGroups) == 0 || fw.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
 		}

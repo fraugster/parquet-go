@@ -27,9 +27,7 @@ linters-settings:
 linters:
   enable-all: true
   disable:
-    - maligned
     - lll
-    - prealloc
     - scopelint
     - gochecknoglobals
     - goconst
@@ -37,23 +35,11 @@ linters:
     - funlen
     - godox
     - wsl 
-
-    # TODO: we actually want to enable those later (follow up MRs):
-    - gocritic
     - unparam
-    - interfacer
     - dupl
-    - gosimple
-    - staticcheck
-    - unused
-    - nakedret
-    - deadcode
-    - structcheck
-    - ineffassign
-    - gochecknoinits
-    - goimports
-    - unconvert
+    - gocritic
     - gocognit
+    - gochecknoinits
 
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m

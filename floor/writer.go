@@ -116,6 +116,38 @@ func (m *reflectMarshaller) decodeStruct(record interfaces.MarshalObject, value 
 	return nil
 }
 
+func (m *reflectMarshaller) decodeTimeValue(elem *parquet.SchemaElement, field interfaces.MarshalElement, value reflect.Value) error {
+	switch {
+	case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
+		field.SetInt64(value.Interface().(Time).Nanoseconds())
+	case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
+		field.SetInt64(value.Interface().(Time).Microseconds())
+	case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
+		field.SetInt32(value.Interface().(Time).Milliseconds())
+	default:
+		return errors.New("invalid TIME unit")
+	}
+	return nil
+}
+
+func (m *reflectMarshaller) decodeTimestampValue(elem *parquet.SchemaElement, field interfaces.MarshalElement, value reflect.Value) error {
+	var factor int64
+	switch {
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
+		factor = 1
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
+		factor = 1000
+	case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
+		factor = 1000000
+	default:
+		return errors.New("invalid TIMESTAMP unit")
+	}
+	ts := value.Interface().(time.Time).UnixNano()
+	ts /= factor
+	field.SetInt64(ts)
+	return nil
+}
+
 func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
@@ -125,21 +157,8 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
-			switch {
-			case elem.GetLogicalType().IsSetTIME():
-				switch {
-				case elem.GetLogicalType().TIME.Unit.IsSetNANOS():
-					field.SetInt64(value.Interface().(Time).Nanoseconds())
-				case elem.GetLogicalType().TIME.Unit.IsSetMICROS():
-					field.SetInt64(value.Interface().(Time).Microseconds())
-				case elem.GetLogicalType().TIME.Unit.IsSetMILLIS():
-					field.SetInt32(value.Interface().(Time).Milliseconds())
-				default:
-					return errors.New("invalid TIME unit")
-				}
-				return nil
-			}
+		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
+			return m.decodeTimeValue(elem, field, value)
 		}
 	}
 
@@ -151,21 +170,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 				field.SetInt32(days)
 				return nil
 			case elem.GetLogicalType().IsSetTIMESTAMP():
-				var factor int64
-				switch {
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetNANOS():
-					factor = 1
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMICROS():
-					factor = 1000
-				case elem.GetLogicalType().TIMESTAMP.Unit.IsSetMILLIS():
-					factor = 1000000
-				default:
-					return errors.New("invalid TIMESTAMP unit")
-				}
-				ts := value.Interface().(time.Time).UnixNano()
-				ts /= int64(factor)
-				field.SetInt64(ts)
-				return nil
+				return m.decodeTimestampValue(elem, field, value)
 			}
 		}
 	}

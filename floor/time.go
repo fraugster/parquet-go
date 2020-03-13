@@ -76,7 +76,7 @@ func (t Time) Microsecond() int {
 
 // Nanoseconds returns the total number of nanoseconds in the day.
 func (t Time) Nanoseconds() int64 {
-	return int64(t.nsec)
+	return t.nsec
 }
 
 // Milliseconds returns the total number of milliseconds in the day.
@@ -86,7 +86,7 @@ func (t Time) Milliseconds() int32 {
 
 // Microseconds returns the total number of microseconds in the day.
 func (t Time) Microseconds() int64 {
-	return int64(t.nsec / nsPerMicrosecond)
+	return t.nsec / nsPerMicrosecond
 }
 
 // TimeFromNanoseconds returns a new Time object based on the provided nanoseconds.

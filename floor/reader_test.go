@@ -15,6 +15,14 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
+func TestNewReaderFailures(t *testing.T) {
+	_, err := NewFileReader("file-does-not-exist.parquet")
+	require.Error(t, err)
+
+	_, err = NewFileReader("/dev/null")
+	require.Error(t, err)
+}
+
 func TestReadFile(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
@@ -326,6 +334,7 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 			Client:    []byte("world"),
 			DataStr:   `{"foo":"bar","baz":23}`,
 			Data:      []byte(`{"quux":{"foo":"bar"}}`),
+			ignored:   23,
 		},
 	}
 
@@ -333,6 +342,8 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 		require.NoError(t, hlWriter.Write(tt))
 	}
 	require.NoError(t, hlWriter.Close())
+
+	testData[0].ignored = 0
 
 	hlReader, err := NewFileReader("files/specialtypes.parquet")
 	require.NoError(t, err)
@@ -447,17 +458,17 @@ func TestFillValue(t *testing.T) {
 
 	date := time.Unix(0, 0)
 	require.NoError(t, um.fillValue(reflect.ValueOf(&date).Elem(), elem(int32(9)), sd.SubSchema("date")))
-	require.Equal(t, date, time.Date(1970, 01, 10, 0, 0, 0, 0, time.UTC))
+	require.Equal(t, date, time.Date(1970, 1, 10, 0, 0, 0, 0, time.UTC))
 
 	ts := time.Unix(0, 0)
 	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(42000000000)), sd.SubSchema("tsnano")))
-	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 0, 42, 0, time.UTC))
+	require.Equal(t, ts, time.Date(1970, 1, 1, 0, 0, 42, 0, time.UTC))
 
 	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(1423000000)), sd.SubSchema("tsmicro")))
-	require.Equal(t, ts, time.Date(1970, 01, 01, 0, 23, 43, 0, time.UTC))
+	require.Equal(t, ts, time.Date(1970, 1, 1, 0, 23, 43, 0, time.UTC))
 
 	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(45299450)), sd.SubSchema("tsmilli")))
-	require.Equal(t, ts, time.Date(1970, 01, 01, 12, 34, 59, 450000000, time.UTC))
+	require.Equal(t, ts, time.Date(1970, 1, 1, 12, 34, 59, 450000000, time.UTC))
 
 	var tt Time
 	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int64(30000000010)), sd.SubSchema("tnano")))
