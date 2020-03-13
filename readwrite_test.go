@@ -634,15 +634,12 @@ func TestWriteNoRecords(t *testing.T) {
 			optional binary error (STRING);
 		}
 	`)
+	require.NoError(t, err)
 
 	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
 
 	require.Error(t, w.Close())
 	require.NoError(t, wf.Close())
-}
-
-func int64Ptr(i int64) *int64 {
-	return &i
 }
 
 func TestReadWriteMultiLevel(t *testing.T) {
