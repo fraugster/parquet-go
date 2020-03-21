@@ -11,7 +11,7 @@ import (
 	goparquet "github.com/fraugster/parquet-go"
 )
 
-func catFile(w io.Writer, address string, n int64) error {
+func catFile(w io.Writer, address string, n int) error {
 	fl, err := os.Open(address)
 	if err != nil {
 		return fmt.Errorf("can not open the file: %q", err)
@@ -23,7 +23,7 @@ func catFile(w io.Writer, address string, n int64) error {
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 
-	for {
+	for i := 0; i < n; i++ {
 		data, err := reader.NextRow()
 		if err == io.EOF {
 			return nil
@@ -36,6 +36,8 @@ func catFile(w io.Writer, address string, n int64) error {
 		printData(w, data, "")
 		fmt.Println()
 	}
+
+	return nil
 }
 
 func printPrimitive(w io.Writer, ident, name string, v interface{}) {

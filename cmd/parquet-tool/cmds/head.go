@@ -7,10 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var recordCount *int64
+var recordCount *int
 
 func init() {
-	recordCount = headCmd.PersistentFlags().Int64P("records", "n", 5, "The number of records to show")
+	recordCount = headCmd.PersistentFlags().IntP("records", "n", 5, "The number of records to show")
 	rootCmd.AddCommand(headCmd)
 }
 
