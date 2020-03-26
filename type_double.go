@@ -87,12 +87,18 @@ func (f *doubleStore) reset(rep parquet.FieldRepetitionType) {
 }
 
 func (f *doubleStore) maxValue() []byte {
+	if f.max == -math.MaxFloat64 {
+		return nil
+	}
 	ret := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ret, math.Float64bits(f.max))
 	return ret
 }
 
 func (f *doubleStore) minValue() []byte {
+	if f.min == math.MaxFloat64 {
+		return nil
+	}
 	ret := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ret, math.Float64bits(f.min))
 	return ret

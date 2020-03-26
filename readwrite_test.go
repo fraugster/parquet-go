@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	testFunc := func(opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
-		wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		wf, err := os.OpenFile("files/test1.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		require.NoError(t, err, "creating file failed")
 
 		w := NewFileWriter(wf, opts...)
@@ -48,7 +49,7 @@ func TestWriteThenReadFile(t *testing.T) {
 
 		require.NoError(t, wf.Close())
 
-		rf, err := os.Open("files/test.parquet")
+		rf, err := os.Open("files/test1.parquet")
 		require.NoError(t, err, "opening file failed")
 		defer rf.Close()
 
@@ -79,7 +80,7 @@ func TestWriteThenReadFile(t *testing.T) {
 func TestWriteThenReadFileRepeated(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test2.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -106,7 +107,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test2.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -125,7 +126,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 func TestWriteThenReadFileOptional(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test3.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -152,7 +153,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test3.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -184,7 +185,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 func TestWriteThenReadFileNested(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test4.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -214,7 +215,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test4.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -233,7 +234,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 func TestWriteThenReadFileNested2(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test5.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -287,7 +288,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test5.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -306,7 +307,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 func TestWriteThenReadFileMap(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test6.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -397,7 +398,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test6.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -416,7 +417,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 func TestWriteThenReadFileNested3(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test7.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -443,7 +444,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test7.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -462,7 +463,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 func TestWriteEmptyDict(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	wf, err := os.OpenFile("files/test.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	wf, err := os.OpenFile("files/test8.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	require.NoError(t, err, "creating file failed")
 
 	w := NewFileWriter(wf, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
@@ -478,7 +479,7 @@ func TestWriteEmptyDict(t *testing.T) {
 
 	require.NoError(t, wf.Close())
 
-	rf, err := os.Open("files/test.parquet")
+	rf, err := os.Open("files/test8.parquet")
 	require.NoError(t, err, "opening file failed")
 	defer rf.Close()
 
@@ -491,6 +492,133 @@ func TestWriteEmptyDict(t *testing.T) {
 		d, err := r.getData()
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{}, d)
+	}
+}
+
+func TestWriteTimeData(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	wf, err := os.OpenFile("files/test9.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	require.NoError(t, err, "creating file failed")
+
+	sd, err := parquetschema.ParseSchemaDefinition(`
+		message foo {
+			required int64 ts_nanos (TIMESTAMP(NANOS, true));
+			required int64 ts_micros (TIMESTAMP(MICROS, true));
+			required int64 ts_millis (TIMESTAMP(MILLIS, true));
+			required int32 date (DATE);
+			required int64 t_nanos (TIME(NANOS, false));
+			required int64 t_micros (TIME(MICROS, false));
+			required int32 t_millis (TIME(MILLIS, false));
+			optional int32 t_alwaysnull (TIME(MILLIS, false));
+		}
+	`)
+	require.NoError(t, err)
+
+	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
+	testData := []time.Time{
+		time.Date(2015, 5, 9, 14, 15, 45, 666777888, time.UTC),
+		time.Date(1983, 10, 18, 11, 45, 16, 123456789, time.UTC),
+	}
+
+	for _, tt := range testData {
+		require.NoError(t, w.AddData(map[string]interface{}{
+			"ts_nanos":  tt.UnixNano(),
+			"ts_micros": tt.UnixNano() / 1000,
+			"ts_millis": tt.UnixNano() / 1000000,
+			"date":      int32(tt.UnixNano() / (86400 * 1000000000)),
+			"t_nanos":   int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000000 + tt.Nanosecond()),
+			"t_micros":  int64((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000000 + tt.Nanosecond()/1000),
+			"t_millis":  int32((tt.Hour()*3600+tt.Minute()*60+tt.Second())*1000 + tt.Nanosecond()/1000000),
+		}))
+	}
+
+	require.NoError(t, w.FlushRowGroup())
+	require.NoError(t, w.Close())
+	require.NoError(t, wf.Close())
+
+	rf, err := os.Open("files/test9.parquet")
+	require.NoError(t, err, "opening file failed")
+	defer rf.Close()
+
+	r, err := NewFileReader(rf)
+	require.NoError(t, err, "creating file reader failed")
+
+	require.NoError(t, r.PreLoad())
+
+	rg := r.CurrentRowGroup()
+
+	verificationData := []struct {
+		pathInSchema  []string
+		maxValue      []byte
+		minValue      []byte
+		nullCount     int64
+		distinctCount int64
+	}{
+		{
+			[]string{"ts_nanos"},
+			[]byte{0x20, 0xa3, 0xc6, 0xc3, 0x7c, 0x93, 0xdc, 0x13},
+			[]byte{0x15, 0xc5, 0x33, 0x1e, 0x40, 0x96, 0xa, 0x6},
+			0,
+			2,
+		},
+		{
+			[]string{"ts_micros"},
+			[]byte{0xd9, 0x32, 0xe0, 0xc7, 0xa6, 0x15, 0x5, 0x0},
+			[]byte{0x40, 0xd, 0xc0, 0x1e, 0xed, 0x8b, 0x1, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"ts_millis"},
+			[]byte{0x2, 0x29, 0x8, 0x39, 0x4d, 0x1, 0x0, 0x0},
+			[]byte{0x5b, 0x39, 0x6c, 0x5b, 0x65, 0x0, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"date"},
+			[]byte{0xb4, 0x40, 0x0, 0x0},
+			[]byte{0xae, 0x13, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_nanos"},
+			[]byte{0x20, 0xa3, 0x3a, 0xd8, 0xb2, 0x2e, 0x0, 0x0},
+			[]byte{0x15, 0xc5, 0x81, 0x7d, 0x7c, 0x26, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_micros"},
+			[]byte{0xd9, 0xb2, 0x70, 0xf4, 0xb, 0x0, 0x0, 0x0},
+			[]byte{0x40, 0xcd, 0x3c, 0xda, 0x9, 0x0, 0x0, 0x0},
+			0,
+			2,
+		},
+		{
+			[]string{"t_millis"},
+			[]byte{0x2, 0x79, 0xf, 0x3},
+			[]byte{0x5b, 0xb1, 0x85, 0x2},
+			0,
+			2,
+		},
+		{
+			[]string{"t_alwaysnull"},
+			nil,
+			nil,
+			2,
+			0,
+		},
+	}
+
+	for idx, tt := range verificationData {
+		assert.Equal(t, tt.pathInSchema, rg.Columns[idx].MetaData.PathInSchema, "%d. path in schema doesn't match", idx)
+		assert.Equal(t, tt.maxValue, rg.Columns[idx].MetaData.Statistics.MaxValue, "%d. max value doesn't match", idx)
+		assert.Equal(t, tt.minValue, rg.Columns[idx].MetaData.Statistics.MinValue, "%d. min value doesn't match", idx)
+		assert.Equal(t, tt.nullCount, rg.Columns[idx].MetaData.Statistics.GetNullCount(), "%d. null count doesn't match", idx)
+		assert.Equal(t, tt.distinctCount, rg.Columns[idx].MetaData.Statistics.GetDistinctCount(), "%d. distinct count doesn't match", idx)
 	}
 }
 
@@ -509,6 +637,7 @@ func TestWriteNoRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
+
 	require.Error(t, w.Close())
 	require.NoError(t, wf.Close())
 }
@@ -551,8 +680,6 @@ func TestReadWriteMultiLevel(t *testing.T) {
 }
 
 func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
-	_ = os.Mkdir("files", 0755)
-
 	sd, err := parquetschema.ParseSchemaDefinition(
 		`message test_msg {
 			required group baz (LIST) {

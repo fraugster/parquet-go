@@ -360,9 +360,6 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 	var vals []interface{}
 	switch typed := v.(type) {
 	case []byte:
-		if err := is.setMinMax(typed); err != nil {
-			return nil, err
-		}
 		vals = []interface{}{typed}
 	case [][]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
@@ -370,9 +367,6 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
-			if err := is.setMinMax(typed[j]); err != nil {
-				return nil, err
-			}
 			vals[j] = typed[j]
 		}
 	default:
