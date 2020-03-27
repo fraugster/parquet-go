@@ -7,7 +7,7 @@ import (
 
 var (
 	// ErrFieldNotPresent indicate the field is not available in the result
-	ErrFieldNotPresent = errors.New("filed is not present")
+	ErrFieldNotPresent = errors.New("field is not present")
 )
 
 // Unmarshaller is the interface necessary for objects to

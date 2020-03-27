@@ -374,7 +374,7 @@ func TestStores(t *testing.T) {
 			assert.Equal(t, convertToInterface(data), st.values.assemble())
 			// Field is not Required, so def level should be one more
 			assert.Equal(t, []int32{4, 4, 4}, st.dLevels.toArray())
-			// Filed is repeated so the rep level (except for the first one which is the new record)
+			// Field is repeated so the rep level (except for the first one which is the new record)
 			// should be one more
 			assert.Equal(t, []int32{0, 4, 4}, st.rLevels.toArray())
 
