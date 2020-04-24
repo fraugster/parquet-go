@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 var magic = []byte{'P', 'A', 'R', '1'}

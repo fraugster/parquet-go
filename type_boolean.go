@@ -3,8 +3,8 @@ package goparquet
 import (
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 type booleanPlainDecoder struct {

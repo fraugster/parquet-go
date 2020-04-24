@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/pkg/errors"
 )
 
 const (

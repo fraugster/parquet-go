@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/stretchr/testify/assert"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSchemaParser(t *testing.T) {

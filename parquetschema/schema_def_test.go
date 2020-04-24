@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSchemaDefinition(t *testing.T) {

@@ -9,10 +9,10 @@ import (
 	"github.com/fraugster/parquet-go/floor/interfaces"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/stretchr/testify/require"
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewReaderFailures(t *testing.T) {

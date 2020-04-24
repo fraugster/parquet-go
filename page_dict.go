@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface

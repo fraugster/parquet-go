@@ -3,8 +3,8 @@ package goparquet
 import (
 	"sort"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 func getBooleanValuesEncoder(pageEncoding parquet.Encoding, store *dictStore) (valuesEncoder, error) {

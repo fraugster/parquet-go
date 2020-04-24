@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 // ColumnStore is the read/write implementation for a column. It buffers a single

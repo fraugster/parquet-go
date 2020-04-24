@@ -3,8 +3,8 @@ package goparquet
 import (
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/pkg/errors"
 )
 
 // FileReader is used to read data from a parquet file. Always use NewFileReader to create

@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/spf13/cobra"
 	goparquet "github.com/fraugster/parquet-go"
+	"github.com/spf13/cobra"
 )
 
 func init() {

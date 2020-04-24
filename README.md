@@ -1,11 +1,11 @@
 <h1 align="center">parquet-go</h1>
 <p align="center">
-        <a href="https://github.com/fraugster/parquet-go/releases"><img src="https://img.shields.io/github/tag/fraugster/parquet-go.svg?label=version&color=brightgreen"></a>
+        <a href="https://github.com/fraugster/parquet-go/releases"><img src="https://img.shields.io/github/v/tag/fraugster/parquet-go.svg?color=brightgreen&label=version&sort=semver"></a>
         <a href="https://circleci.com/gh/fraugster/parquet-go/tree/master"><img src="https://circleci.com/gh/fraugster/parquet-go/tree/master.svg?style=shield"></a>
         <a href="https://goreportcard.com/report/github.com/fraugster/parquet-go"><img src="https://goreportcard.com/badge/github.com/fraugster/parquet-go"></a>
         <a href="https://codecov.io/gh/fraugster/parquet-go"><img src="https://codecov.io/gh/fraugster/parquet-go/branch/master/graph/badge.svg"/></a>
         <a href="https://godoc.org/github.com/fraugster/parquet-go"><img src="https://img.shields.io/badge/godoc-reference-blue.svg?color=blue"></a>
-        <a href="https://github.com/fraugster/parquet-go/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2-blue.svg"></a>
+        <a href="https://github.com/fraugster/parquet-go/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202-blue"></a>
 </p>
 
 ---
@@ -202,7 +202,8 @@ see the [tags on this repository][tags].
 
 ## Authors
 
-- TODO
+- **Forud Ghafouri** - *Initial work* [fzerorubigd](https://github.com/fzerorubigd)
+- **Andreas Krennmair** - *floor package, schema parser* [akrennmair](https://github.com/akrennmair)
 
 See also the list of [contributors][contributors] who participated in this project.
 
