@@ -10,9 +10,12 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.13
-
+    environment:
+      PARQUET_COMPATIBILITY_REPO_ROOT: /tmp/parquet-compatibility  
     steps:
       - checkout
+      - run: git clone https://github.com/Parquet/parquet-compatibility.git ${PARQUET_COMPATIBILITY_REPO_ROOT}
       - run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov/upload:
           file: coverage.txt
+
