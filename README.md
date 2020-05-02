@@ -204,12 +204,18 @@ see the [tags on this repository][tags].
 
 - **Forud Ghafouri** - *Initial work* [fzerorubigd](https://github.com/fzerorubigd)
 - **Andreas Krennmair** - *floor package, schema parser* [akrennmair](https://github.com/akrennmair)
+- **Stefan Koshiw** - *Engineering Manager for Core Team* [panamafrancis](https://github.com/panamafrancis)
 
 See also the list of [contributors][contributors] who participated in this project.
 
 ## License
 
+Copyright 2020 Fraugster GmbH
+
 This project is licensed under the Apache-2 License - see the [LICENSE](LICENSE) file for details.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 
 [tags]: https://github.com/fraugster/parquet-go/tags
 [contributors]: https://github.com/fraugster/parquet-go/graphs/contributors
+
