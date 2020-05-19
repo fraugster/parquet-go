@@ -1,7 +1,9 @@
 package goparquet
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/pkg/errors"
@@ -113,4 +115,30 @@ func (f *FileReader) SkipRowGroup() {
 // PreLoad is used to load the row group if required. It does nothing if the row group is already loaded.
 func (f *FileReader) PreLoad() error {
 	return f.advanceIfNeeded()
+}
+
+// MetaData returns a map of metadata key-value pairs stored in the parquet file.
+func (f *FileReader) MetaData() map[string]string {
+	return keyValueMetaDataToMap(f.meta.KeyValueMetadata)
+}
+
+// ColumnMetaData returns a map of metadata key-value pairs for the provided column in the current
+// row group. The column name has to be provided in its dotted notation.
+func (f *FileReader) ColumnMetaData(colName string) (map[string]string, error) {
+	for _, col := range f.CurrentRowGroup().Columns {
+		if colName == strings.Join(col.MetaData.PathInSchema, ".") {
+			return keyValueMetaDataToMap(col.MetaData.KeyValueMetadata), nil
+		}
+	}
+	return nil, fmt.Errorf("column %q not found", colName)
+}
+
+func keyValueMetaDataToMap(kvMetaData []*parquet.KeyValue) map[string]string {
+	data := make(map[string]string)
+	for _, kv := range kvMetaData {
+		if kv.Value != nil {
+			data[kv.Key] = *kv.Value
+		}
+	}
+	return data
 }

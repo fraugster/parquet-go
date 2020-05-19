@@ -749,6 +749,7 @@ func TestWriteWithFlushGroupMetaDataThenRead(t *testing.T) {
 		WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
 		WithCreator("floor-unittest"),
 		WithSchemaDefinition(sd),
+		WithMetaData(map[string]string{"global": "metadata"}),
 	)
 
 	require.NoError(t, err, "creating new file writer failed")
@@ -771,8 +772,11 @@ func TestWriteWithFlushGroupMetaDataThenRead(t *testing.T) {
 	hlReader, err := NewFileReader(bytes.NewReader(buf.Bytes()))
 	require.NoError(t, err)
 
+	require.Equal(t, map[string]string{"global": "metadata"}, hlReader.MetaData())
+
 	require.NoError(t, hlReader.PreLoad())
 
+	// the low-level way of inspecting column metadata:
 	rg := hlReader.CurrentRowGroup()
 	cols := rg.GetColumns()
 	require.Equal(t, 2, len(cols))
@@ -789,6 +793,18 @@ func TestWriteWithFlushGroupMetaDataThenRead(t *testing.T) {
 		{Key: "a", Value: strPtr("goodbye")},
 		{Key: "b", Value: strPtr("world")},
 	}, cols[1].MetaData.KeyValueMetadata)
+
+	// the high-level way of inspecting column metadata:
+	fooMetaData, err := hlReader.ColumnMetaData("foo")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"a": "hello", "b": "friendo", "c": "!"}, fooMetaData)
+
+	xbarMetaData, err := hlReader.ColumnMetaData("x.bar")
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"a": "goodbye", "b": "world"}, xbarMetaData)
+
+	_, err = hlReader.ColumnMetaData("does.not.exist")
+	require.Error(t, err)
 }
 
 func TestReadWriteColumeEncodings(t *testing.T) {
