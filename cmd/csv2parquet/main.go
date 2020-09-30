@@ -61,7 +61,7 @@ func main() {
 		log.Fatalf("Parsing type hints failed: %v", err)
 	}
 
-	log.Printf("Opening %s...", *inputFile)
+	printLog("Opening %s...", *inputFile)
 
 	f, err := os.Open(*inputFile)
 	if err != nil {
@@ -84,7 +84,7 @@ func main() {
 	header := records[0]
 	records = records[1:]
 
-	log.Printf("Finished reading %s, got %d records", *inputFile, len(records))
+	printLog("Finished reading %s, got %d records", *inputFile, len(records))
 
 	schema := &parquetschema.SchemaDefinition{
 		RootColumn: &parquetschema.ColumnDefinition{
@@ -199,7 +199,7 @@ func main() {
 		log.Fatalf("Internal error: derived schema does not validate: %v\nschema: %s", err, schema.String())
 	}
 
-	log.Printf("Derived parquet schema: %s", schema.String())
+	printLog("Derived parquet schema: %s", schema.String())
 
 	of, err := os.OpenFile(*outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -239,7 +239,7 @@ func main() {
 		log.Fatalf("Closing parquet writer failed: %v", err)
 	}
 
-	log.Printf("Finished generating output file %s", *outputFile)
+	printLog("Finished generating output file %s", *outputFile)
 }
 
 func parseTypeHints(s string) (map[string]string, error) {
@@ -288,7 +288,7 @@ var validTypes = map[string]bool{
 }
 
 func validTypeList() []string {
-	var l []string
+	l := make([]string, 0, len(validTypes))
 	for k := range validTypes {
 		l = append(l, k)
 	}
@@ -303,7 +303,7 @@ var validCodecs = map[string]parquet.CompressionCodec{
 }
 
 func validCompressionCodecs() []string {
-	var l []string
+	l := make([]string, 0, len(validCodecs))
 	for k := range validCodecs {
 		l = append(l, k)
 	}
