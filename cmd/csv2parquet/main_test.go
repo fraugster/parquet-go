@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/fraugster/parquet-go/parquet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,6 +85,153 @@ func TestTypeHandlers(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.ExpectedOutput, output)
+			}
+		})
+	}
+}
+
+func TestCreateColumn(t *testing.T) {
+	tests := map[string]struct {
+		Field                 string
+		Type                  string
+		ExpectErr             bool
+		ExpectedType          parquet.Type
+		ExpectedLogicalType   *parquet.LogicalType
+		ExpectedConvertedType *parquet.ConvertedType
+	}{
+		"simple-boolean": {
+			Field:        "foo",
+			Type:         "boolean",
+			ExpectErr:    false,
+			ExpectedType: parquet.Type_BOOLEAN,
+		},
+		"simple-byte-array": {
+			Field:        "foo",
+			Type:         "byte_array",
+			ExpectErr:    false,
+			ExpectedType: parquet.Type_BYTE_ARRAY,
+		},
+		"simple-float": {
+			Field:        "foo",
+			Type:         "float",
+			ExpectErr:    false,
+			ExpectedType: parquet.Type_FLOAT,
+		},
+		"simple-double": {
+			Field:        "foo",
+			Type:         "double",
+			ExpectErr:    false,
+			ExpectedType: parquet.Type_DOUBLE,
+		},
+		"invalid-type": {
+			Field:     "foo",
+			Type:      "invalid",
+			ExpectErr: true,
+		},
+		"string": {
+			Field:                 "foo",
+			Type:                  "string",
+			ExpectErr:             false,
+			ExpectedType:          parquet.Type_BYTE_ARRAY,
+			ExpectedLogicalType:   &parquet.LogicalType{STRING: &parquet.StringType{}},
+			ExpectedConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8),
+		},
+	}
+
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			col, _, err := createColumn(tt.Field, tt.Type)
+			if tt.ExpectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.Field, col.SchemaElement.Name)
+				require.Equal(t, tt.ExpectedType, *col.SchemaElement.Type)
+				if tt.ExpectedLogicalType != nil {
+					require.Equal(t, tt.ExpectedLogicalType, col.SchemaElement.LogicalType)
+				}
+				if tt.ExpectedConvertedType != nil {
+					require.Equal(t, tt.ExpectedConvertedType, col.SchemaElement.ConvertedType)
+				}
+			}
+		})
+	}
+}
+
+func TestDeriveSchema(t *testing.T) {
+	tests := map[string]struct {
+		Header         []string
+		Types          map[string]string
+		ExpectErr      bool
+		ExpectedSchema string
+	}{
+		"single-boolean": {
+			Header:         []string{"foo"},
+			Types:          map[string]string{"foo": "boolean"},
+			ExpectedSchema: "message msg {\n  optional boolean foo;\n}\n",
+		},
+		"all-uints": {
+			Header: []string{"a", "b", "c", "d"},
+			Types:  map[string]string{"a": "uint8", "b": "uint16", "c": "uint32", "d": "uint64"},
+			ExpectedSchema: `message msg {
+  optional int32 a (INT(8, false));
+  optional int32 b (INT(16, false));
+  optional int32 c (INT(32, false));
+  optional int64 d (INT(64, false));
+}
+`,
+		},
+		"all-ints": {
+			Header: []string{"a", "b", "c", "d", "e"},
+			Types:  map[string]string{"a": "int8", "b": "int16", "c": "int32", "d": "int64", "e": "int"},
+			ExpectedSchema: `message msg {
+  optional int32 a (INT(8, true));
+  optional int32 b (INT(16, true));
+  optional int32 c (INT(32, true));
+  optional int64 d (INT(64, true));
+  optional int64 e (INT(64, true));
+}
+`,
+		},
+		"string": {
+			Header: []string{"x"},
+			Types:  map[string]string{"x": "string"},
+			ExpectedSchema: `message msg {
+  optional binary x (STRING);
+}
+`,
+		},
+		"json": {
+			Header: []string{"x"},
+			Types:  map[string]string{"x": "json"},
+			ExpectedSchema: `message msg {
+  optional binary x (JSON);
+}
+`,
+		},
+		"default-type": {
+			Header: []string{"foobar"},
+			Types:  map[string]string{},
+			ExpectedSchema: `message msg {
+  optional binary foobar (STRING);
+}
+`,
+		},
+		"invalid-type": {
+			Header:    []string{"foobar"},
+			Types:     map[string]string{"foobar": "invalid"},
+			ExpectErr: true,
+		},
+	}
+
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			schema, _, err := deriveSchema(tt.Header, tt.Types)
+			if tt.ExpectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.ExpectedSchema, schema.String())
 			}
 		})
 	}
