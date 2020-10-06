@@ -345,5 +345,4 @@ func TestWriteParquetData(t *testing.T) {
 			require.Equal(t, tt.ExpectedRows, rows)
 		})
 	}
-
 }

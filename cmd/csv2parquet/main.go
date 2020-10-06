@@ -143,7 +143,7 @@ func writeParquetData(of io.Writer, header []string, types map[string]string, re
 	}
 
 	if err := pqWriter.Close(); err != nil {
-		return fmt.Errorf("Closing parquet writer failed: %w", err)
+		return fmt.Errorf("closing parquet writer failed: %w", err)
 	}
 
 	return nil
