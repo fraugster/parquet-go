@@ -27,7 +27,7 @@ func main() {
 	outputFile := flag.String("output", "", "output parquet file")
 	rowgroupSize := flag.Int64("rowgroup-size", 0, "row group size in bytes; if value is 0, then the row group size is unbounded")
 	compressionCodec := flag.String("compression", "snappy", "compression algorithm; allowed values: "+strings.Join(validCompressionCodecs(), ", "))
-	delimiter := flag.String("delimiter", ",", "CSV field separator")
+	delimiter := flag.String("delimiter", ",", "CSV field delimiter")
 	creator := flag.String("created-by", "csv2parquet", "value to set for CreatedBy field of parquet file")
 	verbose := flag.Bool("v", false, "enable verbose logging")
 	flag.Parse()
