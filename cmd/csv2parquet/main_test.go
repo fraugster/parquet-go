@@ -293,6 +293,17 @@ func TestWriteParquetData(t *testing.T) {
 				{"invalid value"},
 			},
 		},
+		"null-value-in-record": {
+			Header: []string{"foo", "bar"},
+			Types:  map[string]string{"foo": "int64", "bar": "string"},
+			Records: [][]string{
+				{"", "hello world"},
+			},
+			ExpectedSchema: "message msg {\n  optional int64 foo (INT(64, true));\n  optional binary bar (STRING);\n}\n",
+			ExpectedRows: []map[string]interface{}{
+				{"bar": []byte("hello world")},
+			},
+		},
 	}
 
 	for testName, tt := range tests {

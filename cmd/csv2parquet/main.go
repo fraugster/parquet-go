@@ -275,6 +275,8 @@ func createColumn(field, typ string) (col *parquetschema.ColumnDefinition, field
 		return nil, nil, fmt.Errorf("unsupported type %q", typ)
 	}
 
+	fieldHandler = optionalHandler(fieldHandler) // TODO: if we make repetition type configurable, change this to use correct handler.
+
 	return col, fieldHandler, nil
 }
 
@@ -421,4 +423,13 @@ func jsonHandler(s string) (interface{}, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func optionalHandler(next fieldHandler) fieldHandler {
+	return func(s string) (interface{}, error) {
+		if s == "" {
+			return nil, nil
+		}
+		return next(s)
+	}
 }
