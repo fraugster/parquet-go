@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
+	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -235,4 +237,59 @@ func TestDeriveSchema(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteParquetData(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	err := writeParquetData(
+		buf,
+		[]string{"person", "age", "is_vampire"},
+		map[string]string{"person": "string", "age": "int16", "is_vampire": "boolean"},
+		[][]string{
+			{"Viago", "379", "true"},
+			{"Vladislav", "862", "true"},
+			{"Deacon", "183", "true"},
+			{"Petyr", "8000", "true"},
+			{"Nick", "28", "true"},
+			{"Stu", "30", "false"},
+		},
+		"unit test",
+		parquet.CompressionCodec_SNAPPY,
+		150*1024*1024,
+	)
+
+	require.NoError(t, err)
+
+	r := bytes.NewReader(buf.Bytes())
+
+	pqReader, err := goparquet.NewFileReader(r)
+	require.NoError(t, err)
+
+	expectedSchema := `message msg {
+  optional binary person (STRING);
+  optional int32 age (INT(16, true));
+  optional boolean is_vampire;
+}
+`
+	require.Equal(t, expectedSchema, pqReader.GetSchemaDefinition().String())
+
+	rows := []map[string]interface{}{}
+
+	for i := int64(0); i < pqReader.NumRows(); i++ {
+		data, err := pqReader.NextRow()
+		require.NoError(t, err)
+		rows = append(rows, data)
+	}
+
+	expectedRows := []map[string]interface{}{
+		{"person": []byte("Viago"), "age": int32(379), "is_vampire": true},
+		{"person": []byte("Vladislav"), "age": int32(862), "is_vampire": true},
+		{"person": []byte("Deacon"), "age": int32(183), "is_vampire": true},
+		{"person": []byte("Petyr"), "age": int32(8000), "is_vampire": true},
+		{"person": []byte("Nick"), "age": int32(28), "is_vampire": true},
+		{"person": []byte("Stu"), "age": int32(30), "is_vampire": false},
+	}
+
+	require.Equal(t, expectedRows, rows)
 }

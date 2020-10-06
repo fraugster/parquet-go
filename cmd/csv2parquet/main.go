@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sort"
@@ -27,6 +28,7 @@ func main() {
 	rowgroupSize := flag.Int64("rowgroup-size", 0, "row group size in bytes; if value is 0, then the row group size is unbounded")
 	compressionCodec := flag.String("compression", "snappy", "compression algorithm; allowed values: "+strings.Join(validCompressionCodecs(), ", "))
 	delimiter := flag.String("delimiter", ",", "CSV field separator")
+	creator := flag.String("created-by", "csv2parquet", "value to set for CreatedBy field of parquet file")
 	verbose := flag.Bool("v", false, "enable verbose logging")
 	flag.Parse()
 
@@ -86,6 +88,20 @@ func main() {
 
 	printLog("Finished reading %s, got %d records", *inputFile, len(records))
 
+	of, err := os.OpenFile(*outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalf("Couldn't open output file: %v", err)
+	}
+	defer of.Close()
+
+	if err := writeParquetData(of, header, types, records, *creator, codec, *rowgroupSize); err != nil {
+		log.Fatalf("Couldn't write parquet data: %v", err)
+	}
+
+	printLog("Finished generating output file %s", *outputFile)
+}
+
+func writeParquetData(of io.Writer, header []string, types map[string]string, records [][]string, creator string, codec parquet.CompressionCodec, rowgroupSize int64) error {
 	schema, fieldHandlers, err := deriveSchema(header, types)
 	if err != nil {
 		log.Fatalf("Generating schema failed: %v", err)
@@ -93,20 +109,14 @@ func main() {
 
 	printLog("Derived parquet schema: %s", schema.String())
 
-	of, err := os.OpenFile(*outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatalf("Couldn't open output file: %v", err)
-	}
-	defer of.Close()
-
 	writerOptions := []goparquet.FileWriterOption{
-		goparquet.WithCreator("csv2parquet"),
+		goparquet.WithCreator(creator),
 		goparquet.WithSchemaDefinition(schema),
 		goparquet.WithCompressionCodec(codec),
 	}
 
-	if *rowgroupSize > 0 {
-		writerOptions = append(writerOptions, goparquet.WithMaxRowGroupSize(*rowgroupSize))
+	if rowgroupSize > 0 {
+		writerOptions = append(writerOptions, goparquet.WithMaxRowGroupSize(rowgroupSize))
 	}
 
 	pqWriter := goparquet.NewFileWriter(of, writerOptions...)
@@ -118,20 +128,20 @@ func main() {
 
 			v, err := handler(record[idx])
 			if err != nil {
-				log.Fatalf("In input record %d, couldn't convert value %q to type %s: %v", recordIndex+1, record[idx], types[fieldName], err)
+				return fmt.Errorf("in input record %d, couldn't convert value %q to type %s: %w", recordIndex+1, record[idx], types[fieldName], err)
 			}
 			data[fieldName] = v
 		}
 		if err := pqWriter.AddData(data); err != nil {
-			log.Fatalf("In input record %d, adding data failed: %v", recordIndex+1, err)
+			return fmt.Errorf("in input record %d, adding data failed: %w", recordIndex+1, err)
 		}
 	}
 
 	if err := pqWriter.Close(); err != nil {
-		log.Fatalf("Closing parquet writer failed: %v", err)
+		return fmt.Errorf("Closing parquet writer failed: %w", err)
 	}
 
-	printLog("Finished generating output file %s", *outputFile)
+	return nil
 }
 
 type fieldHandler func(string) (interface{}, error)
@@ -382,7 +392,7 @@ func intHandler(bitSize int) func(string) (interface{}, error) {
 		case 8, 16, 32:
 			return int32(i), nil
 		case 64:
-			return int64(i), nil
+			return i, nil
 		default:
 			return nil, fmt.Errorf("invalid bit size %d", bitSize)
 		}
