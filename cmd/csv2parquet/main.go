@@ -104,7 +104,7 @@ func main() {
 func writeParquetData(of io.Writer, header []string, types map[string]string, records [][]string, creator string, codec parquet.CompressionCodec, rowgroupSize int64) error {
 	schema, fieldHandlers, err := deriveSchema(header, types)
 	if err != nil {
-		log.Fatalf("Generating schema failed: %v", err)
+		return fmt.Errorf("generating schema failed: %w", err)
 	}
 
 	printLog("Derived parquet schema: %s", schema.String())
@@ -123,6 +123,11 @@ func writeParquetData(of io.Writer, header []string, types map[string]string, re
 
 	for recordIndex, record := range records {
 		data := make(map[string]interface{})
+
+		if len(record) < len(header) {
+			return fmt.Errorf("input record %d only contains %d fields instead of the expected %d", recordIndex+1, len(record), len(header))
+		}
+
 		for idx, fieldName := range header {
 			handler := fieldHandlers[idx]
 

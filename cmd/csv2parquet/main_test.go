@@ -240,56 +240,99 @@ func TestDeriveSchema(t *testing.T) {
 }
 
 func TestWriteParquetData(t *testing.T) {
-	buf := &bytes.Buffer{}
-
-	err := writeParquetData(
-		buf,
-		[]string{"person", "age", "is_vampire"},
-		map[string]string{"person": "string", "age": "int16", "is_vampire": "boolean"},
-		[][]string{
-			{"Viago", "379", "true"},
-			{"Vladislav", "862", "true"},
-			{"Deacon", "183", "true"},
-			{"Petyr", "8000", "true"},
-			{"Nick", "28", "true"},
-			{"Stu", "30", "false"},
+	tests := map[string]struct {
+		Header         []string
+		Types          map[string]string
+		Records        [][]string
+		ExpectErr      bool
+		ExpectedSchema string
+		ExpectedRows   []map[string]interface{}
+	}{
+		"simple": {
+			Header: []string{"person", "age", "is_vampire"},
+			Types:  map[string]string{"person": "string", "age": "int16", "is_vampire": "boolean"},
+			Records: [][]string{
+				{"Viago", "379", "true"},
+				{"Vladislav", "862", "true"},
+				{"Deacon", "183", "true"},
+				{"Petyr", "8000", "true"},
+				{"Nick", "28", "true"},
+				{"Stu", "30", "false"},
+			},
+			ExpectedSchema: "message msg {\n  optional binary person (STRING);\n  optional int32 age (INT(16, true));\n  optional boolean is_vampire;\n}\n",
+			ExpectedRows: []map[string]interface{}{
+				{"person": []byte("Viago"), "age": int32(379), "is_vampire": true},
+				{"person": []byte("Vladislav"), "age": int32(862), "is_vampire": true},
+				{"person": []byte("Deacon"), "age": int32(183), "is_vampire": true},
+				{"person": []byte("Petyr"), "age": int32(8000), "is_vampire": true},
+				{"person": []byte("Nick"), "age": int32(28), "is_vampire": true},
+				{"person": []byte("Stu"), "age": int32(30), "is_vampire": false},
+			},
 		},
-		"unit test",
-		parquet.CompressionCodec_SNAPPY,
-		150*1024*1024,
-	)
-
-	require.NoError(t, err)
-
-	r := bytes.NewReader(buf.Bytes())
-
-	pqReader, err := goparquet.NewFileReader(r)
-	require.NoError(t, err)
-
-	expectedSchema := `message msg {
-  optional binary person (STRING);
-  optional int32 age (INT(16, true));
-  optional boolean is_vampire;
-}
-`
-	require.Equal(t, expectedSchema, pqReader.GetSchemaDefinition().String())
-
-	rows := []map[string]interface{}{}
-
-	for i := int64(0); i < pqReader.NumRows(); i++ {
-		data, err := pqReader.NextRow()
-		require.NoError(t, err)
-		rows = append(rows, data)
+		"invalid-type": {
+			Header:    []string{"foo"},
+			Types:     map[string]string{"foo": "invalid-type"},
+			ExpectErr: true,
+			Records: [][]string{
+				{"asdf"},
+			},
+		},
+		"not-enough-columns-in-records": {
+			Header:    []string{"foo"},
+			Types:     map[string]string{"foo": "string"},
+			ExpectErr: true,
+			Records: [][]string{
+				{},
+			},
+		},
+		"invalid-type-in-record": {
+			Header:    []string{"foo"},
+			Types:     map[string]string{"foo": "int64"},
+			ExpectErr: true,
+			Records: [][]string{
+				{"invalid value"},
+			},
+		},
 	}
 
-	expectedRows := []map[string]interface{}{
-		{"person": []byte("Viago"), "age": int32(379), "is_vampire": true},
-		{"person": []byte("Vladislav"), "age": int32(862), "is_vampire": true},
-		{"person": []byte("Deacon"), "age": int32(183), "is_vampire": true},
-		{"person": []byte("Petyr"), "age": int32(8000), "is_vampire": true},
-		{"person": []byte("Nick"), "age": int32(28), "is_vampire": true},
-		{"person": []byte("Stu"), "age": int32(30), "is_vampire": false},
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+
+			err := writeParquetData(
+				buf,
+				tt.Header,
+				tt.Types,
+				tt.Records,
+				"unit test",
+				parquet.CompressionCodec_SNAPPY,
+				150*1024*1024,
+			)
+
+			if tt.ExpectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			r := bytes.NewReader(buf.Bytes())
+
+			pqReader, err := goparquet.NewFileReader(r)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.ExpectedSchema, pqReader.GetSchemaDefinition().String())
+
+			rows := []map[string]interface{}{}
+
+			for i := int64(0); i < pqReader.NumRows(); i++ {
+				data, err := pqReader.NextRow()
+				require.NoError(t, err)
+				rows = append(rows, data)
+			}
+
+			require.Equal(t, tt.ExpectedRows, rows)
+		})
 	}
 
-	require.Equal(t, expectedRows, rows)
 }
