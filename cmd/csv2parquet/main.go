@@ -258,11 +258,14 @@ func parseTypeHints(s string) (map[string]string, error) {
 			return nil, fmt.Errorf("invalid type hint %q", hint)
 		}
 
-		if !isValidType(hintFields[1]) {
-			return nil, fmt.Errorf("invalid parquet type %q", hintFields[1])
+		fieldName := strings.TrimSpace(hintFields[0])
+		fieldType := strings.TrimSpace(hintFields[1])
+
+		if !isValidType(fieldType) {
+			return nil, fmt.Errorf("invalid parquet type %q", fieldType)
 		}
 
-		typeMap[hintFields[0]] = hintFields[1]
+		typeMap[fieldName] = fieldType
 	}
 
 	return typeMap, nil
