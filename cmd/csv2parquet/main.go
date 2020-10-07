@@ -337,27 +337,27 @@ func validTypeList() []string {
 	return l
 }
 
-var validCodecs = map[string]parquet.CompressionCodec{
-	"none":   parquet.CompressionCodec_UNCOMPRESSED,
-	"snappy": parquet.CompressionCodec_SNAPPY,
-	"gzip":   parquet.CompressionCodec_GZIP,
-}
-
 func validCompressionCodecs() []string {
-	l := make([]string, 0, len(validCodecs))
-	for k := range validCodecs {
-		l = append(l, k)
+	registeredCodecs := goparquet.GetRegisteredBlockCompressors()
+
+	l := make([]string, 0, len(registeredCodecs))
+	for k := range registeredCodecs {
+		l = append(l, strings.ToLower(k.String()))
 	}
 	sort.Strings(l)
 	return l
 }
 
 func lookupCompressionCodec(codec string) (parquet.CompressionCodec, error) {
-	c, ok := validCodecs[codec]
-	if !ok {
-		return parquet.CompressionCodec_UNCOMPRESSED, errors.New("unsupported compression codec")
+	registeredCodecs := goparquet.GetRegisteredBlockCompressors()
+
+	for c := range registeredCodecs {
+		if strings.ToLower(c.String()) == codec {
+			return c, nil
+		}
 	}
-	return c, nil
+
+	return parquet.CompressionCodec_UNCOMPRESSED, errors.New("unsupported compression codec")
 }
 
 func isValidType(t string) bool {

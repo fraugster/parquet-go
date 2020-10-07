@@ -134,6 +134,21 @@ func RegisterBlockCompressor(method parquet.CompressionCodec, compressor BlockCo
 	compressors[method] = compressor
 }
 
+// GetRegisteredBlockCompressors returns a map of compression codecs to block compressors that
+// are currently registered.
+func GetRegisteredBlockCompressors() map[parquet.CompressionCodec]BlockCompressor {
+	result := make(map[parquet.CompressionCodec]BlockCompressor)
+
+	compressorLock.Lock()
+	defer compressorLock.Unlock()
+
+	for k, v := range compressors {
+		result[k] = v
+	}
+
+	return result
+}
+
 func init() {
 	RegisterBlockCompressor(parquet.CompressionCodec_UNCOMPRESSED, plainCompressor{})
 	RegisterBlockCompressor(parquet.CompressionCodec_GZIP, gzipCompressor{})
