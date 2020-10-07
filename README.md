@@ -190,6 +190,28 @@ it follows some conventions. In particular, it has to contain only a single
 fields, one named `key`, the other named `value`. This represents a map
 structure in which each key is associated with one value.
 
+## Tools
+
+`parquet-go` comes with tooling to inspect and generate parquet tools.
+
+### parquet-tool
+
+`parquet-tool` allows you to inspect the meta data, the schema and the number of rows
+as well as print the content of a parquet file. You can also use it to split an existing
+parquet file into multiple smaller files.
+
+Install it by running `go get github.com/fraugster/parquet-go/cmd/parquet-tool` on your command line.
+For more detailed help on how to use the tool, consult `parquet-tool --help`.
+
+### csv2parquet
+
+`csv2parquet` makes it possible to convert an existing CSV file into a parquet file. By default,
+all columns are simply turned into strings, but you provide it with type hints to influence
+the generated parquet schema.
+
+You can install this tool by running `go get github.com/fraugster/parquet-go/cmd/csv2parquet` on your command line.
+For more help, consult `csv2parquet --help`.
+
 ## Contributing
 
 If you want to hack on this repository, please read the short [CONTRIBUTING.md](CONTRIBUTING.md)
