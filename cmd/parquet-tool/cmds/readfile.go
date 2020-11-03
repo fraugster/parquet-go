@@ -23,7 +23,7 @@ func catFile(w io.Writer, address string, n int) error {
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 
-	for i := 0; i < n; i++ {
+	for i := 0; (n == -1) || i < n; i++ {
 		data, err := reader.NextRow()
 		if err == io.EOF {
 			return nil
