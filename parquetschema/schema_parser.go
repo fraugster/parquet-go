@@ -787,15 +787,13 @@ func (col *ColumnDefinition) validateListLogicalType(strictMode bool) error {
 			case 0:
 				return fmt.Errorf("field %s is a LIST but the repeated group inside it is not called \"list\" and contains no fields", col.SchemaElement.Name)
 			case 1:
-				if col.Children[0].SchemaElement.Name == "array" ||
-					col.Children[0].SchemaElement.Name == col.SchemaElement.Name+"_tuple" ||
-					col.Children[0].SchemaElement.Name == "bag" {
-					// backwards compatibility rule 3: repeated field is a group with one field and is named either array or uses the LIST-annotated
-					// group's name with _tuple appended then the repeated type is the element type and elements are required.
-					// also added "bag" because that's what we see generated on AWS Athena.
-				} else {
-					// backwards compatiblity rule 4: the repeated field's type is the element type with the repeated field's repetition.
-				}
+				// if col.Children[0].SchemaElement.Name == "array" or
+				//	col.Children[0].SchemaElement.Name == col.SchemaElement.Name+"_tuple" or
+				//	col.Children[0].SchemaElement.Name == "bag":
+				// backwards compatibility rule 3: repeated field is a group with one field and is named either array or uses the LIST-annotated
+				// group's name with _tuple appended then the repeated type is the element type and elements are required.
+				// also added "bag" because that's what we see generated on AWS Athena.
+				// else: backwards compatibility rule 4: the repeated field's type is the element type with the repeated field's repetition.
 			default:
 				// backwards compatbility rule 2: repeated field is a group with multiple fields, its type is the element type and elements are required.
 			}
