@@ -84,7 +84,7 @@ func TestSchemaParser(t *testing.T) {
 					required int64 element;
 				}
 			}
-		}`, true}, // repeated group is called "element", not "list".
+		}`, false}, // repeated group is called "element", not "list"; but that's valid under the backwards compatibility rules.
 		{`message foo {
 			optional group bar (LIST) {
 				repeated int64 list;
@@ -384,6 +384,40 @@ message foo { }`, false}, // this is necessary because we once had a parser bug 
 		{`message foo {
 			required int64 bar = 20000000000000000000000;
 		}`, true}, // field ID couldn't be parsed properly
+		{`message hive_schema {
+			optional group foo_list (LIST) {
+			  repeated group bag {
+				optional binary array_element (STRING);
+			  }
+			}
+		  }
+		  `, false}, // this is to test the backward-compatibility rules for lists when reading schemas.
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated int64 data;
+			}
+		}`, false}, // backwards compat rule 1.
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated group bag {
+				}
+			}
+		}`, true}, // empty repeated group child element.
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated group foobar {
+					optional int64 a;
+					optional int64 b;
+				}
+			}
+		}`, false}, // backwards compat rule 2.
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated group array {
+					optional int64 data;
+				}
+			}
+		}`, false}, // backwards compat rule 3.
 	}
 
 	for idx, tt := range testData {
@@ -394,6 +428,49 @@ message foo { }`, false}, // this is necessary because we once had a parser bug 
 			assert.Error(t, err, "%d. expected error, got none; parsed message: %s", idx, spew.Sdump(p.root))
 		} else {
 			assert.NoError(t, err, "%d. expected no error, got error instead", idx)
+		}
+	}
+}
+
+func TestValidateStrict(t *testing.T) {
+	testData := []struct {
+		Msg       string
+		ExpectErr bool
+	}{
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated int64 data;
+			}
+		}`, true},
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated group foobar {
+					optional int64 a;
+					optional int64 b;
+				}
+			}
+		}`, true},
+		{`message foo {
+			optional group foo_list (LIST) {
+				repeated group array {
+					optional int64 data;
+				}
+			}
+		}`, true},
+	}
+
+	for idx, tt := range testData {
+		p := newSchemaParser(tt.Msg)
+		err := p.parse()
+
+		schemaDef, err := ParseSchemaDefinition(tt.Msg)
+		assert.NoError(t, err, "%d. parsing message failed", idx)
+
+		err = schemaDef.ValidateStrict()
+		if tt.ExpectErr {
+			assert.Error(t, err, "%d. expected strict validation error but got none", idx)
+		} else {
+			assert.NoError(t, err, "%d. expected no strict validation error but got one", idx)
 		}
 	}
 }
@@ -524,6 +601,12 @@ func TestValidate(t *testing.T) {
 
 	for idx, tt := range testData {
 		err := tt.schemaDef.Validate()
+		if tt.expectErr {
+			assert.Error(t, err, "%d. validation didn't fail", idx)
+		} else {
+			assert.NoError(t, err, "%d. validation failed", idx)
+		}
+		err = tt.schemaDef.ValidateStrict()
 		if tt.expectErr {
 			assert.Error(t, err, "%d. validation didn't fail", idx)
 		} else {
