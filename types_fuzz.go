@@ -1,6 +1,6 @@
 // +build gofuzz
 
-package go_parquet
+package goparquet
 
 import (
 	"bytes"
