@@ -288,7 +288,7 @@ func (p *schemaParser) parse() (err error) {
 	p.next()
 	p.expect(itemEOF)
 
-	p.validateLogicalTypes(p.root)
+	p.validate(p.root, false)
 
 	return nil
 }
@@ -712,8 +712,8 @@ func (p *schemaParser) parseFieldID() *int32 {
 	return &i32
 }
 
-func (p *schemaParser) validateLogicalTypes(col *ColumnDefinition) {
-	if err := col.validate(true); err != nil {
+func (p *schemaParser) validate(col *ColumnDefinition, strictMode bool) {
+	if err := col.validate(true, strictMode); err != nil {
 		p.errorf("%v", err)
 	}
 }
@@ -727,10 +727,20 @@ func (sd *SchemaDefinition) Validate() error {
 		return errors.New("schema definition is nil")
 	}
 
-	return sd.RootColumn.validate(true)
+	return sd.RootColumn.validate(true, false)
 }
 
-func (col *ColumnDefinition) validateColumn(isRoot bool) error {
+// ValidateStrict conducts a stricter validation of the schema definition.
+// This includes the validation as done by Validate, but prohibits backwards-
+// compatible definitions of LIST and MAP.
+func (sd *SchemaDefinition) ValidateStrict() error {
+	if sd == nil {
+		return errors.New("schema definition is nil")
+	}
+	return sd.RootColumn.validate(true, true)
+}
+
+func (col *ColumnDefinition) validateColumn(isRoot, strictMode bool) error {
 	if col == nil {
 		return errors.New("column definition is nil")
 	}
@@ -754,7 +764,7 @@ func (col *ColumnDefinition) validateColumn(isRoot bool) error {
 	return nil
 }
 
-func (col *ColumnDefinition) validateListLogicalType() error {
+func (col *ColumnDefinition) validateListLogicalType(strictMode bool) error {
 	if col.SchemaElement.Type != nil {
 		return fmt.Errorf("field %s is not a group but annotated as LIST", col.SchemaElement.Name)
 	}
@@ -764,25 +774,61 @@ func (col *ColumnDefinition) validateListLogicalType() error {
 	if len(col.Children) != 1 {
 		return fmt.Errorf("field %s is a LIST but has %d children", col.SchemaElement.Name, len(col.Children))
 	}
-	if col.Children[0].SchemaElement.Type != nil || col.Children[0].SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
-		return fmt.Errorf("field %s is a LIST but its child is not a repeated group", col.SchemaElement.Name)
-	}
 	if col.Children[0].SchemaElement.Name != "list" {
-		return fmt.Errorf("field %s is a LIST but its child is not named \"list\"", col.SchemaElement.Name)
+		if strictMode {
+			return fmt.Errorf("field %s is a LIST but its child is not named \"list\"", col.SchemaElement.Name)
+		}
+
+		if col.Children[0].SchemaElement.Type != nil {
+			// backwards compatibility rule 1: repeated field is not a group, its type is the element type and elements are required.
+		} else {
+			repeatedGroup := col.Children[0]
+			switch len(repeatedGroup.Children) {
+			case 0:
+				return fmt.Errorf("field %s is a LIST but the repeated group inside it is not called \"list\" and contains no fields", col.SchemaElement.Name)
+			case 1:
+				// if col.Children[0].SchemaElement.Name == "array" or
+				//	col.Children[0].SchemaElement.Name == col.SchemaElement.Name+"_tuple" or
+				//	col.Children[0].SchemaElement.Name == "bag":
+				// backwards compatibility rule 3: repeated field is a group with one field and is named either array or uses the LIST-annotated
+				// group's name with _tuple appended then the repeated type is the element type and elements are required.
+				// also added "bag" because that's what we see generated on AWS Athena.
+				// else: backwards compatibility rule 4: the repeated field's type is the element type with the repeated field's repetition.
+			default:
+				// backwards compatbility rule 2: repeated field is a group with multiple fields, its type is the element type and elements are required.
+			}
+		}
+	} else {
+		if col.Children[0].SchemaElement.Type != nil || col.Children[0].SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
+			return fmt.Errorf("field %s is a LIST but its child is not a repeated group", col.SchemaElement.Name)
+		}
+		if len(col.Children[0].Children) != 1 {
+			return fmt.Errorf("field %s.list has %d children", col.SchemaElement.Name, len(col.Children[0].Children))
+		}
+		if col.Children[0].Children[0].SchemaElement.Name != "element" {
+			return fmt.Errorf("%s.list has a child but it's called %q, not \"element\"", col.SchemaElement.Name, col.Children[0].Children[0].SchemaElement.Name)
+		}
+		if rep := col.Children[0].Children[0].SchemaElement.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
+			return fmt.Errorf("%s.list.element has disallowed repetition type %s", col.SchemaElement.Name, rep)
+		}
 	}
-	if len(col.Children[0].Children) != 1 {
-		return fmt.Errorf("field %s.list has %d children", col.SchemaElement.Name, len(col.Children[0].Children))
+
+	for _, c := range col.Children[0].Children {
+		if err := c.validate(false, strictMode); err != nil {
+			return err
+		}
 	}
-	if col.Children[0].Children[0].SchemaElement.Name != "element" {
-		return fmt.Errorf("%s.list has a child but it's called %q, not \"element\"", col.SchemaElement.Name, col.Children[0].Children[0].SchemaElement.Name)
-	}
-	if rep := col.Children[0].Children[0].SchemaElement.GetRepetitionType(); rep != parquet.FieldRepetitionType_OPTIONAL && rep != parquet.FieldRepetitionType_REQUIRED {
-		return fmt.Errorf("%s.list.element has disallowed repetition type %s", col.SchemaElement.Name, rep)
-	}
+
 	return nil
 }
 
-func (col *ColumnDefinition) validateMapLogicalType() error {
+func (col *ColumnDefinition) validateMapLogicalType(strictMode bool) error {
+	if col.SchemaElement.GetConvertedType() == parquet.ConvertedType_MAP_KEY_VALUE {
+		if strictMode {
+			return fmt.Errorf("field %s is incorrectly annotated as MAP_KEY_VALUE", col.SchemaElement.Name)
+		}
+	}
+
 	if col.SchemaElement.Type != nil {
 		return fmt.Errorf("field %s is not a group but annotated as MAP", col.SchemaElement.Name)
 	}
@@ -792,31 +838,45 @@ func (col *ColumnDefinition) validateMapLogicalType() error {
 	if col.Children[0].SchemaElement.Type != nil || col.Children[0].SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REPEATED {
 		return fmt.Errorf("filed %s is a MAP but its child is not a repeated group", col.SchemaElement.Name)
 	}
-	if col.Children[0].SchemaElement.Name != "key_value" {
+	if strictMode && col.Children[0].SchemaElement.Name != "key_value" {
 		return fmt.Errorf("field %s is a MAP but its child is not named \"key_value\"", col.SchemaElement.Name)
 	}
-	foundKey := false
-	foundValue := false
-	for _, c := range col.Children[0].Children {
-		switch c.SchemaElement.Name {
-		case "key":
-			if c.SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
-				return fmt.Errorf("field %s.key_value.key is not of repetition type \"required\"", col.SchemaElement.Name)
+
+	if strictMode {
+		foundKey := false
+		foundValue := false
+		for _, c := range col.Children[0].Children {
+			switch c.SchemaElement.Name {
+			case "key":
+				if c.SchemaElement.GetRepetitionType() != parquet.FieldRepetitionType_REQUIRED {
+					return fmt.Errorf("field %s.key_value.key is not of repetition type \"required\"", col.SchemaElement.Name)
+				}
+				foundKey = true
+			case "value":
+				foundValue = true
+				// nothing else to check.
+			default:
+				return fmt.Errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.SchemaElement.Name, c.SchemaElement.Name)
 			}
-			foundKey = true
-		case "value":
-			foundValue = true
-			// nothing else to check.
-		default:
-			return fmt.Errorf("field %[1]s is a MAP so %[1]s.key_value.%[2]s is not allowed", col.SchemaElement.Name, c.SchemaElement.Name)
+		}
+		if !foundKey {
+			return fmt.Errorf("field %[1]s is missing %[1]s.key_value.key", col.SchemaElement.Name)
+		}
+		if !foundValue {
+			return fmt.Errorf("field %[1]s is missing %[1]s.key_value.value", col.SchemaElement.Name)
+		}
+	} else {
+		if len(col.Children[0].Children) != 2 {
+			return fmt.Errorf("field %[1]s is a MAP but %[1]s.%[2]s contains %[3]d children (expected 2)", col.SchemaElement.Name, col.Children[0].SchemaElement.Name, len(col.Children[0].Children))
 		}
 	}
-	if !foundKey {
-		return fmt.Errorf("field %[1]s is missing %[1]s.key_value.key", col.SchemaElement.Name)
+
+	for _, c := range col.Children[0].Children {
+		if err := c.validate(false, strictMode); err != nil {
+			return err
+		}
 	}
-	if !foundValue {
-		return fmt.Errorf("field %[1]s is missing %[1]s.key_value.value", col.SchemaElement.Name)
-	}
+
 	return nil
 }
 
@@ -884,67 +944,78 @@ func (col *ColumnDefinition) validateIntegerLogicalType() error {
 	return nil
 }
 
-func (col *ColumnDefinition) validateLogicalTypes() error {
+func (col *ColumnDefinition) validate(isRoot bool, strictMode bool) error {
+	if err := col.validateColumn(isRoot, strictMode); err != nil {
+		return err
+	}
+
 	switch {
-	case col.SchemaElement.GetLogicalType().IsSetTIMESTAMP():
+	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetLIST()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_LIST:
+		if err := col.validateListLogicalType(strictMode); err != nil {
+			return err
+		}
+	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetMAP()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_MAP || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_MAP_KEY_VALUE:
+		if err := col.validateMapLogicalType(strictMode); err != nil {
+			return err
+		}
+	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetDATE()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_DATE:
+		if col.SchemaElement.GetType() != parquet.Type_INT32 {
+			return fmt.Errorf("field %[1]s is annotated as DATE but is not an int32", col.SchemaElement.Name)
+		}
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetTIMESTAMP():
 		if col.SchemaElement.GetType() != parquet.Type_INT64 && col.SchemaElement.GetType() != parquet.Type_INT96 {
 			return fmt.Errorf("field %s is annotated as TIMESTAMP but is not an int64/int96", col.SchemaElement.Name)
 		}
-	case col.SchemaElement.GetLogicalType().IsSetTIME():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetTIME():
 		if err := col.validateTimeLogicalType(); err != nil {
 			return err
 		}
-	case col.SchemaElement.GetLogicalType().IsSetUUID():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetUUID():
 		if col.SchemaElement.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.SchemaElement.GetTypeLength() != 16 {
 			return fmt.Errorf("field %s is annotated as UUID but is not a fixed_len_byte_array(16)", col.SchemaElement.Name)
 		}
-	case col.SchemaElement.GetLogicalType().IsSetENUM():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetENUM():
 		if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
 			return fmt.Errorf("field %s is annotated as ENUM but is not a binary", col.SchemaElement.Name)
 		}
-	case col.SchemaElement.GetLogicalType().IsSetJSON():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetJSON():
 		if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
 			return fmt.Errorf("field %s is annotated as JSON but is not a binary", col.SchemaElement.Name)
 		}
-	case col.SchemaElement.GetLogicalType().IsSetBSON():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetBSON():
 		if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
 			return fmt.Errorf("field %s is annotated as BSON but is not a binary", col.SchemaElement.Name)
 		}
-	case col.SchemaElement.GetLogicalType().IsSetDECIMAL():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetDECIMAL():
 		if err := col.validateDecimalLogicalType(); err != nil {
 			return err
 		}
-	case col.SchemaElement.GetLogicalType().IsSetINTEGER():
+	case col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetINTEGER():
 		if err := col.validateIntegerLogicalType(); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (col *ColumnDefinition) validateConvertedTypes() error {
-	switch {
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UTF8:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UTF8:
 		if col.SchemaElement.GetType() != parquet.Type_BYTE_ARRAY {
 			return fmt.Errorf("field %s is annotated as UTF8 but element type is %s, not binary", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MILLIS:
 		if col.SchemaElement.GetType() != parquet.Type_INT32 {
 			return fmt.Errorf("field %s is annotated as TIME_MILLIS but element type is %s, not int32", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIME_MICROS:
 		if col.SchemaElement.GetType() != parquet.Type_INT64 {
 			return fmt.Errorf("field %s is annotated as TIME_MICROS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MILLIS:
 		if col.SchemaElement.GetType() != parquet.Type_INT64 {
 			return fmt.Errorf("field %s is annotated as TIMESTAMP_MILLIS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_TIMESTAMP_MICROS:
 		if col.SchemaElement.GetType() != parquet.Type_INT64 {
 			return fmt.Errorf("field %s is annotated as TIMESTAMP_MICROS but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
+	case col.SchemaElement.ConvertedType != nil &&
+		col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_8 ||
 		col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_16 ||
 		col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_32 ||
 		col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_8 ||
@@ -953,60 +1024,19 @@ func (col *ColumnDefinition) validateConvertedTypes() error {
 		if col.SchemaElement.GetType() != parquet.Type_INT32 {
 			return fmt.Errorf("field %s is annotated as %s but element type is %s, not int32", col.SchemaElement.Name, col.SchemaElement.GetConvertedType().String(), col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_64 || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_64:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_UINT_64 || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INT_64:
 		if col.SchemaElement.GetType() != parquet.Type_INT64 {
 			return fmt.Errorf("field %s is annotated as %s but element type is %s, not int64", col.SchemaElement.Name, col.SchemaElement.GetConvertedType().String(), col.SchemaElement.GetType().String())
 		}
-	case col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INTERVAL:
+	case col.SchemaElement.ConvertedType != nil && col.SchemaElement.GetConvertedType() == parquet.ConvertedType_INTERVAL:
 		if col.SchemaElement.GetType() != parquet.Type_FIXED_LEN_BYTE_ARRAY || col.SchemaElement.GetTypeLength() != 12 {
 			return fmt.Errorf("field %s is annotated as INTERVAL but element type is %s, not fixed_len_byte_array(12)", col.SchemaElement.Name, col.SchemaElement.GetType().String())
 		}
-	}
-	return nil
-}
-
-func (col *ColumnDefinition) validateLogicalOrConvertedTypes() error {
-	switch {
-	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetLIST()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_LIST:
-		if err := col.validateListLogicalType(); err != nil {
-			return err
-		}
-	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetMAP()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_MAP:
-		if err := col.validateMapLogicalType(); err != nil {
-			return err
-		}
-	case (col.SchemaElement.LogicalType != nil && col.SchemaElement.GetLogicalType().IsSetDATE()) || col.SchemaElement.GetConvertedType() == parquet.ConvertedType_DATE:
-		if col.SchemaElement.GetType() != parquet.Type_INT32 {
-			return fmt.Errorf("field %[1]s is annotated as DATE but is not an int32", col.SchemaElement.Name)
-		}
-	}
-	return nil
-}
-
-func (col *ColumnDefinition) validate(isRoot bool) error {
-	if err := col.validateColumn(isRoot); err != nil {
-		return err
-	}
-
-	if err := col.validateLogicalOrConvertedTypes(); err != nil {
-		return err
-	}
-
-	if col.SchemaElement.LogicalType != nil {
-		if err := col.validateLogicalTypes(); err != nil {
-			return err
-		}
-	}
-
-	if col.SchemaElement.ConvertedType != nil {
-		if err := col.validateConvertedTypes(); err != nil {
-			return err
-		}
-	}
-
-	for _, c := range col.Children {
-		if err := c.validate(false); err != nil {
-			return err
+	default:
+		for _, c := range col.Children {
+			if err := c.validate(false, strictMode); err != nil {
+				return err
+			}
 		}
 	}
 
