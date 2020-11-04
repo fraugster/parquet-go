@@ -80,6 +80,10 @@ func (pa *packedArray) at(pos int) (int32, error) {
 }
 
 func (pa *packedArray) appendArray(other *packedArray) {
+	if other == nil {
+		return
+	}
+
 	if pa.bw != other.bw {
 		panic(fmt.Sprintf("Can not append array with different bit width : %d and %d", pa.bw, other.bw))
 	}
