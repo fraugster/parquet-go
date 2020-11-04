@@ -869,6 +869,9 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	var err error
 	idx++ // move idx from this group to next
 	for i := 0; i < l; i++ {
+		if len(schema) <= idx {
+			return 0, fmt.Errorf("schema index %d is out of bounds", idx)
+		}
 		if schema[idx].Type == nil {
 			// another group
 			child := &Column{}
