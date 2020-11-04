@@ -864,7 +864,7 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	c.name = s.Name
 	c.element = s
 	c.children = make([]*Column, 0, l)
-	c.rep = *s.RepetitionType
+	c.rep = s.GetRepetitionType()
 
 	var err error
 	idx++ // move idx from this group to next
