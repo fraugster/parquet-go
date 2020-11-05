@@ -225,6 +225,9 @@ func (d *deltaBitPackDecoder64) readBlockHeader() error {
 	}
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
+	if d.miniBlockValueCount == 0 {
+		return errors.Errorf("invalid mini block value count, it can't be zero")
+	}
 
 	if d.valuesCount, err = readUVariant32(d.r); err != nil {
 		return errors.Wrapf(err, "failed to read total value count")
