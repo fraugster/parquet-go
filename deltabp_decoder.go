@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/pkg/errors"
@@ -307,7 +308,11 @@ func (d *deltaBitPackDecoder64) next() (int64, error) {
 		// should accept any arbitrary bit width here.
 		if d.position+8 >= d.valuesCount {
 			//  current block
-			remaining := make([]byte, (d.miniBlockValueCount/8)*w-d.miniBlockPosition)
+			sliceLen := (d.miniBlockValueCount/8)*w - d.miniBlockPosition
+			if sliceLen < 0 {
+				return 0, fmt.Errorf("invalid remaining values, mini block value count = %d, width = %d, mini block position = %d", d.miniBlockValueCount, w, d.miniBlockPosition)
+			}
+			remaining := make([]byte, sliceLen)
 			_, _ = io.ReadFull(d.r, remaining)
 			for i := d.currentMiniBlock; i < d.miniBlockCount; i++ {
 				w := int32(d.miniBlockBitWidth[d.currentMiniBlock])
