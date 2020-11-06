@@ -406,6 +406,10 @@ func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGr
 	schema.resetData()
 	schema.setNumRecords(rowGroups.NumRows)
 	for _, c := range dataCols {
+		idx := c.Index()
+		if len(rowGroups.Columns) <= idx {
+			return fmt.Errorf("column index %d is out of bounds", idx)
+		}
 		chunk := rowGroups.Columns[c.Index()]
 		if !schema.isSelected(c.flatName) {
 			if err := skipChunk(r, c, chunk); err != nil {

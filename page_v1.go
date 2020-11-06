@@ -55,6 +55,10 @@ func (dp *dataPageReaderV1) readValues(val []interface{}) (n int, dLevel *packed
 }
 
 func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
+	if dp.ph.DataPageHeader == nil {
+		return errors.New("page header is missing data page header")
+	}
+
 	var err error
 	dp.rDecoder, err = rDecoder(dp.ph.DataPageHeader.RepetitionLevelEncoding)
 	if err != nil {

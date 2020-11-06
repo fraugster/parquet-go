@@ -48,7 +48,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 			return i, err
 		}
 
-		if key >= size {
+		if key < 0 || key >= size {
 			return 0, errors.Errorf("dict: invalid index %d, values count are %d", key, size)
 		}
 

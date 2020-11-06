@@ -31,6 +31,8 @@ func (b *byteArrayPlainDecoder) next() ([]byte, error) {
 		if l < 0 {
 			return nil, errors.New("bytearray/plain: len is negative")
 		}
+	} else if l < 0 {
+		return nil, errors.New("bytearray/plain: len is negative")
 	}
 
 	buf := make([]byte, l)
