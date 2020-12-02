@@ -382,5 +382,9 @@ func (*byteArrayStore) append(arrayIn interface{}, value interface{}) interface{
 	if arrayIn == nil {
 		arrayIn = make([][]byte, 0, 1)
 	}
+	if value == nil {
+		return append(arrayIn.([][]byte), nil)
+	}
+
 	return append(arrayIn.([][]byte), value.([]byte))
 }
