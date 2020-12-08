@@ -208,6 +208,10 @@ func (c *Column) getNextData() (map[string]interface{}, int32, error) {
 		return nil, maxD, nil
 	}
 
+	if len(ret) == 0 {
+		ret = nil
+	}
+
 	return ret, int32(c.maxD), nil
 }
 
@@ -234,10 +238,12 @@ func (c *Column) getFirstRDLevel() (int32, int32, bool) {
 
 func (c *Column) getData() (interface{}, int32, error) {
 	if c.children != nil {
+		//fmt.Printf("column name = %s\n", c.FlatName())
 		data, maxD, err := c.getNextData()
 		if err != nil {
 			return nil, 0, err
 		}
+		//fmt.Printf("\tdata = %#v\n", data)
 
 		if c.rep != parquet.FieldRepetitionType_REPEATED || data == nil {
 			return data, maxD, nil

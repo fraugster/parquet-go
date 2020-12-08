@@ -400,9 +400,7 @@ func TestEmptyParent(t *testing.T) {
 	require.NoError(t, row.AddColumn("baz", list))
 	row.resetData()
 	data := []map[string]interface{}{
-		{
-			"baz": map[string]interface{}{},
-		},
+		{},
 	}
 
 	for i := range data {
@@ -417,7 +415,7 @@ func TestEmptyParent(t *testing.T) {
 	assert.Equal(t, uint16(2), col.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), col.MaxRepetitionLevel())
 	require.Equal(t, []int32{0}, col.data.rLevels.toArray())
-	require.Equal(t, []int32{1}, col.data.dLevels.toArray())
+	require.Equal(t, []int32{0}, col.data.dLevels.toArray())
 
 	for i := range data {
 		read, err := row.getData()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -178,7 +179,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 		get, err := r.getData()
 		require.NoError(t, err)
-		require.Equal(t, data[i], get)
+		require.Equal(t, data[i], get, "%d: data mismatch", i)
 	}
 }
 
@@ -861,6 +862,65 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 
 	_, err = r.NextRow()
 	require.Equal(t, io.EOF, err)
+}
+
+func TestWriteBinaryWithNilValueThenReadIt(t *testing.T) {
+
+	schemaDef, err := parquetschema.ParseSchemaDefinition(`message foo {
+		repeated binary foobar;
+	}`)
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		Input          map[string]interface{}
+		ExpectedOutput map[string]interface{}
+	}{
+		"no_nils": {
+			Input:          map[string]interface{}{"foobar": [][]byte{[]byte("hello"), []byte("world!")}},
+			ExpectedOutput: map[string]interface{}{"foobar": [][]byte{[]byte("hello"), []byte("world!")}},
+		},
+		"single_nil": {
+			Input:          map[string]interface{}{"foobar": [][]byte{nil}},
+			ExpectedOutput: map[string]interface{}{"foobar": [][]byte{nil}},
+		},
+		"two_nils": {
+			Input:          map[string]interface{}{"foobar": [][]byte{nil, nil}},
+			ExpectedOutput: map[string]interface{}{"foobar": [][]byte{nil, nil}},
+		},
+		"nil_at_front": {
+			Input:          map[string]interface{}{"foobar": [][]byte{nil, []byte("hello")}},
+			ExpectedOutput: map[string]interface{}{"foobar": [][]byte{nil, []byte("hello")}},
+		},
+		"nil_in_middle": {
+			Input:          map[string]interface{}{"foobar": [][]byte{[]byte("hello"), nil, []byte("world!")}},
+			ExpectedOutput: map[string]interface{}{"foobar": [][]byte{[]byte("hello"), nil, []byte("world!")}},
+		},
+		// TODO: add test case for multiple values but with nil in the middle
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+
+			w := NewFileWriter(buf, WithSchemaDefinition(schemaDef))
+
+			require.NoError(t, w.AddData(test.Input))
+
+			require.NoError(t, w.Close())
+
+			ioutil.WriteFile("test.parquet", buf.Bytes(), 0644)
+
+			r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			require.NoError(t, err)
+
+			row, err := r.NextRow()
+			require.NoError(t, err)
+
+			//t.Logf("row = %s", spew.Sdump(row))
+
+			require.Equal(t, test.ExpectedOutput, row)
+		})
+	}
 }
 
 func strPtr(s string) *string {

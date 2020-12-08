@@ -204,6 +204,9 @@ func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {
 }
 
 func (b *booleanStore) append(arrayIn interface{}, value interface{}) interface{} {
+	if value == nil {
+		return arrayIn
+	}
 	if arrayIn == nil {
 		arrayIn = make([]bool, 0, 1)
 	}

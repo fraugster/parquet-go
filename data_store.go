@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"fmt"
 	"math"
 	"math/bits"
 
@@ -108,11 +109,15 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 		return cs.add(nil, dL, maxRL, rL)
 	}
 
+	//fmt.Printf("vals = %s\n", spew.Sdump(vals))
+
 	for i, j := range vals {
-		cs.values.addValue(j, cs.sizeOf(j))
 		tmp := dL
-		if cs.repTyp != parquet.FieldRepetitionType_REQUIRED {
-			tmp++
+		cs.values.addValue(j, cs.sizeOf(j))
+		if j != nil {
+			if cs.repTyp != parquet.FieldRepetitionType_REQUIRED {
+				tmp++
+			}
 		}
 
 		if i == 0 {
@@ -160,45 +165,65 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 		return nil, 0, nil
 	}
 
-	if cs.readPos >= cs.rLevels.count || cs.readPos >= cs.dLevels.count {
-		return nil, 0, errors.New("out of range")
+	if cs.readPos >= cs.rLevels.count {
+		return nil, 0, fmt.Errorf("readPos %d is out of range on rLevel count %d", cs.readPos, cs.rLevels.count)
 	}
-	_, dl, _ := cs.getRDLevelAt(cs.readPos)
+	if cs.readPos >= cs.dLevels.count {
+		return nil, 0, fmt.Errorf("readPos %d is out of range on dLevel count %d", cs.readPos, cs.dLevels.count)
+	}
+	_, dl, last := cs.getRDLevelAt(cs.readPos)
 	// this is a null value, increase the read pos, for advancing the rLvl and dLvl but
 	// do not touch the dict-store
+	if last {
+		if dl < maxD {
+			cs.readPos++
+			return nil, dl, nil
+		}
+	}
+
+	var ret interface{}
+
 	if dl < maxD {
-		cs.readPos++
-		return nil, dl, nil
-	}
-	v, err := cs.getNext()
-	if err != nil {
-		return nil, 0, err
-	}
+		ret = cs.typedColumnStore.append(nil, nil)
+	} else {
+		v, err := cs.getNext()
+		if err != nil {
+			return nil, 0, err
+		}
 
-	// if this is not repeated just return the value, the result is not an array
-	if cs.repTyp != parquet.FieldRepetitionType_REPEATED {
-		cs.readPos++
-		return v, maxD, err
+		// if this is not repeated just return the value, the result is not an array
+		if cs.repTyp != parquet.FieldRepetitionType_REPEATED {
+			cs.readPos++
+			return v, maxD, err
+		}
+
+		fmt.Printf("first value: %v\n", v)
+
+		// the first rLevel in current object is always less than maxR (only for the repeated values)
+		// the next data in this object, should have maxR as the rLevel. the first rLevel less than maxR means the value
+		// is from the next object and we should not touch it in this call
+
+		ret = cs.typedColumnStore.append(nil, v)
 	}
-
-	// the first rLevel in current object is always less than maxR (only for the repeated values)
-	// the next data in this object, should have maxR as the rLevel. the first rLevel less than maxR means the value
-	// is from the next object and we should not touch it in this call
-
-	var ret = cs.typedColumnStore.append(nil, v)
 	for {
 		cs.readPos++
-		rl, _, last := cs.getRDLevelAt(cs.readPos)
+		rl, dl, last := cs.getRDLevelAt(cs.readPos)
 		if last || rl < maxR {
 			// end of this object
 			return ret, maxD, nil
 		}
-		v, err := cs.getNext()
-		if err != nil {
-			return nil, maxD, err
-		}
+		if dl < maxD {
+			ret = cs.typedColumnStore.append(ret, nil)
+		} else {
+			v, err := cs.getNext()
+			if err != nil {
+				return nil, maxD, err
+			}
 
-		ret = cs.typedColumnStore.append(ret, v)
+			fmt.Printf("next value: %v, last = %t\n", v, last)
+
+			ret = cs.typedColumnStore.append(ret, v)
+		}
 	}
 }
 

@@ -306,7 +306,11 @@ func (is *byteArrayStore) params() *ColumnParameters {
 }
 
 func (is *byteArrayStore) sizeOf(v interface{}) int {
-	return len(v.([]byte))
+	b, ok := v.([]byte)
+	if !ok {
+		return 0
+	}
+	return len(b)
 }
 
 func (is *byteArrayStore) parquetType() parquet.Type {
@@ -369,7 +373,11 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
-			vals[j] = typed[j]
+			if typed[j] == nil {
+				vals[j] = nil
+			} else {
+				vals[j] = typed[j]
+			}
 		}
 	default:
 		return nil, errors.Errorf("unsupported type for storing in []byte column %T => %+v", v, v)
@@ -381,6 +389,9 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 func (*byteArrayStore) append(arrayIn interface{}, value interface{}) interface{} {
 	if arrayIn == nil {
 		arrayIn = make([][]byte, 0, 1)
+	}
+	if value == nil {
+		return append(arrayIn.([][]byte), nil)
 	}
 	return append(arrayIn.([][]byte), value.([]byte))
 }

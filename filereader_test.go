@@ -58,12 +58,9 @@ func TestByteReaderSelected(t *testing.T) {
 			break
 		}
 		require.NoError(t, err)
-		require.Equal(t, 2, len(data))
+		require.Equal(t, 1, len(data))
 		_, ok := data["a"]
 		require.True(t, ok)
-		y, ok := data["y"]
-		require.True(t, ok)
-		require.Empty(t, y)
 	}
 }
 
@@ -78,13 +75,10 @@ func TestByteReaderSelectedInner(t *testing.T) {
 			break
 		}
 		require.NoError(t, err)
-		require.Equal(t, 2, len(data))
+		require.Equal(t, 1, len(data))
 		x, ok := data["x"].(map[string]interface{})
 		require.True(t, ok)
 		require.Equal(t, 1, len(x))
-		y, ok := data["y"]
-		require.True(t, ok)
-		require.Empty(t, y)
 	}
 }
 
@@ -99,12 +93,9 @@ func TestByteReaderSelectedInnerFull(t *testing.T) {
 			break
 		}
 		require.NoError(t, err)
-		require.Equal(t, 2, len(data))
+		require.Equal(t, 1, len(data))
 		x, ok := data["x"].(map[string]interface{})
 		require.True(t, ok)
 		require.Equal(t, 2, len(x))
-		y, ok := data["y"]
-		require.True(t, ok)
-		require.Empty(t, y)
 	}
 }

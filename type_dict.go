@@ -103,8 +103,10 @@ func (d *dictStore) getIndex(in interface{}, size int) int32 {
 }
 
 func (d *dictStore) addValue(v interface{}, size int) {
+	//fmt.Printf("addValue: %v %d\n", spew.Sdump(v), size)
 	if v == nil {
 		d.nullCount++
+		//fmt.Printf("addValue: found nil\n")
 		return
 	}
 	d.size += int64(size)
