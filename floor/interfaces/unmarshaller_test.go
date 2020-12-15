@@ -237,7 +237,7 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 
 func TestObjectUnmarshallingList(t *testing.T) {
 	testData := map[string]map[string]interface{}{
-		"new-style-list": map[string]interface{}{
+		"new-style-list": {
 			"emails": map[string]interface{}{
 				"list": []map[string]interface{}{
 					{
@@ -249,7 +249,7 @@ func TestObjectUnmarshallingList(t *testing.T) {
 				},
 			},
 		},
-		"athena-compat": map[string]interface{}{
+		"athena-compat": {
 			"emails": map[string]interface{}{
 				"bag": []map[string]interface{}{
 					{

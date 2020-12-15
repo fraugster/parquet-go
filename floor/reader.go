@@ -83,7 +83,7 @@ func (r *Reader) Next() bool {
 // Unmarshaller interface.
 func (r *Reader) Scan(obj interface{}) error {
 	if r.data == nil {
-		return errors.New("Scan called before Next")
+		return errors.New("the Next function needs to be called before Scan can be called")
 	}
 	um, ok := obj.(interfaces.Unmarshaller)
 	if !ok {
