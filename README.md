@@ -190,6 +190,12 @@ it follows some conventions. In particular, it has to contain only a single
 fields, one named `key`, the other named `value`. This represents a map
 structure in which each key is associated with one value.
 
+## Examples
+
+For examples how to use both the low-level and high-level APIs of this library, please
+see the directory `examples`. You can also check out the accompanying tools (see below)
+for more advanced examples. The tools are located in the `cmd` directory.
+
 ## Tools
 
 `parquet-go` comes with tooling to inspect and generate parquet tools.
