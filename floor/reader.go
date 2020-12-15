@@ -82,6 +82,9 @@ func (r *Reader) Next() bool {
 // a pointer to an object, or alternatively implement the
 // Unmarshaller interface.
 func (r *Reader) Scan(obj interface{}) error {
+	if r.data == nil {
+		return errors.New("Scan called before Next")
+	}
 	um, ok := obj.(interfaces.Unmarshaller)
 	if !ok {
 		um = &reflectUnmarshaller{obj: obj, schemaDef: r.r.GetSchemaDefinition()}
@@ -373,8 +376,13 @@ func (um *reflectUnmarshaller) fillArrayOrSlice(value reflect.Value, data interf
 		value.Set(reflect.MakeSlice(value.Type(), len(elementList), len(elementList)))
 	}
 
-	listSchemaDef := schemaDef.SubSchema("list")
-	elemSchemaDef := listSchemaDef.SubSchema("element")
+	elemSchemaDef := schemaDef.SubSchema("list").SubSchema("element")
+	if elemSchemaDef == nil {
+		elemSchemaDef = schemaDef.SubSchema("bag").SubSchema("array_element")
+		if elemSchemaDef == nil {
+			return fmt.Errorf("element %s is annotated as LIST but group structure seems invalid", schemaDef.SchemaElement().GetName())
+		}
+	}
 
 	for idx, elem := range elementList {
 		if idx < value.Len() {

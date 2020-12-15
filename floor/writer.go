@@ -54,7 +54,7 @@ func (w *Writer) Write(obj interface{}) error {
 		m = &reflectMarshaller{obj: obj, schemaDef: w.w.GetSchemaDefinition()}
 	}
 
-	data := interfaces.NewMarshallObject(nil)
+	data := interfaces.NewMarshallObjectWithSchema(nil, w.w.GetSchemaDefinition())
 	if err := m.MarshalParquet(data); err != nil {
 		return err
 	}
@@ -247,8 +247,13 @@ func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, 
 		return fmt.Errorf("decoding slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
 
-	listSchemaDef := schemaDef.SubSchema("list")
-	elementSchemaDef := listSchemaDef.SubSchema("element")
+	elementSchemaDef := schemaDef.SubSchema("list").SubSchema("element")
+	if elementSchemaDef == nil {
+		elementSchemaDef = schemaDef.SubSchema("bag").SubSchema("array_element")
+		if elementSchemaDef == nil {
+			return fmt.Errorf("element %s is annotated as LIST but group structure seems invalid", schemaDef.SchemaElement().GetName())
+		}
+	}
 
 	list := field.List()
 

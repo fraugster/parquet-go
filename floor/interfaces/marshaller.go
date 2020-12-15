@@ -1,5 +1,7 @@
 package interfaces
 
+import "github.com/fraugster/parquet-go/parquetschema"
+
 // Marshaller is the interface necessary for objects to be
 // marshalled when passed to the (*Writer).WriteRecord method.
 type Marshaller interface {
@@ -49,7 +51,8 @@ type MarshalMapElement interface {
 }
 
 type object struct {
-	data map[string]interface{}
+	data   map[string]interface{}
+	schema *parquetschema.SchemaDefinition
 }
 
 func (o *object) GetData() map[string]interface{} {
@@ -57,12 +60,13 @@ func (o *object) GetData() map[string]interface{} {
 }
 
 func (o *object) AddField(field string) MarshalElement {
-	return &element{data: o.data, f: field}
+	return &element{data: o.data, f: field, schema: o.schema.SubSchema(field)}
 }
 
 type element struct {
-	data map[string]interface{}
-	f    string
+	data   map[string]interface{}
+	f      string
+	schema *parquetschema.SchemaDefinition
 }
 
 func (e *element) SetInt32(i int32) {
@@ -94,15 +98,22 @@ func (e *element) SetByteArray(data []byte) {
 }
 
 func (e *element) List() MarshalList {
-	data := map[string]interface{}{"list": []map[string]interface{}{}}
+	listName := "list"
+	elemName := "element"
+	bagSchema := e.schema.SubSchema("bag")
+	if bagSchema != nil {
+		listName = "bag"
+		elemName = "array_element"
+	}
+	data := map[string]interface{}{listName: []map[string]interface{}{}}
 	e.data[e.f] = data
-	return &list{data: data}
+	return &list{data: data, listName: listName, elemName: elemName, schema: e.schema.SubSchema(listName).SubSchema(elemName)}
 }
 
 func (e *element) Map() MarshalMap {
 	data := map[string]interface{}{"key_value": []map[string]interface{}{}}
 	e.data[e.f] = data
-	return &marshMap{data: data}
+	return &marshMap{data: data, schema: e.schema}
 }
 
 func (e *element) Group() MarshalObject {
@@ -112,39 +123,44 @@ func (e *element) Group() MarshalObject {
 }
 
 type list struct {
-	data map[string]interface{}
+	data     map[string]interface{}
+	schema   *parquetschema.SchemaDefinition
+	listName string
+	elemName string
 }
 
 func (l *list) Add() MarshalElement {
-	listData := l.data["list"].([]map[string]interface{})
+	listData := l.data[l.listName].([]map[string]interface{})
 	elemData := map[string]interface{}{}
-	l.data["list"] = append(listData, elemData)
-	e := &element{data: elemData, f: "element"}
+	l.data[l.listName] = append(listData, elemData)
+	e := &element{data: elemData, f: l.elemName, schema: l.schema}
 	return e
 }
 
 type marshMap struct {
-	data map[string]interface{}
+	data   map[string]interface{}
+	schema *parquetschema.SchemaDefinition
 }
 
 func (l *marshMap) Add() MarshalMapElement {
 	kvData := l.data["key_value"].([]map[string]interface{})
 	elemData := map[string]interface{}{}
 	l.data["key_value"] = append(kvData, elemData)
-	me := &mapElement{data: elemData}
+	me := &mapElement{data: elemData, schema: l.schema.SubSchema("key_value")}
 	return me
 }
 
 type mapElement struct {
-	data map[string]interface{}
+	data   map[string]interface{}
+	schema *parquetschema.SchemaDefinition
 }
 
 func (m *mapElement) Key() MarshalElement {
-	return &element{data: m.data, f: "key"}
+	return &element{data: m.data, f: "key", schema: m.schema.SubSchema("key")}
 }
 
 func (m *mapElement) Value() MarshalElement {
-	return &element{data: m.data, f: "value"}
+	return &element{data: m.data, f: "value", schema: m.schema.SubSchema("value")}
 }
 
 // NewMarshallObject creates a new marshaller object
@@ -154,6 +170,17 @@ func NewMarshallObject(data map[string]interface{}) MarshalObject {
 	}
 	return &object{
 		data: data,
+	}
+}
+
+// NewMarshallObjectWithSchema creates a new marshaller object with a particular schema.
+func NewMarshallObjectWithSchema(data map[string]interface{}, schemaDef *parquetschema.SchemaDefinition) MarshalObject {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+	return &object{
+		data:   data,
+		schema: schemaDef,
 	}
 }
 

@@ -127,6 +127,10 @@ func (sd *SchemaDefinition) String() string {
 // that matches the provided name. If no such child exists, nil is
 // returned.
 func (sd *SchemaDefinition) SubSchema(name string) *SchemaDefinition {
+	if sd == nil {
+		return nil
+	}
+
 	for _, c := range sd.RootColumn.Children {
 		if c.SchemaElement.Name == name {
 			return &SchemaDefinition{

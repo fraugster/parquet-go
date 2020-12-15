@@ -190,9 +190,14 @@ func (e *unmarshElem) List() (UnmarshalList, error) {
 		return nil, fmt.Errorf("data is not a list, found %T instead", e.data)
 	}
 
+	isAthenaList := false
 	listData, ok := data["list"]
 	if !ok {
-		return nil, errors.New("sub-group list not found")
+		listData, ok = data["bag"]
+		if !ok {
+			return nil, errors.New("sub-group list or bag not found")
+		}
+		isAthenaList = true
 	}
 
 	elemList, ok := listData.([]map[string]interface{})
@@ -200,7 +205,7 @@ func (e *unmarshElem) List() (UnmarshalList, error) {
 		return nil, fmt.Errorf("expected sub-group list to be []map[string]interface{}, got %T instead", listData)
 	}
 
-	return &unmarshList{list: elemList, idx: -1}, nil
+	return &unmarshList{list: elemList, idx: -1, isAthenaList: isAthenaList}, nil
 }
 
 func (e *unmarshElem) Map() (UnmarshalMap, error) {
@@ -223,8 +228,9 @@ func (e *unmarshElem) Map() (UnmarshalMap, error) {
 }
 
 type unmarshList struct {
-	list []map[string]interface{}
-	idx  int
+	list         []map[string]interface{}
+	idx          int
+	isAthenaList bool
 }
 
 func (l *unmarshList) Next() bool {
@@ -237,9 +243,14 @@ func (l *unmarshList) Value() (UnmarshalElement, error) {
 		return nil, errors.New("iterator has reached end of list")
 	}
 
-	elem, ok := l.list[l.idx]["element"]
+	elemName := "element"
+	if l.isAthenaList {
+		elemName = "array_element"
+	}
+
+	elem, ok := l.list[l.idx][elemName]
 	if !ok {
-		return nil, errors.New("element not found in current list element")
+		return nil, fmt.Errorf("%s not found in current list element", elemName)
 	}
 
 	return &unmarshElem{data: elem}, nil
