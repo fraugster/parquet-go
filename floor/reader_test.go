@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fraugster/parquet-go/floor/interfaces"
+	"github.com/pkg/errors"
 
 	"github.com/davecgh/go-spew/spew"
 	goparquet "github.com/fraugster/parquet-go"
@@ -92,6 +93,80 @@ func TestReadFile(t *testing.T) {
 	require.NoError(t, hlReader.Err(), "hlReader returned an error")
 
 	require.NoError(t, hlReader.Close())
+}
+
+func TestReadWriteAthenaList(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test_msg {
+			required group emails (LIST) {
+				repeated group bag {
+					required binary array_element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	hlWriter, err := NewFileWriter(
+		"files/athena_list.parquet",
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
+	)
+	require.NoError(t, err)
+
+	testData := []string{"foo@example.com", "bar@example.com"}
+
+	require.NoError(t, hlWriter.Write(&emailList{emails: testData}))
+
+	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/athena_list.parquet")
+	require.NoError(t, err)
+
+	var l emailList
+
+	require.True(t, hlReader.Next())
+
+	require.NoError(t, hlReader.Scan(&l))
+
+	require.Equal(t, testData, l.emails)
+}
+
+type emailList struct {
+	emails []string
+}
+
+func (l *emailList) MarshalParquet(obj interfaces.MarshalObject) error {
+	list := obj.AddField("emails").List()
+	for _, email := range l.emails {
+		list.Add().SetByteArray([]byte(email))
+	}
+	return nil
+}
+
+func (l *emailList) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
+	list, err := obj.GetField("emails").List()
+	if err != nil {
+		return errors.Wrap(err, "couldn't get emails as list")
+	}
+
+	for list.Next() {
+		v, err := list.Value()
+		if err != nil {
+			return errors.Wrap(err, "couldn't get list value")
+		}
+		vv, err := v.ByteArray()
+		if err != nil {
+			return errors.Wrap(err, "couldn't get list value as byte array")
+		}
+		l.emails = append(l.emails, string(vv))
+	}
+
+	return nil
 }
 
 func TestReadWriteMap(t *testing.T) {

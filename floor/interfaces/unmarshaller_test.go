@@ -234,3 +234,59 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 	_, err = dataMap.Value()
 	require.Error(t, err)
 }
+
+func TestObjectUnmarshallingList(t *testing.T) {
+	testData := map[string]map[string]interface{}{
+		"new-style-list": {
+			"emails": map[string]interface{}{
+				"list": []map[string]interface{}{
+					{
+						"element": []byte("foo@example.com"),
+					},
+					{
+						"element": []byte("bar@example.com"),
+					},
+				},
+			},
+		},
+		"athena-compat": {
+			"emails": map[string]interface{}{
+				"bag": []map[string]interface{}{
+					{
+						"array_element": []byte("foo@example.com"),
+					},
+					{
+						"array_element": []byte("bar@example.com"),
+					},
+				},
+			},
+		},
+	}
+
+	for testName, input := range testData {
+		t.Run(testName, func(t *testing.T) {
+			obj := NewUnmarshallObject(input)
+
+			emailList, err := obj.GetField("emails").List()
+			require.NoError(t, err)
+
+			require.True(t, emailList.Next())
+
+			v, err := emailList.Value()
+			require.NoError(t, err)
+			v1, err := v.ByteArray()
+			require.NoError(t, err)
+			require.Equal(t, "foo@example.com", string(v1))
+
+			require.True(t, emailList.Next())
+
+			v, err = emailList.Value()
+			require.NoError(t, err)
+			v2, err := v.ByteArray()
+			require.NoError(t, err)
+			require.Equal(t, "bar@example.com", string(v2))
+
+			require.False(t, emailList.Next())
+		})
+	}
+}

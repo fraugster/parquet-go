@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/fraugster/parquet-go/parquetschema"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,6 +122,72 @@ func TestObjectMarshalling(t *testing.T) {
 					"element": map[string]interface{}{
 						"i": int64(2),
 					},
+				},
+			},
+		},
+	}
+
+	require.Equal(t, expectedData, obj.GetData())
+}
+
+func TestObjectMarshallingWithSchema(t *testing.T) {
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test {
+			required group emails (LIST) {
+				repeated group list {
+					required binary element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err)
+
+	obj := NewMarshallObjectWithSchema(nil, sd)
+
+	emailList := obj.AddField("emails").List()
+	emailList.Add().SetByteArray([]byte("foo@example.com"))
+	emailList.Add().SetByteArray([]byte("bar@example.com"))
+
+	expectedData := map[string]interface{}{
+		"emails": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{
+					"element": []byte("foo@example.com"),
+				},
+				{
+					"element": []byte("bar@example.com"),
+				},
+			},
+		},
+	}
+
+	require.Equal(t, expectedData, obj.GetData())
+}
+
+func TestObjectMarshallingWithAthenaCompatibleSchema(t *testing.T) {
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test {
+			required group emails (LIST) {
+				repeated group bag {
+					required binary array_element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err)
+
+	obj := NewMarshallObjectWithSchema(nil, sd)
+
+	emailList := obj.AddField("emails").List()
+	emailList.Add().SetByteArray([]byte("foo@example.com"))
+	emailList.Add().SetByteArray([]byte("bar@example.com"))
+
+	expectedData := map[string]interface{}{
+		"emails": map[string]interface{}{
+			"bag": []map[string]interface{}{
+				{
+					"array_element": []byte("foo@example.com"),
+				},
+				{
+					"array_element": []byte("bar@example.com"),
 				},
 			},
 		},
