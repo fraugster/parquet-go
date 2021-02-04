@@ -20,6 +20,7 @@ func TestSchemaParser(t *testing.T) {
 		{`message foo { required int64 bar; }`, false, false},
 		{`message foo { repeated int64 bar; }`, false, false},
 		{`message foo { optional int64 bar; }`, false, false},
+		{`message foo { optional int64 bar.buzz; }`, false, false},
 		{`message foo { justwrong int64 bar; }`, true, false}, // incorrect repetition type
 		{`message foo { optional int64 bar }`, true, false},   // missing semicolon after column name
 		{`message foo { required binary the_id = 1; required binary client = 2; }`, false, false},

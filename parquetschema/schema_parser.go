@@ -225,7 +225,7 @@ func isDigit(r rune) bool {
 }
 
 func isAlpha(r rune) bool {
-	return r == '_' || unicode.IsLetter(r)
+	return r == '_' || r == '.' || unicode.IsLetter(r)
 }
 
 func isAlphaNum(r rune) bool {
