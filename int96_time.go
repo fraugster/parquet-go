@@ -10,6 +10,10 @@ const (
 	secPerDay = 24 * 60 * 60
 )
 
+var (
+	tsUnixEpoch = time.Unix(0, 0)
+)
+
 func timeToJD(t time.Time) (uint32, uint64) {
 	days := t.Unix() / secPerDay
 	nSecs := t.UnixNano() - (days * secPerDay * int64(time.Second))
@@ -43,4 +47,10 @@ func TimeToInt96(t time.Time) [12]byte {
 	binary.LittleEndian.PutUint32(parquetDate[8:], days)
 
 	return parquetDate
+}
+
+// IsAfterUnixEpoch tests if a timestamp can be converted into Julian Day format, i.e. is it greater than 01-01-1970?
+// Timestamps before this when converted will be corrupted when read back.
+func IsAfterUnixEpoch(t time.Time) bool {
+	return t.After(tsUnixEpoch)
 }
