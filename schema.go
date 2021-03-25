@@ -289,7 +289,7 @@ func (r *schema) ensureRoot() {
 	}
 }
 
-func (r *schema) setSelectedColumns(selected ...string) {
+func (r *schema) SetSelectedColumns(selected ...string) {
 	r.selectedColumn = selected
 }
 
@@ -978,7 +978,7 @@ type SchemaReader interface {
 	SchemaCommon
 	setNumRecords(int64)
 	getData() (map[string]interface{}, error)
-	setSelectedColumns(selected ...string)
+	SetSelectedColumns(selected ...string)
 	isSelected(string) bool
 }
 
