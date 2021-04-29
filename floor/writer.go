@@ -149,6 +149,11 @@ func (m *reflectMarshaller) decodeTimestampValue(elem *parquet.SchemaElement, fi
 }
 
 func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
+	elem := schemaDef.SchemaElement()
+	if elem == nil {
+		return nil
+	}
+
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil
@@ -157,13 +162,13 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
+		if elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
 			return m.decodeTimeValue(elem, field, value)
 		}
 	}
 
 	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
+		if elem.LogicalType != nil {
 			switch {
 			case elem.GetLogicalType().IsSetDATE():
 				days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
@@ -239,11 +244,16 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalEleme
 }
 
 func (m *reflectMarshaller) decodeSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
+	elem := schemaDef.SchemaElement()
+	if elem == nil {
+		return nil
+	}
+
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
 
-	if elem := schemaDef.SchemaElement(); elem.GetConvertedType() != parquet.ConvertedType_LIST {
+	if elem.GetConvertedType() != parquet.ConvertedType_LIST {
 		return fmt.Errorf("decoding slice or array but schema element %s is not annotated as LIST", elem.GetName())
 	}
 
