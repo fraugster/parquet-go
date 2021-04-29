@@ -184,16 +184,32 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	case reflect.Bool:
 		field.SetBool(value.Bool())
 		return nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+	case reflect.Int:
+		switch elem.GetType() {
+		case parquet.Type_INT64:
+			field.SetInt64(value.Int())
+		default:
+			field.SetInt32(int32(value.Int()))
+		}
+		return nil
+	case reflect.Int8, reflect.Int16, reflect.Int32:
 		field.SetInt32(int32(value.Int()))
 		return nil
 	case reflect.Int64:
 		field.SetInt64(value.Int())
 		return nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16:
+	case reflect.Uint:
+		switch elem.GetType() {
+		case parquet.Type_INT64:
+			field.SetInt64(int64(value.Uint()))
+		default:
+			field.SetInt32(int32(value.Uint()))
+		}
+		return nil
+	case reflect.Uint32, reflect.Uint8, reflect.Uint16:
 		field.SetInt32(int32(value.Uint()))
 		return nil
-	case reflect.Uint32, reflect.Uint64:
+	case reflect.Uint64:
 		field.SetInt64(int64(value.Uint()))
 		return nil
 	case reflect.Float32:
