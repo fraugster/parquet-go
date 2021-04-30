@@ -240,7 +240,7 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalEleme
 		return nil
 	}
 
-	if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
+	if elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
 		if value.Len() != 16 {
 			return fmt.Errorf("field is annotated as UUID but length is %d", value.Len())
 		}
