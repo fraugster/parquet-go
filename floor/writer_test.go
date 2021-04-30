@@ -192,7 +192,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				C chan int
 			}{},
-			ExpectedOutput: map[string]interface {}{},
+			ExpectedOutput: map[string]interface{}{},
 			ExpectErr:      false,
 			Schema:         `message foo { }`,
 		},
@@ -203,7 +203,7 @@ func TestDecodeStruct(t *testing.T) {
 					Bar int
 				}
 			}{},
-			ExpectedOutput: map[string]interface {}{"foo":map[string]interface {}{"bar":int64(0)}},
+			ExpectedOutput: map[string]interface{}{"foo": map[string]interface{}{"bar": int64(0)}},
 			ExpectErr:      false,
 			Schema:         `message foo { required group foo { optional int64 bar; } }`,
 		},
