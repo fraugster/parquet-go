@@ -3480,6 +3480,9 @@ func (p *SchemaElement) GetLogicalType() *LogicalType {
 	return p.LogicalType
 }
 func (p *SchemaElement) IsSetType() bool {
+	if p == nil {
+		return false
+	}
 	return p.Type != nil
 }
 

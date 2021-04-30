@@ -236,6 +236,11 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 }
 
 func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
+	elem := schemaDef.SchemaElement()
+	if elem == nil {
+		return nil
+	}
+
 	if value.Kind() == reflect.Slice && value.IsNil() {
 		return nil
 	}
