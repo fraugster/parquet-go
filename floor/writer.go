@@ -1,7 +1,6 @@
 package floor
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/pkg/errors"
 
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
@@ -180,37 +180,32 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		}
 	}
 
+	switch elem.GetType() {
+	case parquet.Type_INT64:
+		switch value.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			field.SetInt64(value.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			field.SetInt64(int64(value.Uint()))
+		default:
+			return errors.Errorf("unable to decode %s:%s to int64", elem.Name, value.Kind())
+		}
+		return nil
+	case parquet.Type_INT32:
+		switch value.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			field.SetInt32(int32(value.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			field.SetInt32(int32(value.Uint()))
+		default:
+			return errors.Errorf("unable to decode %s:%s to int32", elem.Name, value.Kind())
+		}
+		return nil
+	}
+
 	switch value.Kind() {
 	case reflect.Bool:
 		field.SetBool(value.Bool())
-		return nil
-	case reflect.Int:
-		switch elem.GetType() {
-		case parquet.Type_INT64:
-			field.SetInt64(value.Int())
-		default:
-			field.SetInt32(int32(value.Int()))
-		}
-		return nil
-	case reflect.Int8, reflect.Int16, reflect.Int32:
-		field.SetInt32(int32(value.Int()))
-		return nil
-	case reflect.Int64:
-		field.SetInt64(value.Int())
-		return nil
-	case reflect.Uint:
-		switch elem.GetType() {
-		case parquet.Type_INT64:
-			field.SetInt64(int64(value.Uint()))
-		default:
-			field.SetInt32(int32(value.Uint()))
-		}
-		return nil
-	case reflect.Uint32, reflect.Uint8, reflect.Uint16:
-		field.SetInt32(int32(value.Uint()))
-		return nil
-	case reflect.Uint64:
-		field.SetInt64(int64(value.Uint()))
 		return nil
 	case reflect.Float32:
 		field.SetFloat32(float32(value.Float()))

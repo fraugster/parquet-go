@@ -59,6 +59,24 @@ func TestWriteRead(t *testing.T) {
 				assert.EqualValues(t, o, writeReadOne(t, o, s))
 			})
 
+			t.Run("int32 go type", func(t *testing.T) {
+				o := struct{ Val int32 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("int16 go type", func(t *testing.T) {
+				o := struct{ Val int16 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("int8 go type", func(t *testing.T) {
+				o := struct{ Val int8 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
 			t.Run("uint go type", func(t *testing.T) {
 				o := struct{ Val uint }{Val: 1}
 				s := `message test {required int64 val;}`
@@ -67,6 +85,24 @@ func TestWriteRead(t *testing.T) {
 
 			t.Run("uint64 go type", func(t *testing.T) {
 				o := struct{ Val uint64 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("uint32 go type", func(t *testing.T) {
+				o := struct{ Val uint32 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("uint16 go type", func(t *testing.T) {
+				o := struct{ Val uint16 }{Val: 1}
+				s := `message test {required int64 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("uint8 go type", func(t *testing.T) {
+				o := struct{ Val uint8 }{Val: 1}
 				s := `message test {required int64 val;}`
 				assert.EqualValues(t, o, writeReadOne(t, o, s))
 			})
@@ -99,6 +135,12 @@ func TestWriteRead(t *testing.T) {
 				assert.EqualValues(t, o, writeReadOne(t, o, s))
 			})
 
+			t.Run("int64 go type", func(t *testing.T) {
+				o := struct{ Val int64 }{Val: 1}
+				s := `message test {required int32 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
 			t.Run("int32 go type", func(t *testing.T) {
 				o := struct{ Val int32 }{Val: 1}
 				s := `message test {required int32 val;}`
@@ -119,6 +161,12 @@ func TestWriteRead(t *testing.T) {
 
 			t.Run("uint go type", func(t *testing.T) {
 				o := struct{ Val uint }{Val: 1}
+				s := `message test {required int32 val;}`
+				assert.EqualValues(t, o, writeReadOne(t, o, s))
+			})
+
+			t.Run("uint64 go type", func(t *testing.T) {
+				o := struct{ Val uint64 }{Val: 1}
 				s := `message test {required int32 val;}`
 				assert.EqualValues(t, o, writeReadOne(t, o, s))
 			})
@@ -259,4 +307,5 @@ func TestWriteRead(t *testing.T) {
 		o := FieldsOfAllTypes{Val: 1}
 		assert.EqualValues(t, o, writeReadOne(t, o, s))
 	})
+
 }
