@@ -44,7 +44,6 @@ func writeReadOne(t *testing.T, o interface{}, schema string) interface{} {
 }
 
 func TestWriteRead(t *testing.T) {
-
 	t.Run("by parquet type", func(t *testing.T) {
 		t.Run("int64", func(t *testing.T) {
 			t.Run("int go type", func(t *testing.T) {
@@ -271,31 +270,28 @@ func TestWriteRead(t *testing.T) {
 			}`
 				assert.EqualValues(t, o, writeReadOne(t, o, s))
 			})
-
 		})
-
 	})
-
 	t.Run("when schema is subset of go type", func(t *testing.T) {
 		type FieldsOfAllTypes struct {
-			Int            int
-			Int8           int8
-			Int16          int16
-			Int32          int32
-			Int64          int64
-			Uint           uint
-			Uint8          uint8
-			Uint16         uint16
-			Uint32         uint32
-			Uint64         uint64
 			Float32        float32
 			Float64        float64
+			Int            int
+			Uint           uint
+			Int64          int64
+			Uint64         uint64
+			Int32          int32
+			Uint32         uint32
+			Int16          int16
+			Uint16         uint16
+			Int8           int8
+			Uint8          uint8
 			Bool           bool
-			String         string
-			ByteSlice      []byte
 			ByteSliceSized [1]byte
-			Struct         struct{}
+			ByteSlice      []byte
+			String         string
 			Slice          []int
+			Struct         struct{}
 			Map            map[int]int
 			Time           time.Time
 
@@ -307,5 +303,4 @@ func TestWriteRead(t *testing.T) {
 		o := FieldsOfAllTypes{Val: 1}
 		assert.EqualValues(t, o, writeReadOne(t, o, s))
 	})
-
 }
