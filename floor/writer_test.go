@@ -192,8 +192,8 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				C chan int
 			}{},
-			ExpectedOutput: nil,
-			ExpectErr:      true,
+			ExpectedOutput: map[string]interface {}{},
+			ExpectErr:      false,
 			Schema:         `message foo { }`,
 		},
 		{
@@ -203,8 +203,8 @@ func TestDecodeStruct(t *testing.T) {
 					Bar int
 				}
 			}{},
-			ExpectedOutput: nil,
-			ExpectErr:      true,
+			ExpectedOutput: map[string]interface {}{"foo":map[string]interface {}{"bar":int64(0)}},
+			ExpectErr:      false,
 			Schema:         `message foo { required group foo { optional int64 bar; } }`,
 		},
 		{
@@ -280,18 +280,6 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{"ts": int64(25000002000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 ts (TIMESTAMP(NANOS, false)); }`,
-		},
-		{
-			Input: struct {
-				Foo int64
-				bar int32
-			}{
-				Foo: 23,
-				bar: 42,
-			},
-			ExpectedOutput: map[string]interface{}{"foo": int64(23), "bar": int32(42)},
-			ExpectErr:      false,
-			Schema:         `message test { required int64 foo; }`,
 		},
 		{
 			Input: struct {
