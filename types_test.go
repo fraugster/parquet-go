@@ -48,22 +48,6 @@ var (
 			},
 		},
 		{
-			name: "Uint32Plain",
-			enc:  &int32PlainEncoder{unSigned: true},
-			dec:  &int32PlainDecoder{unSigned: true},
-			rand: func() interface{} {
-				return uint32(rand.Int())
-			},
-		},
-		{
-			name: "Uint32Delta",
-			enc:  &int32DeltaBPEncoder{unSigned: true, deltaBitPackEncoder32: deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
-			dec:  &int32DeltaBPDecoder{unSigned: true},
-			rand: func() interface{} {
-				return uint32(rand.Int())
-			},
-		},
-		{
 			name: "Int64Plain",
 			enc:  &int64PlainEncoder{},
 			dec:  &int64PlainDecoder{},
@@ -77,22 +61,6 @@ var (
 			dec:  &int64DeltaBPDecoder{},
 			rand: func() interface{} {
 				return rand.Int63()
-			},
-		},
-		{
-			name: "Uint64Plain",
-			enc:  &int64PlainEncoder{unSigned: true},
-			dec:  &int64PlainDecoder{unSigned: true},
-			rand: func() interface{} {
-				return uint64(rand.Int63())
-			},
-		},
-		{
-			name: "Uint64Delta",
-			enc:  &int64DeltaBPEncoder{unSigned: true, deltaBitPackEncoder64: deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
-			dec:  &int64DeltaBPDecoder{unSigned: true},
-			rand: func() interface{} {
-				return uint64(rand.Int63())
 			},
 		},
 		{

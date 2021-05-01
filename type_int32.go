@@ -26,11 +26,7 @@ func (i *int32PlainDecoder) decodeValues(dst []interface{}) (int, error) {
 		if err := binary.Read(i.r, binary.LittleEndian, &d); err != nil {
 			return idx, err
 		}
-		if i.unSigned {
-			dst[idx] = uint32(d)
-		} else {
-			dst[idx] = d
-		}
+		dst[idx] = d
 	}
 
 	return len(dst), nil
@@ -53,14 +49,8 @@ func (i *int32PlainEncoder) init(w io.Writer) error {
 
 func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
 	d := make([]int32, len(values))
-	if i.unSigned {
-		for i := range values {
-			d[i] = int32(values[i].(uint32))
-		}
-	} else {
-		for j := range values {
-			d[j] = values[j].(int32)
-		}
+	for j := range values {
+		d[j] = values[j].(int32)
 	}
 	return binary.Write(i.w, binary.LittleEndian, d)
 }

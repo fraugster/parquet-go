@@ -6,7 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- Nothing yet.
+- Fixed issues where fields in structs that were not defined in the schema raised errors (array, slice, time, map)
+- Added support for reflect encoding/decoding of additional types to/from parquet types
+    - Go type <-> Parquet type
+    - int     <-> int64
+    - int32   <-> int64
+    - int16   <-> int64
+    - int8    <-> int64
+    - uint    <-> int64
+    - uint16  <-> int64
+    - uint8   <-> int64
+    - int64   <-> int32
+    - uint64  <-> int32
+    - uint32  <-> int32
+- Removed some inconsistent api behaviors
+    - reflect marshaling/unmarshalling now ignores fields not defined in the schema (this already happens when
+      the marshaller is used by floor.Writer and goparquet.FileReader)
+    - int32PlainDecoder and int32PlainEncoder now no longer support uint values
 
 ## [v0.3.0] - 2020-12-15
 - Added examples how to use the low-level and high-level APIs.
