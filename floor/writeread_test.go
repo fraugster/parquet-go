@@ -114,7 +114,7 @@ func TestWriteRead(t *testing.T) {
 				})
 
 				t.Run("micros", func(t *testing.T) {
-					o := struct{ Val time.Time }{Val: time.Now().UTC()}
+					o := struct{ Val time.Time }{Val: time.Now().Truncate(time.Microsecond).UTC()}
 					s := `message test {required int64 val (TIMESTAMP(MICROS, true));}`
 					assert.EqualValues(t, o, writeReadOne(t, o, s))
 				})
