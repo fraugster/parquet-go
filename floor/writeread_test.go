@@ -284,160 +284,280 @@ func TestWriteRead(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra int}{Val: 1, extra: 1}
-			e := struct{Val int64; extra int}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra int
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra int
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("int64", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra int64}{Val: 1, extra: 1}
-			e := struct{Val int64; extra int64}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra int64
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra int64
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("int32", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra int32}{Val: 1, extra: 1}
-			e := struct{Val int64; extra int32}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra int32
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra int32
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("int16", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra int16}{Val: 1, extra: 1}
-			e := struct{Val int64; extra int16}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra int16
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra int16
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("int8", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra int8}{Val: 1, extra: 1}
-			e := struct{Val int64; extra int8}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra int8
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra int8
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("uint", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra uint}{Val: 1, extra: 1}
-			e := struct{Val int64; extra uint}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra uint
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra uint
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("uint64", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra uint64}{Val: 1, extra: 1}
-			e := struct{Val int64; extra uint64}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra uint64
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra uint64
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("uint32", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra uint32}{Val: 1, extra: 1}
-			e := struct{Val int64; extra uint32}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra uint32
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra uint32
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("uint16", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra uint16}{Val: 1, extra: 1}
-			e := struct{Val int64; extra uint16}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra uint16
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra uint16
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("uint8", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra uint8}{Val: 1, extra: 1}
-			e := struct{Val int64; extra uint8}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra uint8
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra uint8
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("float32", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra float32}{Val: 1, extra: 1}
-			e := struct{Val int64; extra float32}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra float32
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra float32
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("float64", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra float64}{Val: 1, extra: 1}
-			e := struct{Val int64; extra float64}{Val: 1, extra: 0}
+			o := struct {
+				Val   int64
+				extra float64
+			}{Val: 1, extra: 1}
+			e := struct {
+				Val   int64
+				extra float64
+			}{Val: 1, extra: 0}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("bool", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra bool}{Val: 1, extra: true}
-			e := struct{Val int64; extra bool}{Val: 1, extra: false}
+			o := struct {
+				Val   int64
+				extra bool
+			}{Val: 1, extra: true}
+			e := struct {
+				Val   int64
+				extra bool
+			}{Val: 1, extra: false}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("[1]byte", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra [1]byte}{Val: 1, extra: [1]byte{'1'}}
-			e := struct{Val int64; extra [1]byte}{Val: 1, extra: [1]byte{}}
+			o := struct {
+				Val   int64
+				extra [1]byte
+			}{Val: 1, extra: [1]byte{'1'}}
+			e := struct {
+				Val   int64
+				extra [1]byte
+			}{Val: 1, extra: [1]byte{}}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("[]byte", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra []byte}{Val: 1, extra: []byte{'1'}}
-			e := struct{Val int64; extra []byte}{Val: 1, extra: nil}
+			o := struct {
+				Val   int64
+				extra []byte
+			}{Val: 1, extra: []byte{'1'}}
+			e := struct {
+				Val   int64
+				extra []byte
+			}{Val: 1, extra: nil}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("string", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra string}{Val: 1, extra: "1"}
-			e := struct{Val int64; extra string}{Val: 1, extra: ""}
+			o := struct {
+				Val   int64
+				extra string
+			}{Val: 1, extra: "1"}
+			e := struct {
+				Val   int64
+				extra string
+			}{Val: 1, extra: ""}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("[]int", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra []int}{Val: 1, extra: []int{1}}
-			e := struct{Val int64; extra []int}{Val: 1, extra: nil}
+			o := struct {
+				Val   int64
+				extra []int
+			}{Val: 1, extra: []int{1}}
+			e := struct {
+				Val   int64
+				extra []int
+			}{Val: 1, extra: nil}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("struct", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra struct{i int}}{Val: 1, extra: struct{i int}{1}}
-			e := struct{Val int64; extra struct{i int}}{Val: 1, extra: struct{i int}{}}
+			o := struct {
+				Val   int64
+				extra struct{ i int }
+			}{Val: 1, extra: struct{ i int }{1}}
+			e := struct {
+				Val   int64
+				extra struct{ i int }
+			}{Val: 1, extra: struct{ i int }{}}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("time.Time", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra time.Time}{Val: 1, extra: time.Now()}
-			e := struct{Val int64; extra time.Time}{Val: 1, extra: time.Time{}}
+			o := struct {
+				Val   int64
+				extra time.Time
+			}{Val: 1, extra: time.Now()}
+			e := struct {
+				Val   int64
+				extra time.Time
+			}{Val: 1, extra: time.Time{}}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 		t.Run("map[int]int", func(t *testing.T) {
 			s := `message test {
 				required int64 val;
 			}`
-			o := struct{Val int64; extra map[int]int}{Val: 1, extra: map[int]int{1:1}}
-			e := struct{Val int64; extra map[int]int}{Val: 1, extra: nil}
+			o := struct {
+				Val   int64
+				extra map[int]int
+			}{Val: 1, extra: map[int]int{1: 1}}
+			e := struct {
+				Val   int64
+				extra map[int]int
+			}{Val: 1, extra: nil}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
 		})
 	})
