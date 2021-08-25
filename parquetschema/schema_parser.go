@@ -228,8 +228,8 @@ func isAlpha(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
 }
 
-func isAlphaNum(r rune) bool {
-	return isAlpha(r) || isDigit(r)
+func isSchemaDelim(r rune) bool {
+	return r == ' ' || r == ';' || r == '{' || r == '}' || r == '(' || r == ')' || r == '=' || r == ','
 }
 
 func lexSpace(l *schemaLexer) stateFn {
@@ -250,7 +250,7 @@ func lexIdentifier(l *schemaLexer) stateFn {
 loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNum(r): // the = is there to accept it as part of the identifiers being read within type annotations.
+		case !isSchemaDelim(r): // the = is there to accept it as part of the identifiers being read within type annotations.
 			// absorb.
 		default:
 			l.backup()
