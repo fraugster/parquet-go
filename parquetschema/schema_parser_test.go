@@ -301,8 +301,8 @@ func TestSchemaParser(t *testing.T) {
 		}`, false, false},
 		// 70.
 		{`message foo {
-			required fixed_len_byte_array(10) foo (DECIMAL(23,10));
-		}`, true, false}, // 23 is out of bounds; maximum for 10 is 22.
+			required fixed_len_byte_array(10) foo (DECIMAL(24,10));
+		}`, true, false}, // 24 is out of bounds; maximum for 10 is 23.
 		{`message foo {
 			required binary foo (DECIMAL(100,10));
 		}`, false, false},

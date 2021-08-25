@@ -912,7 +912,7 @@ func (col *ColumnDefinition) validateDecimalLogicalType() error {
 		}
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		n := *col.SchemaElement.TypeLength
-		maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1)) - 1))
+		maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1) - 1)))
 		if dec.Precision < 1 || dec.Precision > maxDigits {
 			return fmt.Errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.SchemaElement.Name, n, dec.Precision, maxDigits)
 		}
