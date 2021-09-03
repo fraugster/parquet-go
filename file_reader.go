@@ -25,9 +25,35 @@ type FileReader struct {
 // the names of the specific columns to read using dotted notation. If no columns are provided,
 // then all columns are read.
 func NewFileReader(r io.ReadSeeker, columns ...string) (*FileReader, error) {
-	meta, err := readFileMetaData(r)
+	meta, err := ReadFileMetaData(r, true)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading file meta data failed")
+	}
+
+	schema, err := makeSchema(meta)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating schema failed")
+	}
+
+	schema.setSelectedColumns(columns...)
+	// Reset the reader to the beginning of the file
+	if _, err := r.Seek(4, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return &FileReader{
+		meta:         meta,
+		SchemaReader: schema,
+		reader:       r,
+	}, nil
+}
+
+func NewFileReaderWithMetaData(r io.ReadSeeker, meta *parquet.FileMetaData, columns ...string) (*FileReader, error) {
+	var err error
+	if meta == nil {
+		meta, err = ReadFileMetaData(r, true)
+		if err != nil {
+			return nil, errors.Wrap(err, "reading file meta data failed")
+		}
 	}
 
 	schema, err := makeSchema(meta)
