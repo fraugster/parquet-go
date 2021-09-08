@@ -156,22 +156,20 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		value = value.Elem()
 	}
 
-	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
-			return m.decodeTimeValue(elem, field, value)
-		}
+	elem := schemaDef.SchemaElement()
+
+	if value.Type().ConvertibleTo(reflect.TypeOf(Time{})) && elem.LogicalType != nil && elem.GetLogicalType().IsSetTIME() {
+		return m.decodeTimeValue(elem, field, value)
 	}
 
-	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
-		if elem := schemaDef.SchemaElement(); elem.LogicalType != nil {
-			switch {
-			case elem.GetLogicalType().IsSetDATE():
-				days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
-				field.SetInt32(days)
-				return nil
-			case elem.GetLogicalType().IsSetTIMESTAMP():
-				return m.decodeTimestampValue(elem, field, value)
-			}
+	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) && elem.LogicalType != nil {
+		switch {
+		case elem.GetLogicalType().IsSetDATE():
+			days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
+			field.SetInt32(days)
+			return nil
+		case elem.GetLogicalType().IsSetTIMESTAMP():
+			return m.decodeTimestampValue(elem, field, value)
 		}
 	}
 
@@ -215,26 +213,36 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 }
 
 func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
-	if value.Kind() == reflect.Slice && value.IsNil() {
-		return nil
-	}
-
-	if elem := schemaDef.SchemaElement(); elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
+	elem := schemaDef.SchemaElement()
+	if elem.LogicalType != nil && elem.GetLogicalType().IsSetUUID() {
 		if value.Len() != 16 {
 			return fmt.Errorf("field is annotated as UUID but length is %d", value.Len())
 		}
 	}
 
-	if value.Kind() == reflect.Slice {
+	switch value.Kind() {
+	case reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
 		field.SetByteArray(value.Bytes())
-		return nil
+	case reflect.Array:
+		if *elem.Type == parquet.Type_INT96 {
+			if value.Len() != 12 {
+				return fmt.Errorf("field is of type INT96 but length is %d", value.Len())
+			}
+			data := reflect.New(value.Type()).Elem()
+			_ = reflect.Copy(data, value)
+
+			field.SetInt96(data.Interface().([12]byte))
+			return nil
+		}
+		data := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
+
+		_ = reflect.Copy(data, value)
+
+		field.SetByteArray(data.Bytes())
 	}
-
-	data := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
-
-	reflect.Copy(data, value)
-
-	field.SetByteArray(data.Bytes())
 	return nil
 }
 
