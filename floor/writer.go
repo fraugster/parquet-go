@@ -172,7 +172,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 			case elem.GetLogicalType().IsSetTIMESTAMP():
 				return m.decodeTimestampValue(elem, field, value)
 			}
-		} else if *elem.Type == parquet.Type_INT96 {
+		} else if elem.GetType() == parquet.Type_INT96 {
 			field.SetInt96(goparquet.TimeToInt96(value.Interface().(time.Time)))
 			return nil
 		}
@@ -232,7 +232,7 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalEleme
 		}
 		field.SetByteArray(value.Bytes())
 	case reflect.Array:
-		if *elem.Type == parquet.Type_INT96 {
+		if elem.GetType() == parquet.Type_INT96 {
 			if value.Len() != 12 {
 				return fmt.Errorf("field is of type INT96 but length is %d", value.Len())
 			}

@@ -6,14 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/pkg/errors"
 
+	"github.com/fraugster/parquet-go/floor/interfaces"
+
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/require"
+
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewReaderFailures(t *testing.T) {
@@ -525,6 +527,7 @@ func TestFillValue(t *testing.T) {
 		required int64 tsnano (TIMESTAMP(NANOS, true));
 		required int64 tsmicro (TIMESTAMP(MICROS, true));
 		required int64 tsmilli (TIMESTAMP(MILLIS, true));
+		required int96 tshive;
 		required int64 tnano (TIME(NANOS, true));
 		required int64 tmicro (TIME(MICROS, true));
 		required int32 tmilli (TIME(MILLIS, true));
@@ -544,6 +547,9 @@ func TestFillValue(t *testing.T) {
 
 	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem(int64(45299450)), sd.SubSchema("tsmilli")))
 	require.Equal(t, ts, time.Date(1970, 1, 1, 12, 34, 59, 450000000, time.UTC))
+
+	require.NoError(t, um.fillValue(reflect.ValueOf(&ts).Elem(), elem([12]byte{00, 0x60, 0xFD, 0x4B, 0x32, 0x29, 0x00, 0x00, 0x59, 0x68, 0x25, 0x00}), sd.SubSchema("tshive")))
+	require.Equal(t, ts, time.Date(2000, 1, 1, 12, 34, 56, 0, time.UTC))
 
 	var tt Time
 	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int64(30000000010)), sd.SubSchema("tnano")))
