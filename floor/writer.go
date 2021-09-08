@@ -162,14 +162,19 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		return m.decodeTimeValue(elem, field, value)
 	}
 
-	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) && elem.LogicalType != nil {
-		switch {
-		case elem.GetLogicalType().IsSetDATE():
-			days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
-			field.SetInt32(days)
+	if value.Type().ConvertibleTo(reflect.TypeOf(time.Time{})) {
+		if elem.LogicalType != nil {
+			switch {
+			case elem.GetLogicalType().IsSetDATE():
+				days := int32(value.Interface().(time.Time).Sub(time.Unix(0, 0).UTC()).Hours() / 24)
+				field.SetInt32(days)
+				return nil
+			case elem.GetLogicalType().IsSetTIMESTAMP():
+				return m.decodeTimestampValue(elem, field, value)
+			}
+		} else if *elem.Type == parquet.Type_INT96 {
+			field.SetInt96(goparquet.TimeToInt96(value.Interface().(time.Time)))
 			return nil
-		case elem.GetLogicalType().IsSetTIMESTAMP():
-			return m.decodeTimestampValue(elem, field, value)
 		}
 	}
 
