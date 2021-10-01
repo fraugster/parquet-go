@@ -378,17 +378,21 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 }
 
 func readPageData(col *Column, pages []pageReader) error {
+	//fmt.Printf("col %s: read %d pages\n", col.Name(), len(pages))
 	s := col.getColumnStore()
 	for i := range pages {
-		data := make([]interface{}, pages[i].numValues())
-		n, dl, rl, err := pages[i].readValues(data)
+		data, dl, rl, err := pages[i].readValues(int(pages[i].numValues()))
 		if err != nil {
 			return err
 		}
 
-		if int32(n) != pages[i].numValues() {
-			return errors.Errorf("expect %d value but read %d", pages[i].numValues(), n)
-		}
+		/*
+			if int32(n) != pages[i].numValues() {
+				return errors.Errorf("expect %d value but read %d", pages[i].numValues(), n)
+			}
+		*/
+
+		//fmt.Printf("\tpage %d: %d values, rl = %v dl = %v\n", i, pages[i].numValues(), rl, dl)
 
 		// using append to make sure we handle the multiple data page correctly
 		s.rLevels.appendArray(rl)
@@ -397,6 +401,8 @@ func readPageData(col *Column, pages []pageReader) error {
 		s.values.values = append(s.values.values, data...)
 		s.values.noDictMode = true
 	}
+
+	//fmt.Printf("\trLevels: %d dLevel: %d len(s.values.values): %d\n", s.rLevels.count, s.dLevels.count, len(s.values.values))
 
 	return nil
 }

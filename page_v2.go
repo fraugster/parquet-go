@@ -23,34 +23,35 @@ func (dp *dataPageReaderV2) numValues() int32 {
 	return dp.valuesCount
 }
 
-func (dp *dataPageReaderV2) readValues(val []interface{}) (n int, dLevel *packedArray, rLevel *packedArray, err error) {
-	size := len(val)
+func (dp *dataPageReaderV2) readValues(size int) (values []interface{}, dLevel *packedArray, rLevel *packedArray, err error) {
 	if rem := int(dp.valuesCount) - dp.position; rem < size {
 		size = rem
 	}
 
 	if size == 0 {
-		return 0, nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	rLevel, _, err = decodePackedArray(dp.rDecoder, size)
 	if err != nil {
-		return 0, nil, nil, errors.Wrap(err, "read repetition levels failed")
+		return nil, nil, nil, errors.Wrap(err, "read repetition levels failed")
 	}
 
 	var notNull int
 	dLevel, notNull, err = decodePackedArray(dp.dDecoder, size)
 	if err != nil {
-		return 0, nil, nil, errors.Wrap(err, "read definition levels failed")
+		return nil, nil, nil, errors.Wrap(err, "read definition levels failed")
 	}
 
+	val := make([]interface{}, notNull)
+
 	if notNull != 0 {
-		if n, err := dp.valuesDecoder.decodeValues(val[:notNull]); err != nil {
-			return 0, nil, nil, errors.Wrapf(err, "read values from page failed, need %d values but read %d", notNull, n)
+		if n, err := dp.valuesDecoder.decodeValues(val); err != nil {
+			return nil, nil, nil, errors.Wrapf(err, "read values from page failed, need %d values but read %d", notNull, n)
 		}
 	}
 	dp.position += size
-	return size, dLevel, rLevel, nil
+	return val, dLevel, rLevel, nil
 }
 
 func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error {
