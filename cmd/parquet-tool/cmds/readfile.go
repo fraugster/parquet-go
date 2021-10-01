@@ -5,10 +5,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
 	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 func catFile(w io.Writer, address string, n int) error {
@@ -23,6 +25,8 @@ func catFile(w io.Writer, address string, n int) error {
 		return fmt.Errorf("failed to read the parquet header: %q", err)
 	}
 
+	columnOrder := getColumnOrder(reader.GetSchemaDefinition())
+
 	for i := 0; (n == -1) || i < n; i++ {
 		data, err := reader.NextRow()
 		if err == io.EOF {
@@ -33,40 +37,73 @@ func catFile(w io.Writer, address string, n int) error {
 			continue
 		}
 
-		printData(w, data, "")
+		printData(w, data, "", columnOrder)
 		fmt.Println()
 	}
 
 	return nil
 }
 
+func getColumnOrder(schemaDef *parquetschema.SchemaDefinition) map[string]int {
+	cols := getColumnList(schemaDef.RootColumn.Children, "")
+
+	colOrder := map[string]int{}
+
+	for idx, colName := range cols {
+		colOrder[colName] = idx
+	}
+
+	return colOrder
+}
+
+func getColumnList(colDefs []*parquetschema.ColumnDefinition, prefix string) []string {
+	cols := []string{}
+	for _, col := range colDefs {
+		cols = append(cols, prefix+col.SchemaElement.Name)
+		if col.Children != nil {
+			cols = append(cols, getColumnList(col.Children, col.SchemaElement.Name+".")...)
+		}
+	}
+	return cols
+}
+
 func printPrimitive(w io.Writer, ident, name string, v interface{}) {
 	_, _ = fmt.Fprintln(w, ident+name+" = "+fmt.Sprint(v))
 }
 
-func printData(w io.Writer, m map[string]interface{}, ident string) {
-	for i := range m {
-		switch t := m[i].(type) {
+func printData(w io.Writer, m map[string]interface{}, ident string, columnOrder map[string]int) {
+	cols := []string{}
+
+	for colName := range m {
+		cols = append(cols, colName)
+	}
+
+	sort.Slice(cols, func(i, j int) bool {
+		return columnOrder[ident+cols[i]] < columnOrder[ident+cols[j]]
+	})
+
+	for _, colName := range cols {
+		switch t := m[colName].(type) {
 		case map[string]interface{}:
-			_, _ = fmt.Fprintln(w, ident+i+":")
-			printData(w, t, ident+".")
+			_, _ = fmt.Fprintln(w, ident+colName+":")
+			printData(w, t, ident+".", columnOrder)
 		case []map[string]interface{}:
 			for j := range t {
-				_, _ = fmt.Fprintln(w, ident+i+":")
-				printData(w, t[j], ident+".")
+				_, _ = fmt.Fprintln(w, ident+colName+":")
+				printData(w, t[j], ident+".", columnOrder)
 			}
 		case []byte:
-			_, _ = fmt.Fprintln(w, ident+i+" = "+string(t))
+			_, _ = fmt.Fprintln(w, ident+colName+" = "+string(t))
 		case [][]byte:
 			for j := range t {
-				_, _ = fmt.Fprintln(w, ident+i+" = "+string(t[j]))
+				_, _ = fmt.Fprintln(w, ident+colName+" = "+string(t[j]))
 			}
 		case []interface{}:
 			for j := range t {
-				_, _ = fmt.Fprintln(w, ident+i+" = "+fmt.Sprint(t[j]))
+				_, _ = fmt.Fprintln(w, ident+colName+" = "+fmt.Sprint(t[j]))
 			}
 		default:
-			printPrimitive(w, ident, i, t)
+			printPrimitive(w, ident, colName, t)
 		}
 	}
 }
