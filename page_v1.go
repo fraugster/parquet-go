@@ -120,7 +120,7 @@ func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet
 	return nil
 }
 
-func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
+func (dp *dataPageWriterV1) getHeader(comp, unComp int, totalValues int32) *parquet.PageHeader {
 	enc := dp.col.data.encoding()
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
@@ -131,7 +131,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil,
 		DataPageHeader: &parquet.DataPageHeader{
-			NumValues: dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
+			NumValues: totalValues,
 			Encoding:  enc,
 			// Only RLE supported for now, not sure if we need support for more encoding
 			DefinitionLevelEncoding: parquet.Encoding_RLE,
@@ -142,18 +142,18 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 	return ph
 }
 
-func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
+func (dp *dataPageWriterV1) write(w writePos, rLevels, dLevels *packedArray, values *dictStore, _ int32) (int, int, error) {
 	dataBuf := &bytes.Buffer{}
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevelsV1(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxRepetitionLevel(), rLevels); err != nil {
 			return 0, 0, err
 		}
 	}
 
 	// Only write definition value higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevelsV1(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxDefinitionLevel(), dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -163,12 +163,12 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), values)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble())
+	err = encodeValue(dataBuf, encoder, values.assemble())
 	if err != nil {
 		return 0, 0, err
 	}
@@ -179,7 +179,7 @@ func (dp *dataPageWriterV1) write(w io.Writer) (int, int, error) {
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 
-	header := dp.getHeader(compSize, unCompSize)
+	header := dp.getHeader(compSize, unCompSize, values.numValues() + values.nullValueCount())
 	if err := writeThrift(header, w); err != nil {
 		return 0, 0, err
 	}

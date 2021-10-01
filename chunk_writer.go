@@ -3,8 +3,9 @@ package goparquet
 import (
 	"sort"
 
-	"github.com/fraugster/parquet-go/parquet"
 	"github.com/pkg/errors"
+
+	"github.com/fraugster/parquet-go/parquet"
 )
 
 func getBooleanValuesEncoder(pageEncoding parquet.Encoding, store *dictStore) (valuesEncoder, error) {
@@ -200,7 +201,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
+func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, *parquet.ColumnIndex, *parquet.OffsetIndex, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	var (
@@ -215,17 +216,21 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		totalComp   int64
 		totalUnComp int64
 	)
+
+	col.data.completeLastPage()
+
+	// If we should use a dictionary to encode the data, write the dictionary page.
 	if col.data.useDictionary() {
 		useDict = true
 		tmp := pos // make a copy, do not use the pos here
 		dictPageOffset = &tmp
 		dict := &dictPageWriter{}
 		if err := dict.init(schema, col, codec); err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		compSize, unCompSize, err := dict.write(w)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		totalComp = w.Pos() - pos
 		// Header size plus the rLevel and dLevel size
@@ -234,21 +239,38 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		pos = w.Pos() // Move position for data pos
 	}
 
-	page := pageFn(useDict)
+	var totalCompressedSize, totalUncompressedSize int
+	var currRowIdx int64
+	pageLocations := make([]*parquet.PageLocation, len(col.data.completeValues))
+	for pageIdx := range col.data.completeValues {
+		rLevels := col.data.completeRLevels[pageIdx]
+		dLevels := col.data.completeDLevels[pageIdx]
+		values := col.data.completeValues[pageIdx]
+		rowCount := col.data.completeRowCounts[pageIdx]
 
-	if err := page.init(schema, col, codec); err != nil {
-		return nil, err
-	}
+		page := pageFn(useDict)
 
-	compSize, unCompSize, err := page.write(w)
-	if err != nil {
-		return nil, err
+		if err := page.init(schema, col, codec); err != nil {
+			return nil, nil, nil, err
+		}
+
+		pageStart := w.Pos()
+		compSize, unCompSize, err := page.write(w, rLevels, dLevels, values, rowCount)
+		pageEnd := w.Pos()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		totalCompressedSize += compSize
+		totalUncompressedSize += unCompSize
+		pageLocations[pageIdx] = &parquet.PageLocation{Offset: pageStart, CompressedPageSize: int32(pageEnd - pageStart + 1), FirstRowIndex: currRowIdx}
+
+		currRowIdx += int64(rowCount)
 	}
 
 	totalComp += w.Pos() - pos
 	// Header size plus the rLevel and dLevel size
-	headerSize := totalComp - int64(compSize)
-	totalUnComp += int64(unCompSize) + headerSize
+	headerSize := totalComp - int64(totalCompressedSize)
+	totalUnComp += int64(totalUncompressedSize) + headerSize
 
 	encodings := make([]parquet.Encoding, 0, 3)
 	encodings = append(encodings,
@@ -269,16 +291,6 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		return keyValueMetaData[i].Key < keyValueMetaData[j].Key
 	})
 
-	nullCount := int64(col.data.values.nullValueCount())
-	distinctCount := int64(col.data.values.numDistinctValues())
-
-	stats := &parquet.Statistics{
-		MinValue:      col.data.minValue(),
-		MaxValue:      col.data.maxValue(),
-		NullCount:     &nullCount,
-		DistinctCount: &distinctCount,
-	}
-
 	ch := &parquet.ColumnChunk{
 		FilePath:   nil, // No support for external
 		FileOffset: chunkOffset,
@@ -287,36 +299,76 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 			Encodings:             encodings,
 			PathInSchema:          col.pathArray(),
 			Codec:                 codec,
-			NumValues:             int64(col.data.values.numValues() + col.data.values.nullValueCount()),
+			NumValues:             int64(col.data.getTotalNonNullValues() + col.data.getTotalNullValues()),
 			TotalUncompressedSize: totalUnComp,
 			TotalCompressedSize:   totalComp,
 			KeyValueMetadata:      keyValueMetaData,
 			DataPageOffset:        pos,
 			IndexPageOffset:       nil,
 			DictionaryPageOffset:  dictPageOffset,
-			Statistics:            stats,
+			Statistics:            nil,
 			EncodingStats:         nil,
 		},
+
+		// We don't know what these values should be at this point because
+		// we have not yet written the OffsetIndex or ColumnIndex. They will
+		// be set once those indexes are written.
 		OffsetIndexOffset: nil,
 		OffsetIndexLength: nil,
 		ColumnIndexOffset: nil,
 		ColumnIndexLength: nil,
 	}
 
-	return ch, nil
+	return ch, col.data.getColumnIndex(), &parquet.OffsetIndex{PageLocations: pageLocations}, nil
 }
 
 func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
 	dataCols := schema.Columns()
-	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
+	var chunks = make([]*parquet.ColumnChunk, 0, len(dataCols))
+	var columnIndexes = make([]*parquet.ColumnIndex, 0, len(dataCols))
+	var offsetIndexes = make([]*parquet.OffsetIndex, 0, len(dataCols))
+
+	// 1. Write data first.
 	for _, ci := range dataCols {
-		ch, err := writeChunk(w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
+		chunk, columnIndex, offsetIndex, err := writeChunk(w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
 		if err != nil {
 			return nil, err
 		}
 
-		res = append(res, ch)
+		chunks = append(chunks, chunk)
+		columnIndexes = append(columnIndexes, columnIndex)
+		offsetIndexes = append(offsetIndexes, offsetIndex)
 	}
 
-	return res, nil
+	// 2. Indexes for each column in the row group are written after the data for all the columns.
+	for i, chunk := range chunks {
+		columnIndexOffset := w.Pos()
+		err := writeThrift(columnIndexes[i], w)
+		if err != nil {
+			return nil, err
+		}
+		offsetIndexStart := w.Pos()
+		err = writeThrift(offsetIndexes[i], w)
+		if err != nil {
+			return nil, err
+		}
+		offsetIndexEnd := w.Pos()
+
+		// Now we know where the index pages are so we can fill this in.
+		chunk.ColumnIndexOffset = int64Ptr(columnIndexOffset)
+		chunk.ColumnIndexLength = int32PtrFromInt64(offsetIndexStart - columnIndexOffset + 1)
+		chunk.OffsetIndexOffset = int64Ptr(offsetIndexStart)
+		chunk.OffsetIndexLength = int32PtrFromInt64(offsetIndexEnd - offsetIndexStart + 1)
+	}
+
+	return chunks, nil
+}
+
+func int64Ptr(x int64) *int64 {
+	return &x
+}
+
+func int32PtrFromInt64(x int64) *int32 {
+	i32 := int32(x)
+	return &i32
 }

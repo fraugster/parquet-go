@@ -1,12 +1,17 @@
 package goparquet
 
 import (
-	"math"
 	"math/bits"
 
-	"github.com/fraugster/parquet-go/parquet"
 	"github.com/pkg/errors"
+
+	"github.com/fraugster/parquet-go/parquet"
 )
+
+// maxValueSize is the maximum number of bytes we will put in a single page. Parquet's
+// recommendation is that data pages should be 8KB large. This is 2.5x higher than that
+// to account for compression.
+const maxValueSizePerPage = 20000
 
 // ColumnStore is the read/write implementation for a column. It buffers a single
 // column's data that is to be written to a parquet file, knows how to encode this
@@ -17,10 +22,18 @@ type ColumnStore struct {
 
 	repTyp parquet.FieldRepetitionType
 
-	values *dictStore
+	currValues    *dictStore
+	currRLevels   *packedArray
+	currDLevels   *packedArray
+	currRowCount  int32
+	currNullCount int32
 
-	dLevels *packedArray
-	rLevels *packedArray
+	completeValues    []*dictStore
+	completeDLevels   []*packedArray
+	completeRLevels   []*packedArray
+	completeRowCounts []int32
+	minValues         [][]byte
+	maxValues         [][]byte
 
 	enc     parquet.Encoding
 	readPos int
@@ -30,22 +43,37 @@ type ColumnStore struct {
 	skipped bool
 }
 
-// useDictionary is simply a function to decide to use dictionary or not,
+// useDictionary returns true if a dictionary page should be used to represent this
+// columnChunk. Currently, every page will either use the dictionary encoding or every
+// page will nto use the dictionary encoding. Parquet supports the individual data pages
+// being encoded differently, so we could optimize more here, but it would complicate
+// the existing dictionary writing logic so for now we it is all or nothing.
 func (cs *ColumnStore) useDictionary() bool {
 	if !cs.allowDict {
 		return false
 	}
-	if len(cs.values.data) > math.MaxInt16 {
+
+	if len(cs.completeValues) == 0 {
 		return false
+	}
+
+	var dataLength, numValues int
+	var totDictLen, totNoDictLen int64
+	for _, pageValues := range cs.completeValues {
+		dataLength += len(pageValues.data)
+		numValues += len(pageValues.values)
+
+		dictLen, noDictLen := pageValues.sizes()
+		totDictLen += dictLen
+		totNoDictLen += noDictLen
 	}
 
 	// There is no point for using dictionary if all values are nil
-	if len(cs.values.data) == 0 || len(cs.values.values) == 0 {
+	if dataLength == 0 || numValues == 0 {
 		return false
 	}
 
-	dictLen, noDictLen := cs.values.sizes()
-	return dictLen < noDictLen
+	return totDictLen < totNoDictLen
 }
 
 func (cs *ColumnStore) encoding() parquet.Encoding {
@@ -61,14 +89,19 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 		panic("generic should be used with typed column store")
 	}
 	cs.repTyp = rep
-	if cs.values == nil {
-		cs.values = &dictStore{}
-		cs.rLevels = &packedArray{}
-		cs.dLevels = &packedArray{}
+	if cs.currValues == nil {
+		cs.currValues = &dictStore{}
+		cs.currRLevels = &packedArray{}
+		cs.currDLevels = &packedArray{}
 	}
-	cs.values.init()
-	cs.rLevels.reset(bits.Len16(maxR))
-	cs.dLevels.reset(bits.Len16(maxD))
+	cs.currValues.init()
+	cs.currRLevels.reset(bits.Len16(maxR))
+	cs.currDLevels.reset(bits.Len16(maxD))
+
+	cs.completeValues = []*dictStore{}
+	cs.completeDLevels = []*packedArray{}
+	cs.completeRLevels = []*packedArray{}
+
 	cs.readPos = 0
 	cs.skipped = false
 
@@ -76,14 +109,20 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 }
 
 func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
-	cs.rLevels.appendSingle(int32(rl))
-	cs.dLevels.appendSingle(int32(dl))
+	cs.currRLevels.appendSingle(int32(rl))
+	cs.currDLevels.appendSingle(int32(dl))
 }
 
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
 func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
+	// If v is nil we will have already called this function once before
+	// and incremented the rowCount, so we do not increment it again here.
+	if v != nil {
+		cs.currRowCount += 1
+	}
+
 	// if the current column is repeated, we should increase the maxRL here
 	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -96,7 +135,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 	// level is one less
 	if v == nil {
 		cs.appendRDLevel(rL, dL)
-		cs.values.addValue(nil, 0)
+		cs.currValues.addValue(nil, 0)
 		return nil
 	}
 	vals, err := cs.getValues(v)
@@ -109,7 +148,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 	}
 
 	for i, j := range vals {
-		cs.values.addValue(j, cs.sizeOf(j))
+		cs.currValues.addValue(j, cs.sizeOf(j))
 		tmp := dL
 		if cs.repTyp != parquet.FieldRepetitionType_REQUIRED {
 			tmp++
@@ -122,6 +161,11 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 		}
 	}
 
+	dictLen, noDictLen := cs.currValues.sizes()
+	if dictLen > maxValueSizePerPage && noDictLen > maxValueSizePerPage {
+		cs.completeLastPage()
+	}
+
 	return nil
 }
 
@@ -132,14 +176,14 @@ func (cs *ColumnStore) getRDLevelAt(pos int) (int32, int32, bool) {
 	if pos < 0 {
 		pos = cs.readPos
 	}
-	if pos >= cs.rLevels.count || pos >= cs.dLevels.count {
+	if pos >= cs.currRLevels.count || pos >= cs.currDLevels.count {
 		return 0, 0, true
 	}
-	dl, err := cs.dLevels.at(pos)
+	dl, err := cs.currDLevels.at(pos)
 	if err != nil {
 		return 0, 0, true
 	}
-	rl, err := cs.rLevels.at(pos)
+	rl, err := cs.currRLevels.at(pos)
 	if err != nil {
 		return 0, 0, true
 	}
@@ -148,7 +192,7 @@ func (cs *ColumnStore) getRDLevelAt(pos int) (int32, int32, bool) {
 }
 
 func (cs *ColumnStore) getNext() (v interface{}, err error) {
-	v, err = cs.values.getNextValue()
+	v, err = cs.currValues.getNextValue()
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +204,7 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 		return nil, 0, nil
 	}
 
-	if cs.readPos >= cs.rLevels.count || cs.readPos >= cs.dLevels.count {
+	if cs.readPos >= cs.currRLevels.count || cs.readPos >= cs.currDLevels.count {
 		return nil, 0, errors.New("out of range")
 	}
 	_, dl, _ := cs.getRDLevelAt(cs.readPos)
@@ -199,6 +243,80 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 		}
 
 		ret = cs.typedColumnStore.append(ret, v)
+	}
+}
+
+func (cs *ColumnStore) getTotalNonNullValues() int32 {
+	tot := cs.currValues.numValues()
+	for _, values := range cs.completeValues {
+		tot += values.numValues()
+	}
+
+	return tot
+}
+
+func (cs *ColumnStore) getTotalNullValues() int32 {
+	tot := cs.currValues.nullValueCount()
+	for _, values := range cs.completeValues {
+		tot += values.nullValueCount()
+	}
+
+	return tot
+}
+
+func (cs *ColumnStore) getTotalDistinctValues() int32 {
+	tot := cs.currValues.numDistinctValues()
+	for _, values := range cs.completeValues {
+		tot += values.numDistinctValues()
+	}
+
+	return tot
+}
+
+func (cs *ColumnStore) getTotalSize() int64 {
+	tot := cs.currValues.size
+	for _, values := range cs.completeValues {
+		tot += values.size
+	}
+	return tot
+}
+
+func (cs *ColumnStore) completeLastPage() {
+	if len(cs.currValues.values) == 0 {
+		return
+	}
+
+	cs.completeRLevels = append(cs.completeRLevels, cs.currRLevels)
+	cs.completeDLevels = append(cs.completeDLevels, cs.currDLevels)
+	cs.completeValues = append(cs.completeValues, cs.currValues)
+	cs.completeRowCounts = append(cs.completeRowCounts, cs.currRowCount)
+	cs.minValues = append(cs.minValues, cs.minValue())
+	cs.maxValues = append(cs.maxValues, cs.maxValue())
+
+	repetitionLevelBitWidth := cs.currRLevels.bw
+	definitionLevelBitWidth := cs.currDLevels.bw
+
+	cs.typedColumnStore.reset(cs.typedColumnStore.repetitionType())
+	cs.currValues = &dictStore{}
+	cs.currRLevels = &packedArray{}
+	cs.currDLevels = &packedArray{}
+	cs.currValues.init()
+	cs.currRLevels.reset(repetitionLevelBitWidth)
+	cs.currDLevels.reset(definitionLevelBitWidth)
+	cs.currRowCount = 0
+}
+
+func (cs *ColumnStore) getColumnIndex() *parquet.ColumnIndex {
+	// TODO: actually start keeping track of these values as we go.
+	nullPages := make([]bool, len(cs.completeValues))
+	nullCounts := make([]int64, len(cs.completeValues))
+
+	return &parquet.ColumnIndex{
+		NullPages:     nullPages,
+		MinValues:     cs.minValues,
+		MaxValues:     cs.maxValues,
+		BoundaryOrder: parquet.BoundaryOrder_UNORDERED,
+		NullCounts:    nullCounts,
 	}
 }
 

@@ -82,7 +82,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil,
 		DictionaryPageHeader: &parquet.DictionaryPageHeader{
-			NumValues: dp.col.data.values.numDistinctValues(),
+			NumValues: dp.col.data.getTotalDistinctValues(),
 			Encoding:  parquet.Encoding_PLAIN, // PLAIN_DICTIONARY is deprecated in the Parquet 2.0 specification
 			IsSorted:  nil,
 		},
@@ -99,9 +99,11 @@ func (dp *dictPageWriter) write(w io.Writer) (int, int, error) {
 		return 0, 0, err
 	}
 
-	err = encodeValue(dataBuf, encoder, dp.col.data.values.values)
-	if err != nil {
-		return 0, 0, err
+	for _, valuesPage := range dp.col.data.completeValues {
+		err = encodeValue(dataBuf, encoder, valuesPage.values)
+		if err != nil {
+			return 0, 0, err
+		}
 	}
 
 	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)

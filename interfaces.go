@@ -20,7 +20,7 @@ type pageReader interface {
 type pageWriter interface {
 	init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error
 
-	write(w io.Writer) (int, int, error)
+	write(w writePos, rLevels, dLevels *packedArray, values *dictStore, rowCount int32) (int, int, error)
 }
 
 type newDataPageFunc func(useDict bool) pageWriter

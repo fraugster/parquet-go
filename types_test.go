@@ -371,20 +371,20 @@ func TestStores(t *testing.T) {
 			err := st.add(data, 3, 3, 0)
 			require.NoError(t, err)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.currValues.assemble())
 			// Field is not Required, so def level should be one more
-			assert.Equal(t, []int32{4, 4, 4}, st.dLevels.toArray())
+			assert.Equal(t, []int32{4, 4, 4}, st.currDLevels.toArray())
 			// Field is repeated so the rep level (except for the first one which is the new record)
 			// should be one more
-			assert.Equal(t, []int32{0, 4, 4}, st.rLevels.toArray())
+			assert.Equal(t, []int32{0, 4, 4}, st.currRLevels.toArray())
 
 			err = st.add(randArr(0), 3, 3, 0)
 			require.NoError(t, err)
 			// No Reset
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.currValues.assemble())
 			// The new field is nil
-			assert.Equal(t, []int32{4, 4, 4, 3}, st.dLevels.toArray())
-			assert.Equal(t, []int32{0, 4, 4, 0}, st.rLevels.toArray())
+			assert.Equal(t, []int32{4, 4, 4, 3}, st.currDLevels.toArray())
+			assert.Equal(t, []int32{0, 4, 4, 0}, st.currRLevels.toArray())
 
 			// One record
 			data = randArr(1)
@@ -392,21 +392,21 @@ func TestStores(t *testing.T) {
 			err = st.add(getOne(data), 3, 3, 0)
 			require.NoError(t, err)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.currValues.assemble())
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3}, st.dLevels.toArray())
-			assert.Equal(t, []int32{0}, st.rLevels.toArray())
+			assert.Equal(t, []int32{3}, st.currDLevels.toArray())
+			assert.Equal(t, []int32{0}, st.currRLevels.toArray())
 
 			data2 := randArr(1)
 			err = st.add(getOne(data2), 3, 3, 10)
 			require.NoError(t, err)
 			// No reset
 			dArr := []interface{}{getOne(data), getOne(data2)}
-			assert.Equal(t, dArr, st.values.assemble())
+			assert.Equal(t, dArr, st.currValues.assemble())
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3, 3}, st.dLevels.toArray())
+			assert.Equal(t, []int32{3, 3}, st.currDLevels.toArray())
 			// rLevel is more than max, so its max now
-			assert.Equal(t, []int32{0, 3}, st.rLevels.toArray())
+			assert.Equal(t, []int32{0, 3}, st.currRLevels.toArray())
 
 			// empty array had same effect as nil in repeated, but not in required
 			err = st.add(randArr(0), 3, 3, 10)
@@ -419,12 +419,12 @@ func TestStores(t *testing.T) {
 			err = st.add(nil, 3, 3, 0)
 			assert.NoError(t, err)
 
-			assert.Equal(t, dArr, st.values.assemble())
+			assert.Equal(t, dArr, st.currValues.assemble())
 
 			// Field is Required, so def level should be exact
-			assert.Equal(t, []int32{3, 3, 3}, st.dLevels.toArray())
+			assert.Equal(t, []int32{3, 3, 3}, st.currDLevels.toArray())
 			// rLevel is more than max, so its max now
-			assert.Equal(t, []int32{0, 3, 0}, st.rLevels.toArray())
+			assert.Equal(t, []int32{0, 3, 0}, st.currRLevels.toArray())
 		})
 	}
 }

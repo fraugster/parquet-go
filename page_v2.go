@@ -143,7 +143,7 @@ func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet
 	return nil
 }
 
-func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool) *parquet.PageHeader {
+func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool, numNonNullValues, numNulls, numRows int32) *parquet.PageHeader {
 	enc := dp.col.data.encoding()
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
@@ -154,9 +154,9 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		CompressedPageSize:   int32(comp + defSize + repSize),
 		Crc:                  nil,
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
-			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
-			NumNulls:                   dp.col.data.values.nullValueCount(),
-			NumRows:                    int32(dp.schema.rowGroupNumRecords()),
+			NumValues:                  numNonNullValues + numNulls,
+			NumNulls:                   numNulls,
+			NumRows:                    numRows,
 			Encoding:                   enc,
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),
@@ -167,12 +167,12 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 	return ph
 }
 
-func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
+func (dp *dataPageWriterV2) write(w writePos, rLevels, dLevels *packedArray, values *dictStore, rowCount int32) (int, int, error) {
 	rep := &bytes.Buffer{}
 
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevelsV2(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV2(rep, dp.col.MaxRepetitionLevel(), rLevels); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -181,7 +181,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 
 	// Only write definition level higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevelsV2(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV2(def, dp.col.MaxDefinitionLevel(), dLevels); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -192,12 +192,12 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), values)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	if err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
+	if err = encodeValue(dataBuf, encoder, values.assemble()); err != nil {
 		return 0, 0, err
 	}
 
@@ -207,7 +207,9 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 	defLen, repLen := def.Len(), rep.Len()
-	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED)
+	isCompressed := dp.codec != parquet.CompressionCodec_UNCOMPRESSED
+
+	header := dp.getHeader(compSize, unCompSize, defLen, repLen, isCompressed, values.numValues(), values.nullValueCount(), rowCount)
 	if err := writeThrift(header, w); err != nil {
 		return 0, 0, err
 	}

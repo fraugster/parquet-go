@@ -163,9 +163,9 @@ func (c *Column) buildElement() *parquet.SchemaElement {
 func (c *Column) getDataSize() int64 {
 	if _, ok := c.data.typedColumnStore.(*booleanStore); ok {
 		// Booleans are stored in one bit, so the result is the number of items / 8
-		return int64(c.data.values.numValues())/8 + 1
+		return int64(c.data.getTotalSize())/8 + 1
 	}
-	return c.data.values.size
+	return c.data.getTotalSize()
 }
 
 func (c *Column) getNextData() (map[string]interface{}, int32, error) {

@@ -232,7 +232,7 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 			}
 
 			// re-use the value dictionary store
-			p.values = col.getColumnStore().values.values
+			p.values = col.getColumnStore().currValues.values
 			if err := p.read(r, ph, chunkMeta.Codec); err != nil {
 				return nil, err
 			}
@@ -391,11 +391,11 @@ func readPageData(col *Column, pages []pageReader) error {
 		}
 
 		// using append to make sure we handle the multiple data page correctly
-		s.rLevels.appendArray(rl)
-		s.dLevels.appendArray(dl)
+		s.currRLevels.appendArray(rl)
+		s.currDLevels.appendArray(dl)
 
-		s.values.values = append(s.values.values, data...)
-		s.values.noDictMode = true
+		s.currValues.values = append(s.currValues.values, data...)
+		s.currValues.noDictMode = true
 	}
 
 	return nil
