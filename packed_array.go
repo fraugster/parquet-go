@@ -22,10 +22,6 @@ type packedArray struct {
 	reader unpack8int32Func
 }
 
-func (pa *packedArray) String() string {
-	return fmt.Sprintf("<count=%d bw=%d len(data)=%d>", pa.count, pa.bw, len(pa.data))
-}
-
 // This function is only for testing, as it flushes first, so be careful!
 func (pa *packedArray) toArray() []int32 {
 	ret := make([]int32, pa.count)
