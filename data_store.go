@@ -168,17 +168,12 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	// do not touch the dict-store
 	if dl < maxD {
 		cs.readPos++
-		//fmt.Printf("cs: null at read pos %d, rl = %d dl = %d maxD = %d\n", cs.readPos, rl, dl, maxD)
 		return nil, dl, nil
 	}
 	v, err := cs.getNext()
 	if err != nil {
 		return nil, 0, err
 	}
-
-	//vstr, ok := v.([]byte)
-
-	//fmt.Printf("cs: non-null %v (ok = %t) at read pos %d, rl = %d dl = %d, maxD = %d\n", string(vstr), ok, cs.readPos, rl, dl, maxD)
 
 	// if this is not repeated just return the value, the result is not an array
 	if cs.repTyp != parquet.FieldRepetitionType_REPEATED {

@@ -268,7 +268,7 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 			dictValue = dictPage.values
 		}
 		var fn = func(typ parquet.Encoding) (valuesDecoder, error) {
-			return getValuesDecoder(typ, col.Element(), dictValue)
+			return getValuesDecoder(typ, col.Element(), clone(dictValue))
 		}
 		if err := p.init(dDecoder, rDecoder, fn); err != nil {
 			return nil, err
@@ -281,6 +281,12 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 	}
 
 	return pages, nil
+}
+
+func clone(in []interface{}) []interface{} {
+	out := make([]interface{}, len(in))
+	copy(out, in)
+	return out
 }
 
 func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
@@ -378,21 +384,12 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 }
 
 func readPageData(col *Column, pages []pageReader) error {
-	//fmt.Printf("col %s: read %d pages\n", col.Name(), len(pages))
 	s := col.getColumnStore()
 	for i := range pages {
 		data, dl, rl, err := pages[i].readValues(int(pages[i].numValues()))
 		if err != nil {
 			return err
 		}
-
-		/*
-			if int32(n) != pages[i].numValues() {
-				return errors.Errorf("expect %d value but read %d", pages[i].numValues(), n)
-			}
-		*/
-
-		//fmt.Printf("\tpage %d: %d values, rl = %v dl = %v\n", i, pages[i].numValues(), rl, dl)
 
 		// using append to make sure we handle the multiple data page correctly
 		s.rLevels.appendArray(rl)
@@ -401,8 +398,6 @@ func readPageData(col *Column, pages []pageReader) error {
 		s.values.values = append(s.values.values, data...)
 		s.values.noDictMode = true
 	}
-
-	//fmt.Printf("\trLevels: %d dLevel: %d len(s.values.values): %d\n", s.rLevels.count, s.dLevels.count, len(s.values.values))
 
 	return nil
 }
