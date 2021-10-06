@@ -486,6 +486,8 @@ message foo { }`, false, false}, // this is necessary because we once had a pars
 
 			}
 		}`, false, true}, // invalid ConvertedType
+		// 110.
+		{`message foo { required binary METADATA$ACTION (STRING); }`, false, false}, // column name includes special character.
 	}
 
 	for idx, tt := range testData {
