@@ -61,7 +61,7 @@ func NewFileReaderWithMetaData(r io.ReadSeeker, meta *parquet.FileMetaData, colu
 		return nil, errors.Wrap(err, "creating schema failed")
 	}
 
-	schema.setSelectedColumns(columns...)
+	schema.SetSelectedColumns(columns...)
 	// Reset the reader to the beginning of the file
 	if _, err := r.Seek(4, io.SeekStart); err != nil {
 		return nil, err
