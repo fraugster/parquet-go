@@ -235,6 +235,14 @@ func (um *reflectUnmarshaller) fillValue(value reflect.Value, data interfaces.Un
 			case elem.GetLogicalType().IsSetTIMESTAMP():
 				return um.fillTimestampValue(elem, value, data)
 			}
+		} else if elem.GetType() == parquet.Type_INT96 {
+			i96, err := data.Int96()
+			if err != nil {
+				return err
+			}
+
+			value.Set(reflect.ValueOf(goparquet.Int96ToTime(i96).UTC()))
+			return nil
 		}
 	}
 
