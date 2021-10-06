@@ -73,6 +73,12 @@ func NewFileReaderWithMetaData(r io.ReadSeeker, meta *parquet.FileMetaData, colu
 	}, nil
 }
 
+func (f *FileReader) SeekToRowGroup(rowGroupPosition int) error {
+	f.rowGroupPosition = rowGroupPosition - 1
+	f.currentRecord = 0
+	return f.readRowGroup()
+}
+
 // readRowGroup read the next row group into memory
 func (f *FileReader) readRowGroup() error {
 	if len(f.meta.RowGroups) <= f.rowGroupPosition {
