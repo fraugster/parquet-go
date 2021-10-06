@@ -228,8 +228,8 @@ func isAlpha(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
 }
 
-func isAlphaNum(r rune) bool {
-	return isAlpha(r) || isDigit(r)
+func isSchemaDelim(r rune) bool {
+	return r == ' ' || r == ';' || r == '{' || r == '}' || r == '(' || r == ')' || r == '=' || r == ','
 }
 
 func lexSpace(l *schemaLexer) stateFn {
@@ -250,7 +250,7 @@ func lexIdentifier(l *schemaLexer) stateFn {
 loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNum(r): // the = is there to accept it as part of the identifiers being read within type annotations.
+		case !isSchemaDelim(r): // the = is there to accept it as part of the identifiers being read within type annotations.
 			// absorb.
 		default:
 			l.backup()
@@ -912,7 +912,7 @@ func (col *ColumnDefinition) validateDecimalLogicalType() error {
 		}
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		n := *col.SchemaElement.TypeLength
-		maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1)) - 1))
+		maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1) - 1)))
 		if dec.Precision < 1 || dec.Precision > maxDigits {
 			return fmt.Errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.SchemaElement.Name, n, dec.Precision, maxDigits)
 		}

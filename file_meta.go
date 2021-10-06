@@ -11,30 +11,32 @@ import (
 
 var magic = []byte{'P', 'A', 'R', '1'}
 
-func readFileMetaData(r io.ReadSeeker) (*parquet.FileMetaData, error) {
-	if _, err := r.Seek(0, io.SeekStart); err != nil {
-		return nil, errors.Wrap(err, "seek for the file magic header failed")
-	}
+func ReadFileMetaData(r io.ReadSeeker, extraValidation bool) (*parquet.FileMetaData, error) {
+	if extraValidation {
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return nil, errors.Wrap(err, "seek for the file magic header failed")
+		}
 
-	buf := make([]byte, 4)
-	// read and validate header
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, errors.Wrap(err, "read the file magic header failed")
-	}
-	if !bytes.Equal(buf, magic) {
-		return nil, errors.Errorf("invalid parquet file header")
-	}
+		buf := make([]byte, 4)
+		// read and validate header
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, errors.Wrap(err, "read the file magic header failed")
+		}
+		if !bytes.Equal(buf, magic) {
+			return nil, errors.Errorf("invalid parquet file header")
+		}
 
-	// read and validate footer
-	if _, err := r.Seek(-4, io.SeekEnd); err != nil {
-		return nil, errors.Wrap(err, "seek for the file magic footer failed")
-	}
+		// read and validate footer
+		if _, err := r.Seek(-4, io.SeekEnd); err != nil {
+			return nil, errors.Wrap(err, "seek for the file magic footer failed")
+		}
 
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, errors.Wrap(err, "read the file magic header failed")
-	}
-	if !bytes.Equal(buf, magic) {
-		return nil, errors.Errorf("invalid parquet file footer")
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, errors.Wrap(err, "read the file magic header failed")
+		}
+		if !bytes.Equal(buf, magic) {
+			return nil, errors.Errorf("invalid parquet file footer")
+		}
 	}
 
 	// read footer length
