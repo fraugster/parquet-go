@@ -345,7 +345,12 @@ func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.Unma
 func (um *reflectUnmarshaller) fillByteArrayOrSlice(value reflect.Value, data interfaces.UnmarshalElement, schemaDef *parquetschema.SchemaDefinition) error {
 	byteSlice, err := data.ByteArray()
 	if err != nil {
-		return err
+		// check to see if it's actually an INT96
+		int96, int96Err := data.Int96()
+		if int96Err != nil {
+			return err
+		}
+		byteSlice = int96[0:]
 	}
 	if value.Kind() == reflect.Slice {
 		value.Set(reflect.MakeSlice(value.Type(), len(byteSlice), len(byteSlice)))
