@@ -8,7 +8,6 @@ import (
 )
 
 func TestGenerateSchema(t *testing.T) {
-
 	tests := map[string]struct {
 		Input          interface{}
 		ExpectErr      bool
@@ -16,23 +15,23 @@ func TestGenerateSchema(t *testing.T) {
 	}{
 		"simple types": {
 			Input: struct {
-				Foo  int
-				Bar  uint
-				Baz  string
-				Quux float32
-				Bla  float64
-				Abc  int8
-				Def  int16
+				Foo  string
+				Bar  int
+				Baz  uint
+				Quux float64
+				Bla  int64
+				Abc  uint64
+				Def  float32
 				Ghi  int32
-				Jkl  int64
-				Mno  uint8
+				Jkl  uint32
+				Mno  int16
 				Pqr  uint16
-				Stu  uint32
-				Vwx  uint64
-				Yz   bool
+				Rst  int8
+				Uvw  uint8
+				Xyz  bool
 			}{},
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  required int32 foo (INT(32, true));\n  required int32 bar (INT(32, false));\n  required binary baz (STRING);\n  required float quux;\n  required double bla;\n  required int32 abc (INT(8, true));\n  required int32 def (INT(16, true));\n  required int32 ghi (INT(32, true));\n  required int64 jkl (INT(64, true));\n  required int32 mno (INT(8, false));\n  required int32 pqr (INT(16, false));\n  required int32 stu (INT(32, false));\n  required int64 vwx (INT(64, false));\n  required boolean yz;\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  required binary foo (STRING);\n  required int32 bar (INT(32, true));\n  required int32 baz (INT(32, false));\n  required double quux;\n  required int64 bla (INT(64, true));\n  required int64 abc (INT(64, false));\n  required float def;\n  required int32 ghi (INT(32, true));\n  required int32 jkl (INT(32, false));\n  required int32 mno (INT(16, true));\n  required int32 pqr (INT(16, false));\n  required int32 rst (INT(8, true));\n  required int32 uvw (INT(8, false));\n  required boolean xyz;\n}\n",
 		},
 		"optional type": {
 			Input: struct {
