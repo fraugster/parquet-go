@@ -72,7 +72,7 @@ func TestGenerateSchema(t *testing.T) {
 				}
 			})(nil),
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated int32 list (INT(32, true));\n  }\n  optional group bar (LIST) {\n    repeated int32 list (INT(32, true));\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required int32 quux (INT(32, true));\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      optional int32 fasel (INT(32, true));\n    }\n  }\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated group list {\n      required int32 element (INT(32, true));\n    }\n  }\n  optional group bar (LIST) {\n    repeated group list {\n      required int32 element (INT(32, true));\n    }\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required group element {\n        required int32 quux (INT(32, true));\n      }\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      required group element {\n        optional int32 fasel (INT(32, true));\n      }\n    }\n  }\n}\n",
 		},
 		"byte slices": {
 			Input: (*struct {

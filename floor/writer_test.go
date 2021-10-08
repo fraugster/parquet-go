@@ -1,7 +1,6 @@
 package floor
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -568,12 +567,12 @@ func (r *marshTestRecord) MarshalParquet(obj interfaces.MarshalObject) error {
 		grp.AddField("quux").SetInt64(b.quux)
 	}
 
-	fmt.Printf("marshal data: %s", spew.Sdump(obj.GetData()))
+	//fmt.Printf("marshal data: %s", spew.Sdump(obj.GetData()))
 	return nil
 }
 
 func (r *marshTestRecord) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
-	fmt.Printf("unmarshal data: %s", spew.Sdump(obj.GetData()))
+	//fmt.Printf("unmarshal data: %s", spew.Sdump(obj.GetData()))
 
 	foo := obj.GetField("foo")
 	if err := foo.Error(); err != nil {

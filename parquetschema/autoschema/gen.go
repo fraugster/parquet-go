@@ -309,12 +309,12 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 				},
 			}, nil
 		}
-		sliceType, err := generateField(fieldType.Elem(), "list")
+		elementType, err := generateField(fieldType.Elem(), "element")
 		if err != nil {
 			return nil, err
 		}
-		repType := sliceType.SchemaElement.RepetitionType
-		sliceType.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REPEATED)
+		repType := elementType.SchemaElement.RepetitionType
+		elementType.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED)
 		return &parquetschema.ColumnDefinition{
 			SchemaElement: &parquet.SchemaElement{
 				Name:           fieldName,
@@ -325,7 +325,15 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 				},
 			},
 			Children: []*parquetschema.ColumnDefinition{
-				sliceType,
+				{
+					SchemaElement: &parquet.SchemaElement{
+						Name:           "list",
+						RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REPEATED),
+					},
+					Children: []*parquetschema.ColumnDefinition{
+						elementType,
+					},
+				},
 			},
 		}, nil
 	case reflect.String:
