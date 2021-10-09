@@ -22,6 +22,9 @@ func main() {
 			required binary city (STRING);
 			optional int64 population;
 		}`)
+	if err != nil {
+		log.Fatalf("Parsing schema definition failed: %v", err)
+	}
 
 	fw := goparquet.NewFileWriter(f,
 		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),

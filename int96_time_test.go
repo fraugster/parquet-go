@@ -32,3 +32,14 @@ func TestConvert(t *testing.T) {
 	expected := time.Date(2000, 1, 1, 12, 34, 56, 0, time.UTC)
 	require.Equal(t, expected, ts.UTC())
 }
+
+func TestTimeAfterUnixEpoch(t *testing.T) {
+	var (
+		t0, t1 time.Time
+	)
+
+	t1, _ = time.Parse(time.RFC3339, "1970-01-01T00:00:01Z")
+
+	require.False(t, IsAfterUnixEpoch(t0))
+	require.True(t, IsAfterUnixEpoch(t1))
+}
