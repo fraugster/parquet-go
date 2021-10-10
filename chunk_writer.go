@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"sort"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -200,7 +201,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
+func writeChunk(ctx context.Context, w writePos, schema SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	var (
@@ -223,7 +224,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		if err := dict.init(schema, col, codec); err != nil {
 			return nil, err
 		}
-		compSize, unCompSize, err := dict.write(w)
+		compSize, unCompSize, err := dict.write(ctx, w)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +241,7 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 		return nil, err
 	}
 
-	compSize, unCompSize, err := page.write(w)
+	compSize, unCompSize, err := page.write(ctx, w)
 	if err != nil {
 		return nil, err
 	}
@@ -306,11 +307,11 @@ func writeChunk(w writePos, schema SchemaWriter, col *Column, codec parquet.Comp
 	return ch, nil
 }
 
-func writeRowGroup(w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
+func writeRowGroup(ctx context.Context, w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
 	dataCols := schema.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		ch, err := writeChunk(w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
+		ch, err := writeChunk(ctx, w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
 		if err != nil {
 			return nil, err
 		}

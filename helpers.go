@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"encoding/binary"
 	"hash/fnv"
 	"io"
@@ -95,25 +96,25 @@ func writeFull(w io.Writer, buf []byte) error {
 }
 
 type thriftReader interface {
-	Read(thrift.TProtocol) error
+	Read(context.Context, thrift.TProtocol) error
 }
 
-func readThrift(tr thriftReader, r io.Reader) error {
+func readThrift(ctx context.Context, tr thriftReader, r io.Reader) error {
 	// Make sure we are not using any kind of buffered reader here. bufio.Reader "can" reads more data ahead of time,
 	// which is a problem on this library
 	transport := &thrift.StreamTransport{Reader: r}
 	proto := thrift.NewTCompactProtocol(transport)
-	return tr.Read(proto)
+	return tr.Read(ctx, proto)
 }
 
 type thriftWriter interface {
-	Write(thrift.TProtocol) error
+	Write(context.Context, thrift.TProtocol) error
 }
 
-func writeThrift(tr thriftWriter, w io.Writer) error {
+func writeThrift(ctx context.Context, tr thriftWriter, w io.Writer) error {
 	transport := &thrift.StreamTransport{Writer: w}
 	proto := thrift.NewTCompactProtocol(transport)
-	return tr.Write(proto)
+	return tr.Write(ctx, proto)
 }
 
 func decodeInt32(d decoder, data []int32) error {

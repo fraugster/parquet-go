@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"io"
 
@@ -11,7 +12,15 @@ import (
 
 var magic = []byte{'P', 'A', 'R', '1'}
 
+// ReadFileMetaData reads and returns the meta data of a parquet file. You can use this function
+// to read and inspect the meta data before starting to read the whole parquet file.
 func ReadFileMetaData(r io.ReadSeeker, extraValidation bool) (*parquet.FileMetaData, error) {
+	return ReadFileMetaDataWithContext(context.Background(), r, extraValidation)
+}
+
+// ReadFileMetaDataWithContext reads and returns the meta data of a parquet file. You can use this function
+// to read and inspect the meta data before starting to read the whole parquet file.
+func ReadFileMetaDataWithContext(ctx context.Context, r io.ReadSeeker, extraValidation bool) (*parquet.FileMetaData, error) {
 	if extraValidation {
 		if _, err := r.Seek(0, io.SeekStart); err != nil {
 			return nil, errors.Wrap(err, "seek for the file magic header failed")
@@ -56,7 +65,7 @@ func ReadFileMetaData(r io.ReadSeeker, extraValidation bool) (*parquet.FileMetaD
 		return nil, errors.Wrap(err, "seek file meta data failed")
 	}
 	meta := &parquet.FileMetaData{}
-	if err := readThrift(meta, io.LimitReader(r, int64(fl))); err != nil {
+	if err := readThrift(ctx, meta, io.LimitReader(r, int64(fl))); err != nil {
 		return nil, errors.Wrap(err, "read file meta failed")
 	}
 

@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -20,7 +21,7 @@ type pageReader interface {
 type pageWriter interface {
 	init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error
 
-	write(w io.Writer) (int, int, error)
+	write(ctx context.Context, w io.Writer) (int, int, error)
 }
 
 type newDataPageFunc func(useDict bool) pageWriter
