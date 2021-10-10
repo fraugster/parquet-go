@@ -103,7 +103,7 @@ func readThrift(ctx context.Context, tr thriftReader, r io.Reader) error {
 	// Make sure we are not using any kind of buffered reader here. bufio.Reader "can" reads more data ahead of time,
 	// which is a problem on this library
 	transport := &thrift.StreamTransport{Reader: r}
-	proto := thrift.NewTCompactProtocol(transport)
+	proto := thrift.NewTCompactProtocolConf(transport, &thrift.TConfiguration{})
 	return tr.Read(ctx, proto)
 }
 
@@ -113,7 +113,7 @@ type thriftWriter interface {
 
 func writeThrift(ctx context.Context, tr thriftWriter, w io.Writer) error {
 	transport := &thrift.StreamTransport{Writer: w}
-	proto := thrift.NewTCompactProtocol(transport)
+	proto := thrift.NewTCompactProtocolConf(transport, &thrift.TConfiguration{})
 	return tr.Write(ctx, proto)
 }
 
