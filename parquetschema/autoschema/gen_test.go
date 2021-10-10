@@ -2,6 +2,7 @@ package autoschema
 
 import (
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,12 @@ func TestGenerateSchema(t *testing.T) {
 		"non-struct input": {
 			Input:     int64(42),
 			ExpectErr: true,
+		},
+		"time.Time": {
+			Input: (*struct {
+				Foo time.Time
+			})(nil),
+			ExpectedOutput: "message autogen_schema {\n  required int64 foo (TIMESTAMP(NANOS, true));\n}\n",
 		},
 	}
 

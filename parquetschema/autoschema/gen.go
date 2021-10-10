@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
@@ -349,17 +350,36 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 			},
 		}, nil
 	case reflect.Struct:
-		children, err := generateSchema(fieldType)
-		if err != nil {
-			return nil, err
+		switch {
+		case fieldType.ConvertibleTo(reflect.TypeOf(time.Time{})):
+			return &parquetschema.ColumnDefinition{
+				SchemaElement: &parquet.SchemaElement{
+					Type:           parquet.TypePtr(parquet.Type_INT64),
+					Name:           fieldName,
+					RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
+					LogicalType: &parquet.LogicalType{
+						TIMESTAMP: &parquet.TimestampType{
+							IsAdjustedToUTC: true,
+							Unit: &parquet.TimeUnit{
+								NANOS: parquet.NewNanoSeconds(),
+							},
+						},
+					},
+				},
+			}, nil
+		default:
+			children, err := generateSchema(fieldType)
+			if err != nil {
+				return nil, err
+			}
+			return &parquetschema.ColumnDefinition{
+				SchemaElement: &parquet.SchemaElement{
+					Name:           fieldName,
+					RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
+				},
+				Children: children,
+			}, nil
 		}
-		return &parquetschema.ColumnDefinition{
-			SchemaElement: &parquet.SchemaElement{
-				Name:           fieldName,
-				RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
-			},
-			Children: children,
-		}, nil
 	case reflect.UnsafePointer:
 		return nil, errors.New("unsafe.Pointer is unsupported")
 	default:

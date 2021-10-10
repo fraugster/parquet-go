@@ -735,6 +735,13 @@ func TestWriteReadWithAutoSchema(t *testing.T) {
 			})
 		})
 
+		t.Run("time.Time", func(t *testing.T) {
+			t.Run("time.Time go type", func(t *testing.T) {
+				o := struct{ Val time.Time }{Val: time.Now().UTC()}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
 		t.Run("groups", func(t *testing.T) {
 			t.Run("nested struct go type", func(t *testing.T) {
 				type child struct{ Val int64 }
