@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,8 @@ import (
 )
 
 func TestWriteThenReadFile(t *testing.T) {
+	ctx := context.Background()
+
 	testFunc := func(opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
@@ -63,7 +66,7 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.Equal(t, "bar", cols[1].Name())
 		require.Equal(t, "bar", cols[1].FlatName())
 		for g := 0; g < r.RowGroupCount(); g++ {
-			require.NoError(t, r.readRowGroup(), "Reading row group failed")
+			require.NoError(t, r.readRowGroup(ctx), "Reading row group failed")
 			for i := 0; i < int(r.rowGroupNumRecords()); i++ {
 				data, err := r.getData()
 				require.NoError(t, err)
@@ -78,6 +81,8 @@ func TestWriteThenReadFile(t *testing.T) {
 }
 
 func TestWriteThenReadFileRepeated(t *testing.T) {
+	ctx := context.Background()
+
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test2.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -113,7 +118,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
@@ -124,6 +129,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 }
 
 func TestWriteThenReadFileOptional(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test3.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -159,7 +165,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	root := r.SchemaReader.(*schema).root
@@ -183,6 +189,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 }
 
 func TestWriteThenReadFileNested(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test4.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -221,7 +228,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
@@ -232,6 +239,7 @@ func TestWriteThenReadFileNested(t *testing.T) {
 }
 
 func TestWriteThenReadFileNested2(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test5.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -294,7 +302,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
@@ -305,6 +313,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 }
 
 func TestWriteThenReadFileMap(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test6.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -404,7 +413,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
@@ -415,6 +424,7 @@ func TestWriteThenReadFileMap(t *testing.T) {
 }
 
 func TestWriteThenReadFileNested3(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test7.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -450,7 +460,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
 	for i := range data {
@@ -461,6 +471,7 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 }
 
 func TestWriteEmptyDict(t *testing.T) {
+	ctx := context.Background()
 	_ = os.Mkdir("files", 0755)
 
 	wf, err := os.OpenFile("files/test8.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -485,7 +496,7 @@ func TestWriteEmptyDict(t *testing.T) {
 
 	r, err := NewFileReader(rf)
 	require.NoError(t, err, "creating file reader failed")
-	require.NoError(t, r.readRowGroup())
+	require.NoError(t, r.readRowGroup(ctx))
 
 	require.Equal(t, int64(1000), r.rowGroupNumRecords())
 	for i := 0; i < 1000; i++ {

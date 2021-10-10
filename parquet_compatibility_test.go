@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -57,7 +58,7 @@ func customerMapTest(parquet, csvFl string) func(t *testing.T) {
 		require.NoError(t, err)
 
 		for {
-			if err := reader.readRowGroup(); err == io.EOF {
+			if err := reader.readRowGroup(context.Background()); err == io.EOF {
 				break
 			}
 			count := reader.rowGroupNumRecords()

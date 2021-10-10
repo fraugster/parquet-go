@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -90,7 +91,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 	return ph
 }
 
-func (dp *dictPageWriter) write(w io.Writer) (int, int, error) {
+func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 
@@ -111,7 +112,7 @@ func (dp *dictPageWriter) write(w io.Writer) (int, int, error) {
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 
 	header := dp.getHeader(compSize, unCompSize)
-	if err := writeThrift(header, w); err != nil {
+	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}
 

@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/bits"
@@ -203,7 +204,7 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
+func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
 	var (
 		dictPage *dictPageReader
 		pages    []pageReader
@@ -214,7 +215,7 @@ func readPages(r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, 
 			break
 		}
 		ph := &parquet.PageHeader{}
-		if err := readThrift(ph, r); err != nil {
+		if err := readThrift(ctx, ph, r); err != nil {
 			return nil, err
 		}
 
@@ -317,7 +318,7 @@ func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	return err
 }
 
-func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
+func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -380,7 +381,7 @@ func readChunk(r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]page
 			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxDefinitionLevel()}, nil
 		}
 	}
-	return readPages(reader, col, chunk.MetaData, dDecoder, rDecoder)
+	return readPages(ctx, reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
 func readPageData(col *Column, pages []pageReader) error {
@@ -402,7 +403,7 @@ func readPageData(col *Column, pages []pageReader) error {
 	return nil
 }
 
-func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGroup) error {
+func readRowGroup(ctx context.Context, r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGroup) error {
 	dataCols := schema.Columns()
 	schema.resetData()
 	schema.setNumRecords(rowGroups.NumRows)
@@ -419,7 +420,7 @@ func readRowGroup(r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGr
 			c.data.skipped = true
 			continue
 		}
-		pages, err := readChunk(r, c, chunk)
+		pages, err := readChunk(ctx, r, c, chunk)
 		if err != nil {
 			return err
 		}

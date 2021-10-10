@@ -2,6 +2,7 @@ package goparquet
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -168,7 +169,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 	return ph
 }
 
-func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
+func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, error) {
 	rep := &bytes.Buffer{}
 
 	// Only write repetition value higher than zero
@@ -209,7 +210,7 @@ func (dp *dataPageWriterV2) write(w io.Writer) (int, int, error) {
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 	defLen, repLen := def.Len(), rep.Len()
 	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED)
-	if err := writeThrift(header, w); err != nil {
+	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}
 

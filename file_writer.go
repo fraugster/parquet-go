@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -28,6 +29,8 @@ type FileWriter struct {
 	codec parquet.CompressionCodec
 
 	newPage newDataPageFunc
+
+	ctx context.Context
 }
 
 // FileWriterOption describes an option function that is applied to a FileWriter when it is created.
@@ -47,6 +50,7 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",
 		newPage:      newDataPageV1Writer,
+		ctx:          context.Background(),
 	}
 
 	for _, opt := range options {
@@ -116,6 +120,14 @@ func WithDataPageV2() FileWriterOption {
 	}
 }
 
+// WithWriterContext overrides the default context (which is a context.Background())
+// in the FileWriter with the provided context.Context object.
+func WithWriterContext(ctx context.Context) FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.ctx = ctx
+	}
+}
+
 type flushRowGroupOptionHandle struct {
 	cols   map[string]map[string]string
 	global map[string]string
@@ -176,6 +188,11 @@ func WithRowGroupMetaData(kv map[string]string) FlushRowGroupOption {
 
 // FlushRowGroup writes the current row group to the parquet file.
 func (fw *FileWriter) FlushRowGroup(opts ...FlushRowGroupOption) error {
+	return fw.FlushRowGroupWithContext(fw.ctx, opts...)
+}
+
+// FlushRowGroupWithContext writes the current row group to the parquet file.
+func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
 	// Write the entire row group
 	if fw.rowGroupNumRecords() == 0 {
 		return errors.New("nothing to write")
@@ -193,7 +210,7 @@ func (fw *FileWriter) FlushRowGroup(opts ...FlushRowGroupOption) error {
 		o(h)
 	}
 
-	cc, err := writeRowGroup(fw.w, fw.SchemaWriter, fw.codec, fw.newPage, h)
+	cc, err := writeRowGroup(ctx, fw.w, fw.SchemaWriter, fw.codec, fw.newPage, h)
 	if err != nil {
 		return err
 	}
@@ -231,6 +248,15 @@ func (fw *FileWriter) AddData(m map[string]interface{}) error {
 // provided a file as io.Writer when creating the FileWriter, you still need
 // to Close that file handle separately.
 func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
+	return fw.CloseWithContext(fw.ctx, opts...)
+}
+
+// CloseWithContext flushes the current row group if necessary, taking the provided
+// options into account, and writes the meta data footer to the file.
+// Please be aware that this only finalizes the writing process. If you
+// provided a file as io.Writer when creating the FileWriter, you still need
+// to Close that file handle separately.
+func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
 	if len(fw.rowGroups) == 0 || fw.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
@@ -260,7 +286,7 @@ func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
 	}
 
 	pos := fw.w.Pos()
-	if err := writeThrift(meta, fw.w); err != nil {
+	if err := writeThrift(ctx, meta, fw.w); err != nil {
 		return err
 	}
 
