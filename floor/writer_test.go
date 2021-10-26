@@ -311,6 +311,32 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr:      false,
 			Schema:         `message test { required int64 wakeywakey (TIME(NANOS, false)); }`,
 		},
+		{
+			Input:          map[string]interface{}{"foo": "bar"},
+			ExpectedOutput: map[string]interface{}{"foo": []byte("bar")},
+			ExpectErr:      false,
+			Schema:         `message test { optional binary foo (STRING); }`,
+		},
+		{
+			Input: map[string]interface{}{"foo": "bar", "data": map[string]interface{}{"foo": "bar"}},
+			ExpectedOutput: map[string]interface{}{
+				"foo": []byte("bar"),
+				"data": map[string]interface{}{
+					"key_value": []map[string]interface{}{
+						{"key": []byte("foo"), "value": []byte("bar")},
+					},
+				}},
+			ExpectErr: false,
+			Schema: `message test {
+				optional binary foo (STRING);
+				required group data (MAP) {
+					repeated group key_value {
+						required binary key (STRING);
+						optional binary value (STRING);
+					}
+				}
+			}`,
+		},
 	}
 
 	for idx, tt := range testData {

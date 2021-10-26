@@ -76,8 +76,33 @@ func (m *reflectMarshaller) MarshalParquet(record interfaces.MarshalObject) erro
 }
 
 func (m *reflectMarshaller) marshal(record interfaces.MarshalObject, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
-	if err := m.decodeStruct(record, value, schemaDef); err != nil {
-		return err
+	if value.Type().Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return errors.New("object is nil")
+		}
+		value = value.Elem()
+	}
+
+	typ := value.Type()
+
+	if typ.Kind() == reflect.Struct {
+		return m.decodeStruct(record, value, schemaDef)
+	}
+
+	if typ.Kind() != reflect.Map {
+		return fmt.Errorf("object needs to be a struct, *struct or map, it's a %v instead", typ)
+	}
+
+	iter := value.MapRange()
+	for iter.Next() {
+		fieldName := iter.Key().String()
+		subSchemaDef := schemaDef.SubSchema(fieldName)
+		field := record.AddField(fieldName)
+
+		err := m.decodeValue(field, iter.Value(), subSchemaDef)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -154,7 +179,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		return nil
 	}
 
-	if value.Kind() == reflect.Ptr {
+	if value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return nil
 		}
@@ -181,6 +206,20 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 			field.SetInt96(goparquet.TimeToInt96(value.Interface().(time.Time)))
 			return nil
 		}
+	}
+
+	if !elem.IsSetType() && !elem.IsSetConvertedType() && elem.GetNumChildren() > 0 && value.Kind() == reflect.Map {
+		group := field.Group()
+		iter := value.MapRange()
+		for iter.Next() {
+			fieldName := iter.Key().String()
+			err := m.decodeValue(group.AddField(fieldName), iter.Value(), schemaDef.SubSchema(fieldName))
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	switch elem.GetType() {
