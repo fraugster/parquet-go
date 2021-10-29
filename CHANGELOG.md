@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Nothing yet
+- Upgraded CI golang to 1.17.2
+- Added test to reproduce issue 41: https://github.com/fraugster/parquet-go/issues/41 
 
 ## [v0.5.0] - 2021-10-29
 - Upgraded thrift to v0.15.0

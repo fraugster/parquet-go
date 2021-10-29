@@ -238,7 +238,7 @@ See also the list of [contributors][contributors] who participated in this proje
 
 ## License
 
-Copyright 2020 Fraugster GmbH
+Copyright 2021 Fraugster GmbH
 
 This project is licensed under the Apache-2 License - see the [LICENSE](LICENSE) file for details.
 
