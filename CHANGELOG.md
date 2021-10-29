@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nothing yet
 
+## [v0.5.0] - 2021-10-29
+- Upgraded thrift to v0.15.0
+- Fixed reading & writing of INT96 time
+
 ## [v0.4.0] - 2021-10-06
 - Fixed issues where fields in structs that were not defined in the schema raised errors (array, slice, time, map)
 - Added support for reflect encoding/decoding of additional types to/from parquet types
@@ -56,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.5.0
 [v0.4.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.4.0
 [v0.3.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.3.0
 [v0.2.1]: https://github.com/fraugster/parquet-go/releases/tag/v0.2.1
