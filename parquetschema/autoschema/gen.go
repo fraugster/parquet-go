@@ -70,7 +70,7 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 	case reflect.Int:
 		return &parquetschema.ColumnDefinition{
 			SchemaElement: &parquet.SchemaElement{
-				Type:           parquet.TypePtr(parquet.Type_INT32),
+				Type:           parquet.TypePtr(parquet.Type_INT64),
 				Name:           fieldName,
 				RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
 				ConvertedType:  parquet.ConvertedTypePtr(parquet.ConvertedType_INT_32),
