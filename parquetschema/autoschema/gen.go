@@ -73,10 +73,10 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 				Type:           parquet.TypePtr(parquet.Type_INT64),
 				Name:           fieldName,
 				RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
-				ConvertedType:  parquet.ConvertedTypePtr(parquet.ConvertedType_INT_32),
+				ConvertedType:  parquet.ConvertedTypePtr(parquet.ConvertedType_INT_64),
 				LogicalType: &parquet.LogicalType{
 					INTEGER: &parquet.IntType{
-						BitWidth: 32,
+						BitWidth: 64,
 						IsSigned: true,
 					},
 				},

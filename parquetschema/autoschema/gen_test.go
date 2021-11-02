@@ -32,21 +32,21 @@ func TestGenerateSchema(t *testing.T) {
 				Xyz  bool
 			}{},
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  required binary foo (STRING);\n  required int32 bar (INT(32, true));\n  required int32 baz (INT(32, false));\n  required double quux;\n  required int64 bla (INT(64, true));\n  required int64 abc (INT(64, false));\n  required float def;\n  required int32 ghi (INT(32, true));\n  required int32 jkl (INT(32, false));\n  required int32 mno (INT(16, true));\n  required int32 pqr (INT(16, false));\n  required int32 rst (INT(8, true));\n  required int32 uvw (INT(8, false));\n  required boolean xyz;\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  required binary foo (STRING);\n  required int64 bar (INT(64, true));\n  required int32 baz (INT(32, false));\n  required double quux;\n  required int64 bla (INT(64, true));\n  required int64 abc (INT(64, false));\n  required float def;\n  required int32 ghi (INT(32, true));\n  required int32 jkl (INT(32, false));\n  required int32 mno (INT(16, true));\n  required int32 pqr (INT(16, false));\n  required int32 rst (INT(8, true));\n  required int32 uvw (INT(8, false));\n  required boolean xyz;\n}\n",
 		},
 		"optional type": {
 			Input: struct {
 				Foo *int
 			}{},
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  optional int32 foo (INT(32, true));\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  optional int64 foo (INT(64, true));\n}\n",
 		},
 		"struct pointer": {
 			Input: (*struct {
 				Foo int
 			})(nil),
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  required int32 foo (INT(32, true));\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  required int64 foo (INT(64, true));\n}\n",
 		},
 		"structs within struct": {
 			Input: (*struct {
@@ -72,7 +72,7 @@ func TestGenerateSchema(t *testing.T) {
 				}
 			})(nil),
 			ExpectErr:      false,
-			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated group list {\n      required int32 element (INT(32, true));\n    }\n  }\n  optional group bar (LIST) {\n    repeated group list {\n      required int32 element (INT(32, true));\n    }\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required group element {\n        required int32 quux (INT(32, true));\n      }\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      required group element {\n        optional int32 fasel (INT(32, true));\n      }\n    }\n  }\n}\n",
+			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  optional group bar (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required group element {\n        required int64 quux (INT(64, true));\n      }\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      required group element {\n        optional int64 fasel (INT(64, true));\n      }\n    }\n  }\n}\n",
 		},
 		"byte slices": {
 			Input: (*struct {
