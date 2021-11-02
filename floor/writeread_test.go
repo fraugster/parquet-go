@@ -9,6 +9,7 @@ import (
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/fraugster/parquet-go/parquetschema/autoschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -559,6 +560,205 @@ func TestWriteRead(t *testing.T) {
 				extra map[int]int
 			}{Val: 1, extra: nil}
 			assert.EqualValues(t, e, writeReadOne(t, o, s))
+		})
+	})
+}
+
+func writeReadOneWithAutoSchema(t *testing.T, o interface{}) interface{} {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Error(r)
+		}
+	}()
+	schemaDef, err := autoschema.GenerateSchema(o)
+	require.NoError(t, err)
+	t.Logf("auto-generated schema: %v", schemaDef)
+
+	var buf bytes.Buffer
+	w := NewWriter(goparquet.NewFileWriter(&buf,
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithSchemaDefinition(schemaDef),
+	))
+
+	err = w.Write(o)
+	require.NoError(t, err)
+
+	err = w.Close()
+	require.NoError(t, err)
+
+	fr, err := goparquet.NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	pr := NewReader(fr)
+
+	pr.Next()
+
+	o2val := reflect.New(reflect.TypeOf(o))
+	err = pr.Scan(o2val.Interface())
+	require.NoError(t, err)
+
+	return o2val.Elem().Interface()
+}
+
+func TestWriteReadWithAutoSchema(t *testing.T) {
+	t.Run("by parquet type", func(t *testing.T) {
+		t.Run("int64", func(t *testing.T) {
+			t.Run("int go type", func(t *testing.T) {
+				o := struct{ Val int }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int64 go type", func(t *testing.T) {
+				o := struct{ Val int64 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int32 go type", func(t *testing.T) {
+				o := struct{ Val int32 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int16 go type", func(t *testing.T) {
+				o := struct{ Val int16 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int8 go type", func(t *testing.T) {
+				o := struct{ Val int8 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint go type", func(t *testing.T) {
+				o := struct{ Val uint }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint32 go type", func(t *testing.T) {
+				o := struct{ Val uint32 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint16 go type", func(t *testing.T) {
+				o := struct{ Val uint16 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint8 go type", func(t *testing.T) {
+				o := struct{ Val uint8 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("int32", func(t *testing.T) {
+			t.Run("int go type", func(t *testing.T) {
+				o := struct{ Val int }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int64 go type", func(t *testing.T) {
+				o := struct{ Val int64 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int32 go type", func(t *testing.T) {
+				o := struct{ Val int32 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int16 go type", func(t *testing.T) {
+				o := struct{ Val int16 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("int8 go type", func(t *testing.T) {
+				o := struct{ Val int8 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint go type", func(t *testing.T) {
+				o := struct{ Val uint }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint32 go type", func(t *testing.T) {
+				o := struct{ Val uint32 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint16 go type", func(t *testing.T) {
+				o := struct{ Val uint16 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("uint8 go type", func(t *testing.T) {
+				o := struct{ Val uint8 }{Val: 1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("byte_arrays", func(t *testing.T) {
+			t.Run("string go type", func(t *testing.T) {
+				o := struct{ Val string }{Val: "1"}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("[]byte go type", func(t *testing.T) {
+				o := struct{ Val []byte }{Val: []byte("1")}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("[1]byte go type", func(t *testing.T) {
+				o := struct{ Val [1]byte }{Val: [1]byte{'1'}}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("float", func(t *testing.T) {
+			t.Run("float32 go type", func(t *testing.T) {
+				o := struct{ Val float32 }{Val: 1.1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("double", func(t *testing.T) {
+			t.Run("float64 go type", func(t *testing.T) {
+				o := struct{ Val float64 }{Val: 1.1}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("boolean", func(t *testing.T) {
+			t.Run("bool go type", func(t *testing.T) {
+				o := struct{ Val bool }{Val: true}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("time.Time", func(t *testing.T) {
+			t.Run("time.Time go type", func(t *testing.T) {
+				o := struct{ Val time.Time }{Val: time.Now().UTC()}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+		})
+
+		t.Run("groups", func(t *testing.T) {
+			t.Run("nested struct go type", func(t *testing.T) {
+				type child struct{ Val int64 }
+				type parent struct{ Child child }
+				o := parent{child{1}}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("slice go type", func(t *testing.T) {
+				o := struct{ Val []int64 }{Val: []int64{1}}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
+
+			t.Run("map go type", func(t *testing.T) {
+				o := struct{ Val map[int64]int64 }{Val: map[int64]int64{1: 1}}
+				assert.EqualValues(t, o, writeReadOneWithAutoSchema(t, o))
+			})
 		})
 	})
 }
