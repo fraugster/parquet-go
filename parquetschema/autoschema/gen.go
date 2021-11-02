@@ -239,21 +239,6 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 		return nil, errors.New("unsupported type complex64")
 	case reflect.Complex128:
 		return nil, errors.New("unsupported type complex128")
-	case reflect.Array:
-		if fieldType.Elem().Kind() == reflect.Uint8 {
-			typeLen := int32(fieldType.Len())
-			// handle special case for [N]byte
-			return &parquetschema.ColumnDefinition{
-				SchemaElement: &parquet.SchemaElement{
-					Type:           parquet.TypePtr(parquet.Type_FIXED_LEN_BYTE_ARRAY),
-					Name:           fieldName,
-					RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
-					TypeLength:     &typeLen,
-				},
-			}, nil
-		}
-		// TODO: implement this
-		return nil, errors.New("unsupported type array")
 	case reflect.Chan:
 		return nil, errors.New("unsupported type chan")
 	case reflect.Func:
@@ -299,16 +284,30 @@ func generateField(fieldType reflect.Type, fieldName string) (*parquetschema.Col
 		}
 		colDef.SchemaElement.RepetitionType = parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_OPTIONAL)
 		return colDef, nil
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		if fieldType.Elem().Kind() == reflect.Uint8 {
-			// handle special case for []byte
-			return &parquetschema.ColumnDefinition{
-				SchemaElement: &parquet.SchemaElement{
-					Type:           parquet.TypePtr(parquet.Type_BYTE_ARRAY),
-					Name:           fieldName,
-					RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
-				},
-			}, nil
+			switch fieldType.Kind() {
+			case reflect.Slice:
+				// handle special case for []byte
+				return &parquetschema.ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Type:           parquet.TypePtr(parquet.Type_BYTE_ARRAY),
+						Name:           fieldName,
+						RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
+					},
+				}, nil
+			case reflect.Array:
+				typeLen := int32(fieldType.Len())
+				// handle special case for [N]byte
+				return &parquetschema.ColumnDefinition{
+					SchemaElement: &parquet.SchemaElement{
+						Type:           parquet.TypePtr(parquet.Type_FIXED_LEN_BYTE_ARRAY),
+						Name:           fieldName,
+						RepetitionType: parquet.FieldRepetitionTypePtr(parquet.FieldRepetitionType_REQUIRED),
+						TypeLength:     &typeLen,
+					},
+				}, nil
+			}
 		}
 		elementType, err := generateField(fieldType.Elem(), "element")
 		if err != nil {

@@ -74,6 +74,20 @@ func TestGenerateSchema(t *testing.T) {
 			ExpectErr:      false,
 			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  optional group bar (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required group element {\n        required int64 quux (INT(64, true));\n      }\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      required group element {\n        optional int64 fasel (INT(64, true));\n      }\n    }\n  }\n}\n",
 		},
+		"arrays": {
+			Input: (*struct {
+				Foo [1]int
+				Bar [10]*int
+				Baz [5]struct {
+					Quux int
+				}
+				Bla [23]*struct {
+					Fasel *int
+				}
+			})(nil),
+			ExpectErr:      false,
+			ExpectedOutput: "message autogen_schema {\n  required group foo (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  optional group bar (LIST) {\n    repeated group list {\n      required int64 element (INT(64, true));\n    }\n  }\n  required group baz (LIST) {\n    repeated group list {\n      required group element {\n        required int64 quux (INT(64, true));\n      }\n    }\n  }\n  optional group bla (LIST) {\n    repeated group list {\n      required group element {\n        optional int64 fasel (INT(64, true));\n      }\n    }\n  }\n}\n",
+		},
 		"byte slices": {
 			Input: (*struct {
 				Foo []byte
