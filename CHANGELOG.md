@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.0] - 2021-11-3
+- Added a schema generator which uses reflection to automatically generate a parquet schema from a go object.
 - Upgraded CI golang to 1.17.2
 - Added test to reproduce issue 41: https://github.com/fraugster/parquet-go/issues/41 
 
