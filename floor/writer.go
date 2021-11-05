@@ -16,14 +16,17 @@ import (
 )
 
 // NewWriter creates a new high-level writer for parquet.
+// NOTE: We assume the schema definition is constant.
 func NewWriter(w *goparquet.FileWriter) *Writer {
 	return &Writer{
-		w: w,
+		w:         w,
+		schemaDef: w.GetSchemaDefinition(),
 	}
 }
 
 // NewFileWriter creates a nigh high-level writer for parquet
 // that writes to a particular file.
+// NOTE: We assume the schema definition is constant.
 func NewFileWriter(file string, opts ...goparquet.FileWriterOption) (*Writer, error) {
 	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -31,30 +34,30 @@ func NewFileWriter(file string, opts ...goparquet.FileWriterOption) (*Writer, er
 	}
 
 	w := goparquet.NewFileWriter(f, opts...)
-
 	return &Writer{
-		w: w,
-		f: f,
+		w:         w,
+		f:         f,
+		schemaDef: w.GetSchemaDefinition(),
 	}, nil
 }
 
 // Writer represents a high-level writer for parquet files.
 type Writer struct {
-	w *goparquet.FileWriter
-	f io.Closer
+	w         *goparquet.FileWriter
+	f         io.Closer
+	schemaDef *parquetschema.SchemaDefinition
 }
 
 // Write adds a new object to be written to the parquet file. If
 // obj implements the floor.Marshaller object, then obj.(Marshaller).Marshal
-// will be called to determine the data, otherwise reflection will be
-// used.
+// will be called to determine the data, otherwise reflection will be used.
 func (w *Writer) Write(obj interface{}) error {
 	m, ok := obj.(interfaces.Marshaller)
 	if !ok {
-		m = &reflectMarshaller{obj: obj, schemaDef: w.w.GetSchemaDefinition()}
+		m = &reflectMarshaller{obj: obj, schemaDef: w.schemaDef}
 	}
 
-	data := interfaces.NewMarshallObjectWithSchema(nil, w.w.GetSchemaDefinition())
+	data := interfaces.NewMarshallObjectWithSchema(nil, w.schemaDef)
 	if err := m.MarshalParquet(data); err != nil {
 		return err
 	}
