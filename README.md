@@ -236,6 +236,10 @@ see the [tags on this repository][tags].
 
 See also the list of [contributors][contributors] who participated in this project.
 
+## Special Mentions
+
+- **Nathan Hanna** - *proposal and prototyping of automatic schema generator* [jnathanh](https://github.com/jnathanh)
+
 ## License
 
 Copyright 2021 Fraugster GmbH
