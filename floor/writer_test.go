@@ -588,7 +588,7 @@ func BenchmarkWriteFile(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		hlWriter.Write(data)
+		_ = hlWriter.Write(data)
 	}
 }
 
