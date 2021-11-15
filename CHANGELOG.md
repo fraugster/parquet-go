@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- perf - cache result of GetSchemaDefinition call
+- updated readme, added special mentions section
 
-- Nothing yet
+## [v0.6.0] - 2021-11-3
+- Added a schema generator which uses reflection to automatically generate a parquet schema from a go object.
+- Upgraded CI golang to 1.17.2
+- Added test to reproduce issue 41: https://github.com/fraugster/parquet-go/issues/41 
+
+## [v0.5.0] - 2021-10-29
+- Upgraded thrift to v0.15.0
+- Fixed reading & writing of INT96 time
 
 ## [v0.4.0] - 2021-10-06
 - Fixed issues where fields in structs that were not defined in the schema raised errors (array, slice, time, map)
@@ -56,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.5.0
 [v0.4.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.4.0
 [v0.3.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.3.0
 [v0.2.1]: https://github.com/fraugster/parquet-go/releases/tag/v0.2.1
