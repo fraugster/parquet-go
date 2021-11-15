@@ -549,6 +549,49 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 	require.NoError(t, hlReader.Close())
 }
 
+func BenchmarkWriteFile(b *testing.B) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test_msg {
+			required int64 foo;
+			optional binary bar (STRING);
+			optional group baz (LIST) {
+				repeated group list {
+					required int32 element;
+				}
+			}
+			optional int64 ts (TIMESTAMP(NANOS, false));
+			optional int64 time (TIME(NANOS, false));
+		}`)
+	require.NoError(b, err, "parsing schema definition failed")
+
+	hlWriter, err := NewFileWriter(
+		"files/test.parquet",
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
+	)
+	require.NoError(b, err, "creating new file writer failed")
+	defer func() {
+		require.NoError(b, hlWriter.Close())
+	}()
+
+	data := struct {
+		Foo  int64
+		Bar  *string
+		Baz  []int32
+		Time *Time
+	}{
+		42, strPtr("world!"), []int32{1, 1, 2, 3, 5}, nil,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		hlWriter.Write(data)
+	}
+}
+
 type marshTestRecord struct {
 	foo string
 	bar int64
