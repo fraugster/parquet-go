@@ -406,8 +406,7 @@ func i64Digits(number int64) int {
 	count := 0
 	for number != 0 {
 		number /= 10
-		count += 1
+		count++
 	}
 	return count
-
 }
