@@ -38,7 +38,7 @@ func TestSchemaParser(t *testing.T) {
 			optional boolean is_fraud = 7;
 		}`, false, false},
 		// 10.
-		{`message $ { }`, true, false},                              // $ is not the start of a valid token.
+		{`message $ { }`, false, false},                             // unusual token
 		{`message foo { optional int128 bar; }`, true, false},       // invalid type
 		{`message foo { optional int64 bar (BLUB); }`, true, false}, // invalid logical type
 		{`message foo { optional int32 bar; }`, false, false},
