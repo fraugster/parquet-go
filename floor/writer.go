@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/araddon/dateparse"
+	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/floor/interfaces"
+	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
 	"github.com/pkg/errors"
-
-	goparquet "github.com/fraugster/parquet-go"
-	"github.com/fraugster/parquet-go/parquet"
 )
 
 // NewWriter creates a new high-level writer for parquet.
@@ -157,7 +157,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		return nil
 	}
 
-	if value.Kind() == reflect.Ptr {
+	if value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return nil
 		}
@@ -207,6 +207,45 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 			return errors.Errorf("unable to decode %s:%s to int32", elem.Name, value.Kind())
 		}
 		return nil
+	case parquet.Type_INT96:
+		switch value.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return m.decodeUnixTime(field, value.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return m.decodeUnixTime(field, int64(value.Uint()))
+		case reflect.String:
+			dt, _ := dateparse.ParseAny(value.String())
+			field.SetInt96(goparquet.TimeToInt96(dt))
+			return nil
+		case reflect.Slice:
+			if value.IsNil() {
+				return nil
+			}
+			if value.Type().Elem().Kind() != reflect.Uint8 {
+				return fmt.Errorf("field is of type INT96 but type is %s", value.Type().String())
+			}
+
+			if value.Len() != 12 {
+				return fmt.Errorf("field is of type INT96 but length is %d", value.Len())
+			}
+			var dst [12]byte
+			src := value.Interface().([]byte)
+			copy(dst[:], src)
+			field.SetInt96(dst)
+			return nil
+		case reflect.Array:
+			if value.Type().Elem().Kind() != reflect.Uint8 {
+				return fmt.Errorf("field is of type INT96 but type is %s", value.Type().String())
+			}
+			if value.Len() != 12 {
+				return fmt.Errorf("field is of type INT96 but length is %d", value.Len())
+			}
+			var dst [12]byte
+			src := value.Interface().([12]byte)
+			copy(dst[:], src[:])
+			field.SetInt96(dst)
+			return nil
+		}
 	}
 
 	switch value.Kind() {
@@ -236,6 +275,31 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 	}
 }
 
+func (m *reflectMarshaller) decodeUnixTime(field interfaces.MarshalElement, i64 int64) error {
+	// best effort parse unix timestamps.
+	// since 99% of the time these are timestamps and are <= now this is a fairly safe bet
+	digits := i64Digits(i64)
+	now := time.Now()
+
+	switch {
+	case digits <= i64Digits(now.Unix()):
+		dt := time.Unix(i64, 0)
+		field.SetInt96(goparquet.TimeToInt96(dt))
+	case digits <= i64Digits(now.UnixMilli()):
+		dt := time.UnixMilli(i64)
+		field.SetInt96(goparquet.TimeToInt96(dt))
+	case digits <= i64Digits(now.UnixMicro()):
+		dt := time.UnixMicro(i64)
+		field.SetInt96(goparquet.TimeToInt96(dt))
+	case digits <= i64Digits(now.UnixNano()):
+		dt := time.Unix(0, i64)
+		field.SetInt96(goparquet.TimeToInt96(dt))
+	default:
+		return fmt.Errorf("field is of type INT96 but value is not valid %d", i64)
+	}
+	return nil
+}
+
 func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalElement, value reflect.Value, schemaDef *parquetschema.SchemaDefinition) error {
 	elem := schemaDef.SchemaElement()
 	if elem == nil {
@@ -259,20 +323,8 @@ func (m *reflectMarshaller) decodeByteSliceOrArray(field interfaces.MarshalEleme
 		}
 		field.SetByteArray(value.Bytes())
 	case reflect.Array:
-		if elem.GetType() == parquet.Type_INT96 {
-			if value.Len() != 12 {
-				return fmt.Errorf("field is of type INT96 but length is %d", value.Len())
-			}
-			data := reflect.New(value.Type()).Elem()
-			_ = reflect.Copy(data, value)
-
-			field.SetInt96(data.Interface().([12]byte))
-			return nil
-		}
 		data := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
-
 		_ = reflect.Copy(data, value)
-
 		field.SetByteArray(data.Bytes())
 	}
 	return nil
@@ -351,4 +403,13 @@ func (w *Writer) Close() error {
 	}
 
 	return w.w.Close()
+}
+
+func i64Digits(number int64) int {
+	count := 0
+	for number != 0 {
+		number /= 10
+		count++
+	}
+	return count
 }

@@ -1,5 +1,7 @@
-# github.com/apache/thrift v0.13.0
+# github.com/apache/thrift v0.15.0
 github.com/apache/thrift/lib/go/thrift
+# github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+github.com/araddon/dateparse
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/golang/snappy v0.0.1
@@ -14,8 +16,8 @@ github.com/pmezard/go-difflib/difflib
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.4.0
+# github.com/stretchr/testify v1.7.0
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# gopkg.in/yaml.v2 v2.2.2
-gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+gopkg.in/yaml.v3

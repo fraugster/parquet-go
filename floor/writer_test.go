@@ -310,6 +310,36 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr:      false,
 			Schema:         `message test { required int64 wakeywakey (TIME(NANOS, false)); }`,
 		},
+		{
+			Input: struct {
+				Foo  string
+				Data []interface{}
+			}{
+				Foo:  "bar",
+				Data: []interface{}{"2021-10-29T20:06:47.960577000Z", 1635542684, 1635542811912, 1635542811912010, 1635542854925031000},
+			},
+			ExpectedOutput: map[string]interface{}{
+				"foo": []byte("bar"),
+				"data": map[string]interface{}{
+					"list": []map[string]interface{}{
+						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 20, 06, 47, 960577000, time.UTC))},
+						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 24, 44, 0, time.UTC))},
+						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 26, 51, 912000000, time.UTC))},
+						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 26, 51, 912010000, time.UTC))},
+						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 27, 34, 925031000, time.UTC))},
+					},
+				},
+			},
+			ExpectErr: false,
+			Schema: `message test {
+				optional binary foo (STRING);
+				optional group data (LIST) {
+					repeated group list {
+						required int96 element;
+					}
+				}
+			}`,
+		},
 	}
 
 	for idx, tt := range testData {
