@@ -340,7 +340,7 @@ func TestDecodeStruct(t *testing.T) {
 				}
 			}`,
 		},
-    {
+		{
 			Input:          map[string]interface{}{"foo": "bar"},
 			ExpectedOutput: map[string]interface{}{"foo": []byte("bar")},
 			ExpectErr:      false,
