@@ -91,6 +91,27 @@ func TestColumnSize(t *testing.T) {
 	}
 }
 
+func TestIssue41SchemaPanic(t *testing.T) {
+	schema := `
+message ns.empRecords {
+  required int32 id;
+  required binary Name (STRING);
+  required binary Dept (STRING);
+  required group mapField (MAP) {
+    repeated group key_value (MAP_KEY_VALUE) {
+      required binary key (STRING);
+      required binary value (STRING);
+    }
+  }
+  required group loves (LIST) {
+    repeated binary array (STRING);
+  }
+}`
+
+	_, err := parquetschema.ParseSchemaDefinition(schema)
+	require.NoError(t, err)
+}
+
 func TestSchemaCopy(t *testing.T) {
 	schema := `message txn {
   optional boolean is_fraud;
