@@ -625,3 +625,105 @@ func (r *marshTestRecord) UnmarshalParquet(obj interfaces.UnmarshalObject) error
 
 	return nil
 }
+
+type testMsg struct {
+	ID     int64
+	Foobar []string
+}
+
+func (m *testMsg) MarshalParquet(obj interfaces.MarshalObject) error {
+	obj.AddField("id").SetInt64(m.ID)
+	list := obj.AddField("foobar").List()
+	for _, elem := range m.Foobar {
+		list.Add().SetByteArray([]byte(elem))
+	}
+	return nil
+}
+
+func (m *testMsg) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
+	id, err := obj.GetField("id").Int64()
+	if err != nil {
+		return err
+	}
+	m.ID = id
+	list, err := obj.GetField("foobar").List()
+	if err == interfaces.ErrFieldNotPresent {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for list.Next() {
+		v, err := list.Value()
+		if err != nil {
+			return err
+		}
+		vv, err := v.ByteArray()
+		if err != nil {
+			return err
+		}
+		m.Foobar = append(m.Foobar, string(vv))
+	}
+
+	return nil
+}
+
+func TestWriteEmptyList(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test_msg {
+			required int64 id;
+			optional group foobar (LIST) {
+				repeated group list {
+					required binary element (STRING);
+				}
+			}
+		}`)
+	require.NoError(t, err, "parsing schema definition failed")
+
+	t.Logf("schema definition: %s", spew.Sdump(sd))
+
+	hlWriter, err := NewFileWriter(
+		"files/emptylist.parquet",
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
+	)
+	require.NoError(t, err, "creating new file writer failed")
+
+	testData1 := &testMsg{ID: 23, Foobar: nil}
+	require.NoError(t, hlWriter.Write(testData1), "writing object using marshaller failed")
+
+	testData2 := &testMsg{ID: 42, Foobar: []string{"so", "long", "and", "thanks", "for", "all", "the", "fish"}}
+	require.NoError(t, hlWriter.Write(testData2), "writing object using marshaller failed")
+
+	require.NoError(t, hlWriter.Write(testData1), "writing object using marshaller failed")
+	require.NoError(t, hlWriter.Write(testData2), "writing object using marshaller failed")
+
+	require.NoError(t, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/emptylist.parquet")
+	require.NoError(t, err, "opening file failed")
+
+	require.True(t, hlReader.Next())
+
+	readData1 := &testMsg{}
+	require.NoError(t, hlReader.Scan(readData1))
+	require.Equal(t, testData1, readData1, "written and read data don't match")
+
+	readData2 := &testMsg{}
+	require.NoError(t, hlReader.Scan(readData2))
+	require.Equal(t, testData1, readData2, "written and read data don't match")
+
+	readData3 := &testMsg{}
+	require.NoError(t, hlReader.Scan(readData3))
+	require.Equal(t, testData1, readData3, "written and read data don't match")
+
+	readData4 := &testMsg{}
+	require.NoError(t, hlReader.Scan(readData4))
+	require.Equal(t, testData1, readData4, "written and read data don't match")
+
+	require.NoError(t, hlReader.Close())
+}
