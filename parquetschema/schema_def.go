@@ -103,6 +103,15 @@ func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	}, nil
 }
 
+// Clone returns a deep copy of the schema definition.
+func (sd *SchemaDefinition) Clone() *SchemaDefinition {
+	def, err := ParseSchemaDefinition(sd.String())
+	if err != nil {
+		panic(err) // this should never ever happen and indicates a serious bug.
+	}
+	return def
+}
+
 // String returns a textual representation of the schema definition. This textual representation
 // adheres to the format accepted by the ParseSchemaDefinition function. A textual schema definition
 // parsed by ParseSchemaDefinition and turned back into a string by this method repeatedly will

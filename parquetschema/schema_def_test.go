@@ -107,6 +107,9 @@ func TestParseAndGenerateSchema(t *testing.T) {
 	require.NoError(t, err, "parsing schema definition failed")
 
 	require.Equal(t, schema, schemaDef.String(), "expected and actual schema definition does not match")
+
+	newSchemaDef := schemaDef.Clone()
+	require.Equal(t, schemaDef, newSchemaDef, "cloned schema definition doesn't match original")
 }
 
 func TestSubSchema(t *testing.T) {
