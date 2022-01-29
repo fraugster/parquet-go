@@ -85,12 +85,11 @@ func SchemaDefinitionFromColumnDefinition(c *ColumnDefinition) *SchemaDefinition
 //	digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 //	time-unit ::= 'MILLIS' | 'MICROS' | 'NANOS'
 //	boolean ::= 'false' | 'true'
-//	identifier ::= <alpha> <alphanum>*
-//	alpha ::= 'a'..'z' | 'A'..'Z'
-//	alphanum ::= <alpha> | <digit>
+//	identifier ::= <all-characters> - ' ' - ';' - '{' - '}' - '(' - ')' - '=' - ','
 //	bit-width ::= '8' | '16' | '32' | '64'
-//	precision := <number>
-//	scale := <number>
+//	precision ::= <number>
+//	scale ::= <number>
+//	all-characters ::= ? all visible characters ?
 // For examples of textual schema definitions, please take a look at schema-files/*.schema.
 func ParseSchemaDefinition(schemaText string) (*SchemaDefinition, error) {
 	p := newSchemaParser(schemaText)
