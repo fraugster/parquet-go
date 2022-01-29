@@ -152,11 +152,6 @@ func (l *schemaLexer) acceptRun(valid string) {
 	l.backup()
 }
 
-func (l *schemaLexer) errorf(format string, args ...interface{}) stateFn {
-	l.items <- item{itemError, l.start, fmt.Sprintf(format, args...), l.startLine}
-	return nil
-}
-
 func (l *schemaLexer) nextItem() item {
 	return <-l.items
 }
@@ -208,10 +203,8 @@ func lexText(l *schemaLexer) stateFn {
 		l.emit(itemSemicolon)
 	case r == ',':
 		l.emit(itemComma)
-	case isAlpha(r):
-		return lexIdentifier
 	default:
-		l.errorf("unknown start of token '%v'", r)
+		return lexIdentifier
 	}
 	return lexText
 }
@@ -222,10 +215,6 @@ func isSpace(r rune) bool {
 
 func isDigit(r rune) bool {
 	return unicode.IsDigit(r)
-}
-
-func isAlpha(r rune) bool {
-	return r == '_' || unicode.IsLetter(r)
 }
 
 func isSchemaDelim(r rune) bool {
