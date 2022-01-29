@@ -50,20 +50,11 @@ func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, s
 }
 
 func getInt32ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, store *dictStore) (valuesEncoder, error) {
-	var unSigned bool
-	if typ.ConvertedType != nil {
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
-			unSigned = true
-		}
-	}
-	if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-		unSigned = true
-	}
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
-		return &int32PlainEncoder{unSigned: unSigned}, nil
+		return &int32PlainEncoder{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int32DeltaBPEncoder{unSigned: unSigned}, nil
+		return &int32DeltaBPEncoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{
 			dictStore: *store,
@@ -74,20 +65,11 @@ func getInt32ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 }
 
 func getInt64ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, store *dictStore) (valuesEncoder, error) {
-	var unSigned bool
-	if typ.ConvertedType != nil {
-		if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
-			unSigned = true
-		}
-	}
-	if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-		unSigned = true
-	}
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
-		return &int64PlainEncoder{unSigned: unSigned}, nil
+		return &int64PlainEncoder{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int64DeltaBPEncoder{unSigned: unSigned}, nil
+		return &int64DeltaBPEncoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{
 			dictStore: *store,
@@ -173,27 +155,9 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	case parquet.Type_DOUBLE:
 		return &doublePlainEncoder{}, nil
 	case parquet.Type_INT32:
-		var unSigned bool
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UINT_8 || *typ.ConvertedType == parquet.ConvertedType_UINT_16 || *typ.ConvertedType == parquet.ConvertedType_UINT_32 {
-				unSigned = true
-			}
-		}
-		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-			unSigned = true
-		}
-		return &int32PlainEncoder{unSigned: unSigned}, nil
+		return &int32PlainEncoder{}, nil
 	case parquet.Type_INT64:
-		var unSigned bool
-		if typ.ConvertedType != nil {
-			if *typ.ConvertedType == parquet.ConvertedType_UINT_64 {
-				unSigned = true
-			}
-		}
-		if typ.LogicalType != nil && typ.LogicalType.INTEGER != nil && !typ.LogicalType.INTEGER.IsSigned {
-			unSigned = true
-		}
-		return &int64PlainEncoder{unSigned: unSigned}, nil
+		return &int64PlainEncoder{}, nil
 	case parquet.Type_INT96:
 		return &int96PlainEncoder{}, nil
 	}

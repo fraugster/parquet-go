@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - Relax schema parser requirement that field names begin with a letter or underscore.
+- Remove unsigned support from all integer encodings.
 
 ## [v0.6.1] - 2021-11-19
 - perf - cache result of GetSchemaDefinition call
