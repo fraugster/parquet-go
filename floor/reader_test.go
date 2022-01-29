@@ -561,3 +561,52 @@ func TestFillValue(t *testing.T) {
 	require.NoError(t, um.fillValue(reflect.ValueOf(&tt).Elem(), elem(int32(14620200)), sd.SubSchema("tmilli")))
 	require.Equal(t, tt, MustTime(NewTime(4, 3, 40, 200000000)).UTC())
 }
+
+func BenchmarkReadFile(b *testing.B) {
+	_ = os.Mkdir("files", 0755)
+
+	sd, err := parquetschema.ParseSchemaDefinition(
+		`message test_msg {
+			required int64 foo;
+			optional binary bar (STRING);
+			optional group baz {
+				required int64 value;
+			}
+		}`)
+	require.NoError(b, err, "parsing schema definition failed")
+
+	hlWriter, err := NewFileWriter(
+		"files/readtest.parquet",
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithCreator("floor-unittest"),
+		goparquet.WithSchemaDefinition(sd),
+	)
+	require.NoError(b, err, "creating parquet file writer failed")
+
+	type bazMsg struct {
+		Value uint32
+	}
+
+	type testMsg struct {
+		Foo int64
+		Bar *string
+		Baz *bazMsg
+	}
+
+	// Baz doesn't seem to get written correctly. when dumping the resulting file, baz.value is wrong.
+	require.NoError(b, hlWriter.Write(testMsg{Foo: 1, Bar: strPtr("hello"), Baz: &bazMsg{Value: 9001}}))
+	require.NoError(b, hlWriter.Close())
+
+	hlReader, err := NewFileReader("files/readtest.parquet")
+	require.NoError(b, err)
+	defer func() {
+		require.NoError(b, hlReader.Close())
+	}()
+	require.True(b, hlReader.Next())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var msg testMsg
+		_ = hlReader.Scan(&msg)
+	}
+}

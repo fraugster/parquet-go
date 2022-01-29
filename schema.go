@@ -931,12 +931,7 @@ func createColumnDefinitionFromColumn(c *Column) *parquetschema.ColumnDefinition
 }
 
 func (r *schema) GetSchemaDefinition() *parquetschema.SchemaDefinition {
-	def, err := parquetschema.ParseSchemaDefinition(r.schemaDef.String())
-	if err != nil {
-		panic(err)
-	}
-
-	return def
+	return r.schemaDef
 }
 
 // DataSize return the size of data stored in the schema right now
