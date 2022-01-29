@@ -10,8 +10,7 @@ import (
 )
 
 type int32PlainDecoder struct {
-	unSigned bool
-	r        io.Reader
+	r io.Reader
 }
 
 func (i *int32PlainDecoder) init(r io.Reader) error {
@@ -33,8 +32,7 @@ func (i *int32PlainDecoder) decodeValues(dst []interface{}) (int, error) {
 }
 
 type int32PlainEncoder struct {
-	unSigned bool
-	w        io.Writer
+	w io.Writer
 }
 
 func (i *int32PlainEncoder) Close() error {
@@ -56,7 +54,6 @@ func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
 }
 
 type int32DeltaBPDecoder struct {
-	unSigned bool
 	deltaBitPackDecoder32
 }
 
@@ -66,33 +63,20 @@ func (d *int32DeltaBPDecoder) decodeValues(dst []interface{}) (int, error) {
 		if err != nil {
 			return i, err
 		}
-		if d.unSigned {
-			dst[i] = uint32(u)
-		} else {
-			dst[i] = u
-		}
+		dst[i] = u
 	}
 
 	return len(dst), nil
 }
 
 type int32DeltaBPEncoder struct {
-	unSigned bool
 	deltaBitPackEncoder32
 }
 
 func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
-	if d.unSigned {
-		for i := range values {
-			if err := d.addInt32(int32(values[i].(uint32))); err != nil {
-				return err
-			}
-		}
-	} else {
-		for i := range values {
-			if err := d.addInt32(values[i].(int32)); err != nil {
-				return err
-			}
+	for i := range values {
+		if err := d.addInt32(values[i].(int32)); err != nil {
+			return err
 		}
 	}
 
