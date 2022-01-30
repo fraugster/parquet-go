@@ -295,7 +295,7 @@ func TestSchemaParser(t *testing.T) {
 		}`, true, false}, // precision out of bounds.
 		{`message foo {
 			required int64 foo (DECIMAL);
-		}`, true, false}, // no precision, scale parameters.
+		}`, false, false}, // no precision, scale parameters -> it's a converted type, so not an error; see also issue 12.
 		{`message foo {
 			required fixed_len_byte_array(10) foo (DECIMAL(20,10));
 		}`, false, false},

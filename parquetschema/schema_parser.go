@@ -483,28 +483,38 @@ func (p *schemaParser) parseLogicalOrConvertedType() (*parquet.LogicalType, *par
 	case "STRING":
 		lt.STRING = parquet.NewStringType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8)
+		p.next()
 	case "DATE":
 		lt.DATE = parquet.NewDateType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_DATE)
+		p.next()
 	case "TIMESTAMP":
 		ct = p.parseTimestampLogicalType(lt)
+		p.next()
 	case "TIME":
 		ct = p.parseTimeLogicalType(lt)
+		p.next()
 	case "INT":
 		ct = p.parseIntLogicalType(lt)
+		p.next()
 	case "UUID":
 		lt.UUID = parquet.NewUUIDType()
+		p.next()
 	case "ENUM":
 		lt.ENUM = parquet.NewEnumType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_ENUM)
+		p.next()
 	case "JSON":
 		lt.JSON = parquet.NewJsonType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_JSON)
+		p.next()
 	case "BSON":
 		lt.BSON = parquet.NewBsonType()
 		ct = parquet.ConvertedTypePtr(parquet.ConvertedType_BSON)
+		p.next()
 	case "DECIMAL":
-		p.parseDecimalLogicalType(lt)
+		ct = p.parseDecimalLogicalType(lt)
+		// n.b. no p.next is necessary because parseDecimalLogicalType may have already seen the ) if the list of scale and precision were not there, i.e. if it was a converted type.
 	default:
 		convertedType, err := parquet.ConvertedTypeFromString(strings.ToUpper(typStr))
 		if err != nil {
@@ -512,9 +522,9 @@ func (p *schemaParser) parseLogicalOrConvertedType() (*parquet.LogicalType, *par
 		}
 		lt = nil
 		ct = &convertedType
+		p.next()
 	}
 
-	p.next()
 	p.expect(itemRightParen)
 
 	return lt, ct
@@ -644,9 +654,16 @@ func (p *schemaParser) parseIntLogicalType(lt *parquet.LogicalType) *parquet.Con
 	return parquet.ConvertedTypePtr(convertedType)
 }
 
-func (p *schemaParser) parseDecimalLogicalType(lt *parquet.LogicalType) {
-	lt.DECIMAL = parquet.NewDecimalType()
+func (p *schemaParser) parseDecimalLogicalType(lt *parquet.LogicalType) *parquet.ConvertedType {
+	ct := parquet.ConvertedTypePtr(parquet.ConvertedType_DECIMAL)
 	p.next()
+
+	if p.token.typ == itemRightParen { // if the next token is ), skip parsing precision and scale because we only got a converted type.
+		return ct
+	}
+
+	lt.DECIMAL = parquet.NewDecimalType()
+
 	p.expect(itemLeftParen)
 
 	p.next()
@@ -666,6 +683,9 @@ func (p *schemaParser) parseDecimalLogicalType(lt *parquet.LogicalType) {
 
 	p.next()
 	p.expect(itemRightParen)
+
+	p.next() // here, we're pre-loading the next token for the caller.
+	return ct
 }
 
 func (p *schemaParser) parseConvertedType() *parquet.ConvertedType {
@@ -903,7 +923,7 @@ func (col *ColumnDefinition) validateDecimalLogicalType() error {
 		n := *col.SchemaElement.TypeLength
 		maxDigits := int32(math.Floor(math.Log10(math.Exp2(8*float64(n)-1) - 1)))
 		if dec.Precision < 1 || dec.Precision > maxDigits {
-			return fmt.Errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 1 <= precision <= %d", col.SchemaElement.Name, n, dec.Precision, maxDigits)
+			return fmt.Errorf("field %s is fixed_len_byte_array(%d) and annotated as DECIMAL but precision %d is out of bounds; needs to be 0 <= precision <= %d", col.SchemaElement.Name, n, dec.Precision, maxDigits)
 		}
 	case parquet.Type_BYTE_ARRAY:
 		if dec.Precision < 1 {
