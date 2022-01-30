@@ -2,6 +2,7 @@ package floor
 
 import (
 	"bytes"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -761,4 +762,23 @@ func TestWriteReadWithAutoSchema(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestReflectMarshallerPanicIssue13(t *testing.T) {
+	_ = os.Mkdir("files", 0755)
+
+	write := func(filename string, obj interface{}) {
+		schemaDef, err := parquetschema.ParseSchemaDefinition(`message test { required int32 foo; }`)
+		require.NoError(t, err)
+		fw, err := NewFileWriter(filename,
+			goparquet.WithSchemaDefinition(schemaDef),
+			goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		)
+		require.NoError(t, err)
+		require.NoError(t, fw.Write(obj))
+		require.NoError(t, fw.Close())
+	}
+
+	write("files/issue13_bool.parquet", struct{ Bar bool }{Bar: true})
+	write("files/issue13_byteslice.parquet", struct{ Bar []byte }{Bar: []byte{0xFF, 0x0A}})
 }
