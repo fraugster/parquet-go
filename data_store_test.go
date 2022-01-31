@@ -474,4 +474,24 @@ func TestZeroRL(t *testing.T) {
 	read, err := row.getData()
 	require.NoError(t, err)
 	assert.Equal(t, data, read)
+
+	row = &schema{}
+	require.NoError(t, row.AddGroup("baz", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroup("baz.list", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroup("baz.list.element", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddColumn("baz.list.element.quux", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
+	row.resetData()
+	require.NoError(t, row.AddData(data))
+
+	d, err = row.findDataColumn("baz.list.element.quux")
+	require.NoError(t, err)
+	assert.Equal(t, expected, d.data.values.assemble())
+	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
+	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
+	assert.Equal(t, []int32{0, 1}, d.data.rLevels.toArray())
+	assert.Equal(t, []int32{2, 2}, d.data.dLevels.toArray())
+
+	read, err = row.getData()
+	require.NoError(t, err)
+	assert.Equal(t, data, read)
 }

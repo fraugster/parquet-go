@@ -178,8 +178,8 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 			assert.Equal(t, int32(1), dL)
 		} else {
 			assert.False(t, b)
-			assert.Equal(t, int32(-1), rL)
-			assert.Equal(t, int32(-1), dL)
+			assert.Equal(t, int32(0), rL)
+			assert.Equal(t, int32(0), dL)
 		}
 
 		get, err := r.getData()
@@ -876,4 +876,49 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 
 func strPtr(s string) *string {
 	return &s
+}
+
+func TestWriteThenReadFileUnsetOptional(t *testing.T) {
+	sd, err := parquetschema.ParseSchemaDefinition(`
+		message foo {
+			optional group a (LIST) {
+				repeated group list {
+					optional group element {
+						optional int64 b;
+					}
+				}
+			}
+		}`)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	require.NoError(t, err)
+	w := NewFileWriter(&buf, WithSchemaDefinition(sd))
+	testData := map[string]interface{}{
+		"a": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{},
+				{
+					"element": map[string]interface{}{},
+				},
+				{
+					"element": map[string]interface{}{
+						"b": int64(2),
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, w.AddData(testData))
+	require.NoError(t, w.Close())
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	data, err := r.NextRow()
+	require.NoError(t, err)
+	require.Equal(t, testData, data)
+
+	_, err = r.NextRow()
+	require.Equal(t, io.EOF, err)
 }
