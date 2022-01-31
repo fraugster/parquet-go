@@ -108,3 +108,48 @@ func TestByteReaderSelectedInnerFull(t *testing.T) {
 		require.Empty(t, y)
 	}
 }
+
+func TestIssue60(t *testing.T) {
+	sd, err := parquetschema.ParseSchemaDefinition(`message test {
+		required group population (LIST){
+			repeated group list {
+				optional int64 element;
+			}
+		}
+	}`)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
+
+	err = fw.AddData(map[string]interface{}{
+		"population": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{"element": int64(23)},
+				{"element": nil},
+				{"element": int64(42)},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, fw.Close())
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	row, err := r.NextRow()
+	require.NoError(t, err)
+
+	require.Equal(t, map[string]interface{}{
+		"population": map[string]interface{}{
+			"list": []map[string]interface{}{
+				{"element": int64(23)},
+				{},
+				{"element": int64(42)},
+			},
+		},
+	}, row)
+
+	t.Logf("row = %#v", row)
+}
