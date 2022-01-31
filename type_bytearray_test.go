@@ -1,6 +1,12 @@
 package goparquet
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+
+	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/stretchr/testify/require"
+)
 
 func TestFuzzCrashByteArrayPlainDecoderNext(t *testing.T) {
 	data := []byte("PAR1\x15\x00\x15\xac\x02\x15\xac\x02,\x150\x15\x00\x15\x06\x15" +
@@ -24,4 +30,39 @@ func TestFuzzCrashByteArrayPlainDecoderNext(t *testing.T) {
 		"\x01\x00\x00PAR1")
 
 	readAllData(t, data)
+}
+
+func TestRepeatedBinaryWithNil(t *testing.T) {
+	// this is here to somehow reproduce the issue discussed in https://github.com/fraugster/parquet-go/pull/8
+	sd, err := parquetschema.ParseSchemaDefinition(`message msg {
+		repeated binary foo;
+	}`)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
+
+	err = fw.AddData(map[string]interface{}{
+		"foo": [][]byte{
+			[]byte("hello"),
+			nil,
+			[]byte("world!"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, fw.Close())
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	row, err := r.NextRow()
+	require.NoError(t, err)
+
+	// here's a problem: we added nil, but got a []byte{}.
+	require.Equal(t, [][]byte{
+		[]byte("hello"),
+		{},
+		[]byte("world!"),
+	}, row["foo"])
 }
