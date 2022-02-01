@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.7.0] - 2022-02-01
 - Relax schema parser requirement that field names begin with a letter or underscore.
 - Remove unsigned support from all integer encodings.
+- Introduced explicit Clone method for parquetschema.SchemaDefinition.
+- Corrected parsing of DECIMAL as ConvertedType if scale and precision aren't available.
+- Fixed nested optional field reads.
 
 ## [v0.6.1] - 2021-11-19
 - perf - cache result of GetSchemaDefinition call
@@ -69,7 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.7.0
 [v0.6.1]: https://github.com/fraugster/parquet-go/releases/tag/v0.6.1
 [v0.6.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.6.0
 [v0.5.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.5.0
