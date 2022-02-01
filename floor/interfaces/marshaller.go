@@ -105,9 +105,7 @@ func (e *element) List() MarshalList {
 		listName = "bag"
 		elemName = "array_element"
 	}
-	data := map[string]interface{}{listName: []map[string]interface{}{}}
-	e.data[e.f] = data
-	return &list{data: data, listName: listName, elemName: elemName, schema: e.schema.SubSchema(listName).SubSchema(elemName)}
+	return &list{parentData: e.data, parentField: e.f, listName: listName, elemName: elemName, schema: e.schema.SubSchema(listName).SubSchema(elemName)}
 }
 
 func (e *element) Map() MarshalMap {
@@ -123,13 +121,26 @@ func (e *element) Group() MarshalObject {
 }
 
 type list struct {
-	data     map[string]interface{}
-	schema   *parquetschema.SchemaDefinition
-	listName string
-	elemName string
+	parentData  map[string]interface{}
+	parentField string
+	data        map[string]interface{}
+	schema      *parquetschema.SchemaDefinition
+	listName    string
+	elemName    string
 }
 
 func (l *list) Add() MarshalElement {
+	if l.data == nil {
+		l.data = map[string]interface{}{l.listName: []map[string]interface{}{}}
+		// we need to delay adding map to parent data field until Add() is called first time, otherwise
+		// this code will fail on an empty m.Foobar:
+		//
+		// 	list := obj.AddField("foobar").List()
+		// 	for _, elem := range m.Foobar {
+		// 		list.Add().SetByteArray([]byte(elem))
+		// 	}
+		l.parentData[l.parentField] = l.data
+	}
 	listData := l.data[l.listName].([]map[string]interface{})
 	elemData := map[string]interface{}{}
 	l.data[l.listName] = append(listData, elemData)
