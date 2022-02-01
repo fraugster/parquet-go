@@ -935,7 +935,7 @@ func TestReadWriteDeltaLengthByteArrayEncoding(t *testing.T) {
 	}
 
 	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err = wr.AddColumn("name", col); err != nil {
+	if err := wr.AddColumn("name", col); err != nil {
 		t.Fatal(err)
 	}
 
@@ -944,12 +944,12 @@ func TestReadWriteDeltaLengthByteArrayEncoding(t *testing.T) {
 			"name": []byte("dan"),
 		}
 
-		if err = wr.AddData(rec); err != nil {
+		if err := wr.AddData(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if err = wr.Close(); err != nil {
+	if err := wr.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -981,7 +981,7 @@ func TestReadWriteDeltaBinaryPackedInt32(t *testing.T) {
 	}
 
 	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err = wr.AddColumn("number", col); err != nil {
+	if err := wr.AddColumn("number", col); err != nil {
 		t.Fatal(err)
 	}
 
@@ -992,12 +992,12 @@ func TestReadWriteDeltaBinaryPackedInt32(t *testing.T) {
 			"number": int32(42),
 		}
 
-		if err = wr.AddData(rec); err != nil {
+		if err := wr.AddData(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if err = wr.Close(); err != nil {
+	if err := wr.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1033,7 +1033,7 @@ func TestReadWriteDeltaBinaryPackedInt64(t *testing.T) {
 	}
 
 	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err = wr.AddColumn("number", col); err != nil {
+	if err := wr.AddColumn("number", col); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1044,12 +1044,12 @@ func TestReadWriteDeltaBinaryPackedInt64(t *testing.T) {
 			"number": int64(23),
 		}
 
-		if err = wr.AddData(rec); err != nil {
+		if err := wr.AddData(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if err = wr.Close(); err != nil {
+	if err := wr.Close(); err != nil {
 		t.Fatal(err)
 	}
 
