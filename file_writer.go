@@ -215,11 +215,19 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 		return err
 	}
 
+	var totalCompressedSize, totalUncompressedSize int64
+
+	for _, c := range cc {
+		totalCompressedSize += c.MetaData.TotalCompressedSize
+		totalUncompressedSize += c.MetaData.TotalUncompressedSize
+	}
+
 	fw.rowGroups = append(fw.rowGroups, &parquet.RowGroup{
-		Columns:        cc,
-		TotalByteSize:  0,
-		NumRows:        fw.rowGroupNumRecords(),
-		SortingColumns: nil,
+		Columns:             cc,
+		TotalByteSize:       totalUncompressedSize,
+		TotalCompressedSize: &totalCompressedSize,
+		NumRows:             fw.rowGroupNumRecords(),
+		SortingColumns:      nil,
 	})
 	fw.totalNumRecords += fw.rowGroupNumRecords()
 	// flush the schema
