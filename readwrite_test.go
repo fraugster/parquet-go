@@ -11,6 +11,7 @@ import (
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -921,4 +922,154 @@ func TestWriteThenReadFileUnsetOptional(t *testing.T) {
 
 	_, err = r.NextRow()
 	require.Equal(t, io.EOF, err)
+}
+
+func TestReadWriteDeltaLengthByteArrayEncoding(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	bas, err := NewByteArrayStore(parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, true, &ColumnParameters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
+	if err := wr.AddColumn("name", col); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 1; i++ {
+		rec := map[string]interface{}{
+			"name": []byte("dan"),
+		}
+
+		if err := wr.AddData(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := wr.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for {
+		row, err := rd.NextRow()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			t.Fatal(err)
+		}
+		t.Log(row)
+	}
+}
+
+func TestReadWriteDeltaBinaryPackedInt32(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	bas, err := NewInt32Store(parquet.Encoding_DELTA_BINARY_PACKED, true, &ColumnParameters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
+	if err := wr.AddColumn("number", col); err != nil {
+		t.Fatal(err)
+	}
+
+	numRecords := 1
+
+	for i := 0; i < numRecords; i++ {
+		rec := map[string]interface{}{
+			"number": int32(42),
+		}
+
+		if err := wr.AddData(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := wr.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Reading data...")
+
+	for i := 0; i < numRecords; i++ {
+		row, err := rd.NextRow()
+		if err != nil {
+			t.Fatalf("got error at record %d of %d: %v", i+1, numRecords, err)
+		}
+		t.Log(row)
+	}
+
+	_, err = rd.NextRow()
+	require.True(t, errors.Is(err, io.EOF))
+
+	t.Logf("Finished")
+}
+
+func TestReadWriteDeltaBinaryPackedInt64(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	bas, err := NewInt64Store(parquet.Encoding_DELTA_BINARY_PACKED, true, &ColumnParameters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
+	if err := wr.AddColumn("number", col); err != nil {
+		t.Fatal(err)
+	}
+
+	numRecords := 1
+
+	for i := 0; i < numRecords; i++ {
+		rec := map[string]interface{}{
+			"number": int64(23),
+		}
+
+		if err := wr.AddData(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := wr.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Reading data...")
+
+	for i := 0; i < numRecords; i++ {
+		row, err := rd.NextRow()
+		if err != nil {
+			t.Fatalf("got error at record %d of %d: %v", i+1, numRecords, err)
+		}
+		t.Log(row)
+	}
+
+	_, err = rd.NextRow()
+	require.True(t, errors.Is(err, io.EOF))
+
+	t.Logf("Finished")
 }
