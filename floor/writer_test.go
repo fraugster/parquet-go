@@ -1,6 +1,7 @@
 package floor
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -312,15 +312,15 @@ func TestDecodeStruct(t *testing.T) {
 		},
 		{
 			Input: struct {
-				Foo  string
-				Data []interface{}
+				Foo   string
+				Times []interface{}
 			}{
-				Foo:  "bar",
-				Data: []interface{}{"2021-10-29T20:06:47.960577000Z", 1635542684, 1635542811912, 1635542811912010, 1635542854925031000},
+				Foo:   "bar",
+				Times: []interface{}{"2021-10-29T20:06:47.960577000Z", 1635542684, 1635542811912, 1635542811912010, 1635542854925031000},
 			},
 			ExpectedOutput: map[string]interface{}{
 				"foo": []byte("bar"),
-				"data": map[string]interface{}{
+				"times": map[string]interface{}{
 					"list": []map[string]interface{}{
 						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 20, 06, 47, 960577000, time.UTC))},
 						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 24, 44, 0, time.UTC))},
@@ -333,7 +333,7 @@ func TestDecodeStruct(t *testing.T) {
 			ExpectErr: false,
 			Schema: `message test {
 				optional binary foo (STRING);
-				optional group data (LIST) {
+				optional group times (LIST) {
 					repeated group list {
 						required int96 element;
 					}
@@ -369,20 +369,19 @@ func TestDecodeStruct(t *testing.T) {
 	}
 
 	for idx, tt := range testData {
-		sd, err := parquetschema.ParseSchemaDefinition(tt.Schema)
-		assert.NoError(t, err, "%d. parsing schema failed", idx)
-		if err != nil {
-			continue
-		}
-		obj := interfaces.NewMarshallObject(nil)
-		m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
-		err = m.MarshalParquet(obj)
-		if tt.ExpectErr {
-			assert.Error(t, err, "%d. expected error, but found none", idx)
-		} else {
-			assert.NoError(t, err, "%d. expected no error, but found one", idx)
-			assert.Equal(t, tt.ExpectedOutput, obj.GetData(), "%d. output mismatch", idx)
-		}
+		t.Run(fmt.Sprintf("test_%d", idx), func(t *testing.T) {
+			sd, err := parquetschema.ParseSchemaDefinition(tt.Schema)
+			require.NoError(t, err, "%d. parsing schema failed", idx)
+			obj := interfaces.NewMarshallObject(nil)
+			m := &reflectMarshaller{obj: tt.Input, schemaDef: sd}
+			err = m.MarshalParquet(obj)
+			if tt.ExpectErr {
+				require.Error(t, err, "%d. expected error, but found none", idx)
+			} else {
+				require.NoError(t, err, "%d. expected no error, but found one", idx)
+				require.Equal(t, tt.ExpectedOutput, obj.GetData(), "%d. output mismatch; schema = %s", idx, tt.Schema)
+			}
+		})
 	}
 }
 

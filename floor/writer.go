@@ -324,11 +324,11 @@ func (m *reflectMarshaller) decodeUnixTime(field interfaces.MarshalElement, i64 
 	case digits <= i64Digits(now.Unix()):
 		dt := time.Unix(i64, 0)
 		field.SetInt96(goparquet.TimeToInt96(dt))
-	case digits <= i64Digits(now.UnixMilli()):
-		dt := time.UnixMilli(i64)
+	case digits <= i64Digits(now.UnixNano()/1000000):
+		dt := time.Unix(0, i64*int64(time.Millisecond))
 		field.SetInt96(goparquet.TimeToInt96(dt))
-	case digits <= i64Digits(now.UnixMicro()):
-		dt := time.UnixMicro(i64)
+	case digits <= i64Digits(now.UnixNano()/1000):
+		dt := time.Unix(0, i64*int64(time.Microsecond))
 		field.SetInt96(goparquet.TimeToInt96(dt))
 	case digits <= i64Digits(now.UnixNano()):
 		dt := time.Unix(0, i64)
