@@ -61,4 +61,7 @@ issues:
     - path: ".*_test.go"
       text: "Use of weak random number generator"
       linters: [gosec]
+    - path: ".*_test.go"
+      text: "shadows declaration"
+      linters: [govet]
 

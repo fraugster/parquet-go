@@ -54,7 +54,12 @@ func getInt32ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_PLAIN:
 		return &int32PlainEncoder{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int32DeltaBPEncoder{}, nil
+		return &int32DeltaBPEncoder{
+			deltaBitPackEncoder32: deltaBitPackEncoder32{
+				blockSize:      128,
+				miniBlockCount: 4,
+			},
+		}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{
 			dictStore: *store,
@@ -69,7 +74,12 @@ func getInt64ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_PLAIN:
 		return &int64PlainEncoder{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int64DeltaBPEncoder{}, nil
+		return &int64DeltaBPEncoder{
+			deltaBitPackEncoder64: deltaBitPackEncoder64{
+				blockSize:      128,
+				miniBlockCount: 4,
+			},
+		}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{
 			dictStore: *store,

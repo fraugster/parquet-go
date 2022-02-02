@@ -18,7 +18,7 @@ type deltaBitPackEncoder32 struct {
 	w        io.Writer
 
 	// this value should be there before the init
-	blockSize      int // Must be multiply of 128
+	blockSize      int // Must be multiple of 128
 	miniBlockCount int // blockSize % miniBlockCount should be 0
 
 	miniBlockValueCount int
@@ -35,7 +35,7 @@ func (d *deltaBitPackEncoder32) init(w io.Writer) error {
 	d.w = w
 
 	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return errors.Errorf("invalid block size, it should be multiply of 128, it is %d", d.blockSize)
+		return errors.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
@@ -44,7 +44,7 @@ func (d *deltaBitPackEncoder32) init(w io.Writer) error {
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount%8 != 0 {
-		return errors.Errorf("invalid mini block count, the mini block value count should be multiply of 8, it is %d", d.miniBlockCount)
+		return errors.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
 	}
 
 	d.firstValue = 0
@@ -140,7 +140,7 @@ func (d *deltaBitPackEncoder32) addInt32(i int32) error {
 }
 
 func (d *deltaBitPackEncoder32) write() error {
-	if len(d.deltas) > 0 {
+	if d.valuesCount == 1 || len(d.deltas) > 0 {
 		if err := d.flush(); err != nil {
 			return err
 		}
@@ -171,7 +171,7 @@ func (d *deltaBitPackEncoder32) Close() error {
 
 type deltaBitPackEncoder64 struct {
 	// this value should be there before the init
-	blockSize      int // Must be multiply of 128
+	blockSize      int // Must be multiple of 128
 	miniBlockCount int // blockSize % miniBlockCount should be 0
 
 	//
@@ -194,7 +194,7 @@ func (d *deltaBitPackEncoder64) init(w io.Writer) error {
 	d.w = w
 
 	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return errors.Errorf("invalid block size, it should be multiply of 128, it is %d", d.blockSize)
+		return errors.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
@@ -203,7 +203,7 @@ func (d *deltaBitPackEncoder64) init(w io.Writer) error {
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount%8 != 0 {
-		return errors.Errorf("invalid mini block count, the mini block value count should be multiply of 8, it is %d", d.miniBlockCount)
+		return errors.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
 	}
 
 	d.firstValue = 0
@@ -299,7 +299,7 @@ func (d *deltaBitPackEncoder64) addInt64(i int64) error {
 }
 
 func (d *deltaBitPackEncoder64) write() error {
-	if len(d.deltas) > 0 {
+	if d.valuesCount == 1 || len(d.deltas) > 0 {
 		if err := d.flush(); err != nil {
 			return err
 		}
