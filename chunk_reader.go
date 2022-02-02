@@ -350,18 +350,10 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 
 func readPageData(col *Column, pages []pageReader) error {
 	s := col.getColumnStore()
-	for i := range pages {
-		data, dl, rl, err := pages[i].readValues(int(pages[i].numValues()))
-		if err != nil {
-			return err
-		}
-
-		// using append to make sure we handle the multiple data page correctly
-		s.rLevels.appendArray(rl)
-		s.dLevels.appendArray(dl)
-
-		s.values.values = append(s.values.values, data...)
-		s.values.noDictMode = true
+	s.pageIdx, s.pages = 0, pages
+	s.values.noDictMode = true
+	if err := s.readNextPage(); err != nil {
+		return nil
 	}
 
 	return nil

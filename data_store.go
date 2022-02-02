@@ -17,6 +17,9 @@ type ColumnStore struct {
 
 	repTyp parquet.FieldRepetitionType
 
+	pages   []pageReader
+	pageIdx int
+
 	values *dictStore
 
 	dLevels *packedArray
@@ -155,13 +158,41 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 	return v, nil
 }
 
+func (cs *ColumnStore) readNextPage() error {
+	if cs.pageIdx >= len(cs.pages) {
+		return errors.New("out of range")
+	}
+
+	data, dl, rl, err := cs.pages[cs.pageIdx].readValues(int(cs.pages[cs.pageIdx].numValues()))
+	if err != nil {
+		return err
+	}
+
+	cs.pageIdx++
+
+	cs.readPos = 0
+
+	cs.values.readPos = 0
+	cs.values.values = data
+	cs.values.size = int64(len(cs.values.values))
+
+	cs.rLevels.reset(cs.rLevels.bw)
+	cs.rLevels.appendArray(rl)
+	cs.dLevels.reset(cs.dLevels.bw)
+	cs.dLevels.appendArray(dl)
+
+	return nil
+}
+
 func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	if cs.skipped {
 		return nil, 0, nil
 	}
 
 	if cs.readPos >= cs.rLevels.count || cs.readPos >= cs.dLevels.count {
-		return nil, 0, errors.New("out of range")
+		if err := cs.readNextPage(); err != nil {
+			return nil, 0, err
+		}
 	}
 	_, dl, _ := cs.getRDLevelAt(cs.readPos)
 	// this is a null value, increase the read pos, for advancing the rLvl and dLvl but
