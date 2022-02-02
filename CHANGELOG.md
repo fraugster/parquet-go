@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - Set correct total size and total compressed in row group data.
+- Fixed delta bit-pack encoding of int32 and int64 and delta-length bit-packing encoding of byte\_arrays when only a single value is written.
+- Fixed build issue in the floor package that somehow made it into the previous release.
 
 ## [v0.7.0] - 2022-02-01
 - Relax schema parser requirement that field names begin with a letter or underscore.
