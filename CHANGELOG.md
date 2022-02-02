@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.8.0] - 2022-02-02
 - Set correct total size and total compressed in row group data.
 - Fixed delta bit-pack encoding of int32 and int64 and delta-length bit-packing encoding of byte\_arrays when only a single value is written.
 - Fixed build issue in the floor package that somehow made it into the previous release.
@@ -77,7 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.8.0...HEAD
+[v0.8.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.8.0
 [v0.7.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.7.0
 [v0.6.1]: https://github.com/fraugster/parquet-go/releases/tag/v0.6.1
 [v0.6.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.6.0
