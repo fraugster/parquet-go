@@ -52,6 +52,7 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 		dp.values = make([]interface{}, 0, dp.numValues)
 	}
 	dp.values = dp.values[:int(dp.numValues)]
+
 	if err := dp.enc.init(reader); err != nil {
 		return err
 	}

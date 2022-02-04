@@ -1,7 +1,8 @@
 package goparquet
 
 import (
-	"math"
+	"bytes"
+	"context"
 	"math/bits"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -28,27 +29,25 @@ type ColumnStore struct {
 	enc     parquet.Encoding
 	readPos int
 
-	allowDict bool
+	useDict bool
 
 	skipped bool
+
+	flushedPages      []flushedPage
+	allDistinctValues map[interface{}]struct{}
+}
+
+type flushedPage struct {
+	compressedSize   int
+	uncompressedSize int
+	numValues        int64
+	nullValues       int64
+	buf              []byte
 }
 
 // useDictionary is simply a function to decide to use dictionary or not,
 func (cs *ColumnStore) useDictionary() bool {
-	if !cs.allowDict {
-		return false
-	}
-	if len(cs.values.data) > math.MaxInt16 {
-		return false
-	}
-
-	// There is no point for using dictionary if all values are nil
-	if len(cs.values.data) == 0 || len(cs.values.values) == 0 {
-		return false
-	}
-
-	dictLen, noDictLen := cs.values.sizes()
-	return dictLen < noDictLen
+	return cs.useDict
 }
 
 func (cs *ColumnStore) encoding() parquet.Encoding {
@@ -86,7 +85,7 @@ func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
+func (cs *ColumnStore) add(r *schema, col *Column, v interface{}, dL uint16, maxRL, rL uint16) error {
 	// if the current column is repeated, we should increase the maxRL here
 	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -108,7 +107,7 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 	}
 	if len(vals) == 0 {
 		// the MaxRl might be increased in the beginning and increased again in the next call but for nil its not important
-		return cs.add(nil, dL, maxRL, rL)
+		return cs.add(r, col, nil, dL, maxRL, rL)
 	}
 
 	for i, j := range vals {
@@ -124,6 +123,54 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 			cs.appendRDLevel(maxRL, tmp)
 		}
 	}
+
+	if err := cs.flushPage(r, col, false); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cs *ColumnStore) estimateSize() (total int64) {
+	dictSize, noDictSize := cs.values.sizes()
+	if cs.useDictionary() {
+		total += dictSize
+	} else {
+		total += noDictSize
+	}
+	total += int64(len(cs.rLevels.data) + len(cs.dLevels.data))
+	return total
+}
+
+func (cs *ColumnStore) flushPage(r *schema, col *Column, force bool) error {
+	size := cs.estimateSize()
+
+	if !force && size < 512*1024 { // TODO: make page size configurable.
+		return nil
+	}
+
+	page := r.newPageFunc(cs.useDictionary())
+
+	if err := page.init(r, col, r.codec); err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+
+	compSize, unCompSize, err := page.write(context.TODO(), &buf)
+	if err != nil {
+		return err
+	}
+
+	cs.flushedPages = append(cs.flushedPages, flushedPage{
+		compressedSize:   compSize,
+		uncompressedSize: unCompSize,
+		numValues:        int64(cs.values.numValues()),
+		nullValues:       int64(cs.values.nullValueCount()),
+		buf:              buf.Bytes(),
+	})
+
+	cs.resetData()
 
 	return nil
 }
@@ -158,6 +205,13 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 	return v, nil
 }
 
+func (cs *ColumnStore) resetData() {
+	cs.readPos = 0
+	cs.values.reset() // this ensures that the values remain for when writing the dictionary page at the end but the data is emptied.
+	cs.rLevels.reset(cs.rLevels.bw)
+	cs.dLevels.reset(cs.dLevels.bw)
+}
+
 func (cs *ColumnStore) readNextPage() error {
 	if cs.pageIdx >= len(cs.pages) {
 		return errors.New("out of range")
@@ -170,15 +224,15 @@ func (cs *ColumnStore) readNextPage() error {
 
 	cs.pageIdx++
 
-	cs.readPos = 0
+	cs.resetData()
 
 	cs.values.readPos = 0
-	cs.values.values = data
-	cs.values.size = int64(len(cs.values.values))
 
-	cs.rLevels.reset(cs.rLevels.bw)
+	for _, v := range data {
+		cs.values.addValue(v, cs.sizeOf(v))
+	}
+
 	cs.rLevels.appendArray(rl)
-	cs.dLevels.reset(cs.dLevels.bw)
 	cs.dLevels.appendArray(dl)
 
 	return nil
@@ -233,10 +287,10 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	}
 }
 
-func newStore(typed typedColumnStore, enc parquet.Encoding, allowDict bool) *ColumnStore {
+func newStore(typed typedColumnStore, enc parquet.Encoding, useDict bool) *ColumnStore {
 	return &ColumnStore{
 		enc:              enc,
-		allowDict:        allowDict,
+		useDict:          useDict,
 		typedColumnStore: typed,
 	}
 }
@@ -295,34 +349,31 @@ func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnSto
 	return newStore(&booleanStore{ColumnParameters: params}, enc, false), nil
 }
 
-// NewInt32Store create a new column store to store int32 values. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewInt32Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewInt32Store create a new column store to store int32 values. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{ColumnParameters: params}, enc, allowDict), nil
+	return newStore(&int32Store{ColumnParameters: params}, enc, useDict), nil
 }
 
-// NewInt64Store creates a new column store to store int64 values. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewInt64Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewInt64Store creates a new column store to store int64 values. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{ColumnParameters: params}, enc, allowDict), nil
+	return newStore(&int64Store{ColumnParameters: params}, enc, useDict), nil
 }
 
-// NewInt96Store creates a new column store to store int96 values. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewInt96Store(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewInt96Store creates a new column store to store int96 values. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewInt96Store(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
@@ -330,49 +381,45 @@ func NewInt96Store(enc parquet.Encoding, allowDict bool, params *ColumnParameter
 	}
 	store := &int96Store{}
 	store.ColumnParameters = params
-	return newStore(store, enc, allowDict), nil
+	return newStore(store, enc, useDict), nil
 }
 
-// NewFloatStore creates a new column store to store float (float32) values. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewFloatStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewFloatStore creates a new column store to store float (float32) values. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{ColumnParameters: params}, enc, allowDict), nil
+	return newStore(&floatStore{ColumnParameters: params}, enc, useDict), nil
 }
 
-// NewDoubleStore creates a new column store to store double (float64) values. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewDoubleStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewDoubleStore creates a new column store to store double (float64) values. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{ColumnParameters: params}, enc, allowDict), nil
+	return newStore(&doubleStore{ColumnParameters: params}, enc, useDict), nil
 }
 
-// NewByteArrayStore creates a new column store to store byte arrays. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewByteArrayStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewByteArrayStore creates a new column store to store byte arrays. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&byteArrayStore{ColumnParameters: params}, enc, allowDict), nil
+	return newStore(&byteArrayStore{ColumnParameters: params}, enc, useDict), nil
 }
 
-// NewFixedByteArrayStore creates a new column store to store fixed size byte arrays. If allowDict is true,
-// then using a dictionary is considered by the column store depending on its heuristics.
-// If allowDict is false, a dictionary will never be used to encode the data.
-func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, params *ColumnParameters) (*ColumnStore, error) {
+// NewFixedByteArrayStore creates a new column store to store fixed size byte arrays. If useDict is true,
+// then a dictionary is used, otherwise a dictionary will never be used to encode the data.
+func NewFixedByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnParameters) (*ColumnStore, error) {
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
@@ -388,5 +435,5 @@ func NewFixedByteArrayStore(enc parquet.Encoding, allowDict bool, params *Column
 
 	return newStore(&byteArrayStore{
 		ColumnParameters: params,
-	}, enc, allowDict), nil
+	}, enc, useDict), nil
 }

@@ -168,7 +168,7 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, error) {
+func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, bool, error) {
 	var (
 		dictPage *dictPageReader
 		pages    []pageReader
@@ -180,26 +180,26 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 		}
 		ph := &parquet.PageHeader{}
 		if err := readThrift(ctx, ph, r); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		if ph.Type == parquet.PageType_DICTIONARY_PAGE {
 			if dictPage != nil {
-				return nil, errors.New("there should be only one dictionary")
+				return nil, false, errors.New("there should be only one dictionary")
 			}
 			p := &dictPageReader{}
 			de, err := getDictValuesDecoder(col.Element())
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			if err := p.init(de); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			// re-use the value dictionary store
 			p.values = col.getColumnStore().values.values
 			if err := p.read(r, ph, chunkMeta.Codec); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			dictPage = p
@@ -208,7 +208,7 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 			if chunkMeta.DictionaryPageOffset != nil {
 				if *chunkMeta.DictionaryPageOffset != r.offset {
 					if _, err := r.Seek(chunkMeta.DataPageOffset, io.SeekStart); err != nil {
-						return nil, err
+						return nil, false, err
 					}
 				}
 			}
@@ -226,7 +226,7 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 				ph: ph,
 			}
 		default:
-			return nil, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
+			return nil, false, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
 		}
 		var dictValue []interface{}
 		if dictPage != nil {
@@ -236,16 +236,16 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 			return getValuesDecoder(typ, col.Element(), clone(dictValue))
 		}
 		if err := p.init(dDecoder, rDecoder, fn); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		if err := p.read(r, ph, chunkMeta.Codec); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		pages = append(pages, p)
 	}
 
-	return pages, nil
+	return pages, dictPage == nil, nil
 }
 
 func clone(in []interface{}) []interface{} {
@@ -282,9 +282,9 @@ func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	return err
 }
 
-func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, error) {
+func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, bool, error) {
 	if chunk.FilePath != nil {
-		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
+		return nil, false, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
 
 	c := col.Index()
@@ -292,11 +292,11 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return nil, errors.Errorf("missing meta data for Column %c", c)
+		return nil, false, errors.Errorf("missing meta data for Column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return nil, errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
+		return nil, false, errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -307,7 +307,7 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 	// Seek to the beginning of the first Page
 	_, err := r.Seek(offset, io.SeekStart)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	reader := &offsetReader{
@@ -348,10 +348,11 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 	return readPages(ctx, reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
-func readPageData(col *Column, pages []pageReader) error {
+func readPageData(col *Column, pages []pageReader, noDict bool) error {
 	s := col.getColumnStore()
 	s.pageIdx, s.pages = 0, pages
-	s.values.noDictMode = true
+	s.values.noDictMode = noDict
+	s.useDict = !noDict
 	if err := s.readNextPage(); err != nil {
 		return nil
 	}
@@ -376,11 +377,11 @@ func readRowGroup(ctx context.Context, r io.ReadSeeker, schema SchemaReader, row
 			c.data.skipped = true
 			continue
 		}
-		pages, err := readChunk(ctx, r, c, chunk)
+		pages, noDict, err := readChunk(ctx, r, c, chunk)
 		if err != nil {
 			return err
 		}
-		if err := readPageData(c, pages); err != nil {
+		if err := readPageData(c, pages, noDict); err != nil {
 			return err
 		}
 	}

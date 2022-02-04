@@ -30,7 +30,8 @@ func (d *dictDecoder) init(r io.Reader) error {
 	}
 	if w >= 0 {
 		d.keys = newHybridDecoder(w)
-		return d.keys.init(r)
+		err := d.keys.init(r)
+		return err
 	}
 
 	return errors.New("bit width zero with non-empty dictionary")
@@ -64,6 +65,7 @@ type dictStore struct {
 	indices    map[interface{}]int32
 	size       int64
 	valueSize  int64
+	keySize    int64
 	readPos    int
 	nullCount  int32
 	noDictMode bool
@@ -71,8 +73,16 @@ type dictStore struct {
 
 func (d *dictStore) init() {
 	d.indices = make(map[interface{}]int32)
-	d.values = d.values[:0]
-	d.data = d.data[:0]
+	d.values = nil
+	d.data = nil
+	d.nullCount = 0
+	d.readPos = 0
+	d.size = 0
+	d.valueSize = 0
+}
+
+func (d *dictStore) reset() {
+	d.data = nil
 	d.nullCount = 0
 	d.readPos = 0
 	d.size = 0
@@ -109,7 +119,12 @@ func (d *dictStore) addValue(v interface{}, size int) {
 		return
 	}
 	d.size += int64(size)
-	d.data = append(d.data, d.getIndex(v, size))
+	if d.noDictMode {
+		d.values = append(d.values, v)
+		return
+	}
+	idx := d.getIndex(v, size)
+	d.data = append(d.data, idx)
 }
 
 func (d *dictStore) getNextValue() (interface{}, error) {
@@ -126,7 +141,8 @@ func (d *dictStore) getNextValue() (interface{}, error) {
 	}
 	d.readPos++
 	pos := d.data[d.readPos-1]
-	return d.values[pos], nil
+	v := d.values[pos]
+	return v, nil
 }
 
 func (d *dictStore) numValues() int32 {
@@ -141,29 +157,17 @@ func (d *dictStore) numDistinctValues() int32 {
 	return int32(len(d.values))
 }
 
-// sizes is an experimental guess for the dictionary size and real value size (when there is no dictionary)
 func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
-	count := len(d.data)
-	max := bits.Len(uint(count)) // bits required for any value in data
-	if max > 0 {
-		dictLen = int64(count/max) + 1
-	}
-
-	dictLen += d.valueSize
-	noDictLen = d.size
-	return
+	return d.valueSize, d.size
 }
 
 type dictEncoder struct {
 	w io.Writer
-	dictStore
+	*dictStore
 }
 
 func (d *dictEncoder) Close() error {
 	v := len(d.values)
-	if v == 0 { // empty dictionary?
-		return errors.New("empty dictionary nothing to write")
-	}
 
 	w := bits.Len(uint(v))
 	// first write the bitLength in a byte
@@ -183,16 +187,13 @@ func (d *dictEncoder) Close() error {
 
 func (d *dictEncoder) init(w io.Writer) error {
 	d.w = w
-	d.dictStore.init()
+	//d.dictStore.init()
 
 	return nil
 }
 
 func (d *dictEncoder) encodeValues(values []interface{}) error {
-	for i := range values {
-		d.addValue(values[i], 0) // size is not important here
-	}
-
+	// TODO: remove this function
 	return nil
 }
 

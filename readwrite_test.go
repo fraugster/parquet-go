@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -1072,4 +1073,44 @@ func TestReadWriteDeltaBinaryPackedInt64(t *testing.T) {
 	require.True(t, errors.Is(err, io.EOF))
 
 	t.Logf("Finished")
+}
+
+func TestWriteThenReadMultiplePages(t *testing.T) {
+	const mySchema = `message msg {
+		required binary ts_str (STRING);
+	}`
+
+	sd, err := parquetschema.ParseSchemaDefinition(mySchema)
+	require.NoError(t, err)
+
+	f := new(bytes.Buffer)
+
+	fw := NewFileWriter(f, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY))
+	defer fw.Close()
+
+	const numRows = 100000
+
+	records := []map[string]interface{}{}
+
+	for i := 0; i < numRows; i++ {
+		tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
+		rec := map[string]interface{}{"ts_str": []byte(tsStr)}
+		records = append(records, rec)
+		require.NoError(t, fw.AddData(rec))
+	}
+
+	require.NoError(t, fw.Close())
+
+	r, err := NewFileReader(bytes.NewReader(f.Bytes()))
+	require.NoError(t, err)
+
+	rowCount := r.NumRows()
+	require.Equal(t, int64(numRows), rowCount)
+
+	for i := int64(0); i < rowCount; i++ {
+		data, err := r.NextRow()
+		require.NoError(t, err)
+		require.Equal(t, records[i], data, "%d. records don't match", i)
+		//fmt.Printf("in %d. %s\n", i, string(data["ts_str"].([]byte)))
+	}
 }

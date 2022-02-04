@@ -28,7 +28,7 @@ type FileWriter struct {
 
 	codec parquet.CompressionCodec
 
-	newPage newDataPageFunc
+	newPageFunc newDataPageFunc
 
 	ctx context.Context
 }
@@ -44,13 +44,15 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 			w:   w,
 			pos: 0,
 		},
-		version:      1,
-		SchemaWriter: &schema{},
-		kvStore:      make(map[string]string),
-		rowGroups:    []*parquet.RowGroup{},
-		createdBy:    "parquet-go",
-		newPage:      newDataPageV1Writer,
-		ctx:          context.Background(),
+		version: 1,
+		SchemaWriter: &schema{
+			newPageFunc: newDataPageV1Writer,
+		},
+		kvStore:     make(map[string]string),
+		rowGroups:   []*parquet.RowGroup{},
+		createdBy:   "parquet-go",
+		newPageFunc: newDataPageV1Writer,
+		ctx:         context.Background(),
 	}
 
 	for _, opt := range options {
@@ -78,6 +80,7 @@ func WithCreator(createdBy string) FileWriterOption {
 func WithCompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.codec = codec
+		fw.SchemaWriter.(*schema).codec = codec
 	}
 }
 
@@ -116,7 +119,8 @@ func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 // issues with older implementations of parquet.
 func WithDataPageV2() FileWriterOption {
 	return func(fw *FileWriter) {
-		fw.newPage = newDataPageV2Writer
+		fw.newPageFunc = newDataPageV2Writer
+		fw.SchemaWriter.(*schema).newPageFunc = newDataPageV2Writer
 	}
 }
 
@@ -210,7 +214,7 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 		o(h)
 	}
 
-	cc, err := writeRowGroup(ctx, fw.w, fw.SchemaWriter, fw.codec, fw.newPage, h)
+	cc, err := writeRowGroup(ctx, fw.w, fw.SchemaWriter, fw.codec, fw.newPageFunc, h)
 	if err != nil {
 		return err
 	}

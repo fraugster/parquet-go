@@ -171,7 +171,9 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 		return 0, 0, err
 	}
 
-	err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble())
+	assembledValues := dp.col.data.values.assemble()
+
+	err = encodeValue(dataBuf, encoder, assembledValues)
 	if err != nil {
 		return 0, 0, err
 	}

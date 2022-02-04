@@ -271,6 +271,9 @@ type schema struct {
 
 	// selected columns in reading. if the size is zero, it means all the columns
 	selectedColumn []string
+
+	newPageFunc newDataPageFunc
+	codec       parquet.CompressionCodec
 }
 
 func (r *schema) ensureRoot() {
@@ -692,7 +695,7 @@ func (r *schema) findDataColumn(path string) (*Column, error) {
 func (r *schema) AddData(m map[string]interface{}) error {
 	r.readOnly = 1
 	r.ensureRoot()
-	err := recursiveAddColumnData(r.root.children, m, 0, 0, 0)
+	err := r.recursiveAddColumnData(r.root.children, m, 0, 0, 0)
 	if err == nil {
 		r.numRecords++
 	}
@@ -711,18 +714,18 @@ func (r *schema) getData() (map[string]interface{}, error) {
 	return d.(map[string]interface{}), nil
 }
 
-func recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, repLvl uint16) error {
+func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, repLvl uint16) error {
 	for i := range c {
 		if c[i].data != nil {
 			if c[i].rep == parquet.FieldRepetitionType_REQUIRED && defLvl == c[i].maxD {
 				return errors.Errorf("the value %q is required", c[i].flatName)
 			}
-			if err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := c[i].data.add(r, c[i], nil, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}
 		if c[i].children != nil {
-			if err := recursiveAddColumnNil(c[i].children, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := r.recursiveAddColumnNil(c[i].children, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}
@@ -730,12 +733,12 @@ func recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, repLvl uint16)
 	return nil
 }
 
-func recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) error {
+func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) error {
 	var data = m.(map[string]interface{})
 	for i := range c {
 		d := data[c[i].name]
 		if c[i].data != nil {
-			if err := c[i].data.add(d, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := c[i].data.add(r, c[i], d, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}
@@ -749,14 +752,14 @@ func recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl
 
 			switch v := d.(type) {
 			case nil:
-				if err := recursiveAddColumnNil(c[i].children, l, maxRepLvl, repLvl); err != nil {
+				if err := r.recursiveAddColumnNil(c[i].children, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
 			case map[string]interface{}: // Not repeated
 				if c[i].rep == parquet.FieldRepetitionType_REPEATED {
 					return errors.Errorf("repeated group should be array")
 				}
-				if err := recursiveAddColumnData(c[i].children, v, l, maxRepLvl, repLvl); err != nil {
+				if err := r.recursiveAddColumnData(c[i].children, v, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
 			case []map[string]interface{}:
@@ -766,13 +769,13 @@ func recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl
 				m := maxRepLvl + 1
 				rL := repLvl
 				if len(v) == 0 {
-					return recursiveAddColumnNil(c[i].children, l, m, rL)
+					return r.recursiveAddColumnNil(c[i].children, l, m, rL)
 				}
 				for vi := range v {
 					if vi > 0 {
 						rL = m
 					}
-					if err := recursiveAddColumnData(c[i].children, v[vi], l, m, rL); err != nil {
+					if err := r.recursiveAddColumnData(c[i].children, v[vi], l, m, rL); err != nil {
 						return err
 					}
 				}
