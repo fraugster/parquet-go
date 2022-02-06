@@ -33,7 +33,7 @@ type ColumnStore struct {
 
 	dataPages []*dataPage
 
-	allDistinctValues map[interface{}]struct{}
+	maxPageSize int64
 }
 
 type dataPage struct {
@@ -137,10 +137,17 @@ func (cs *ColumnStore) estimateSize() (total int64) {
 	return total
 }
 
+func (cs *ColumnStore) getMaxPageSize() int64 {
+	if cs.maxPageSize == 0 {
+		return 1024 * 1024
+	}
+	return cs.maxPageSize
+}
+
 func (cs *ColumnStore) flushPage(force bool) error {
 	size := cs.estimateSize()
 
-	if !force && size < 512*1024 { // TODO: make page size configurable.
+	if !force && size < cs.getMaxPageSize() {
 		return nil
 	}
 

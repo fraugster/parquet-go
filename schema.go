@@ -270,6 +270,8 @@ type schema struct {
 	numRecords int64
 	readOnly   int
 
+	maxPageSize int64
+
 	// selected columns in reading. if the size is zero, it means all the columns
 	selectedColumn []string
 }
@@ -389,7 +391,7 @@ func (r *schema) sortIndex() {
 func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
 	r.schemaDef = sd
 
-	root, err := createColumnFromColumnDefinition(r.schemaDef.RootColumn)
+	root, err := r.createColumnFromColumnDefinition(r.schemaDef.RootColumn)
 	if err != nil {
 		return err
 	}
@@ -403,7 +405,7 @@ func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
 	return nil
 }
 
-func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Column, error) {
+func (r *schema) createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Column, error) {
 	params := &ColumnParameters{
 		LogicalType:   root.SchemaElement.LogicalType,
 		ConvertedType: root.SchemaElement.ConvertedType,
@@ -421,14 +423,14 @@ func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Co
 
 	if len(root.Children) > 0 {
 		for _, c := range root.Children {
-			childColumn, err := createColumnFromColumnDefinition(c)
+			childColumn, err := r.createColumnFromColumnDefinition(c)
 			if err != nil {
 				return nil, err
 			}
 			col.children = append(col.children, childColumn)
 		}
 	} else {
-		dataColumn, err := getColumnStore(root.SchemaElement, params)
+		dataColumn, err := r.getColumnStore(root.SchemaElement, params)
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +442,7 @@ func createColumnFromColumnDefinition(root *parquetschema.ColumnDefinition) (*Co
 	return col, nil
 }
 
-func getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) (*ColumnStore, error) {
+func (r *schema) getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) (*ColumnStore, error) {
 	if elem.Type == nil {
 		return nil, nil
 	}
@@ -475,6 +477,8 @@ func getColumnStore(elem *parquet.SchemaElement, params *ColumnParameters) (*Col
 	if err != nil {
 		return nil, fmt.Errorf("creating Column store for type %q failed: %v", typ.String(), err)
 	}
+
+	colStore.maxPageSize = r.maxPageSize
 
 	return colStore, nil
 }
