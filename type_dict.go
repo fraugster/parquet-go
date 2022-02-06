@@ -74,26 +74,6 @@ func (d *dictStore) getValues() []interface{} {
 	return d.valueList
 }
 
-func (d *dictStore) getDictValues() ([]interface{}, []int32) {
-	uniqueValues := []interface{}{}
-	indexList := []int32{}
-	indices := map[interface{}]int32{}
-
-	for _, v := range d.valueList {
-		k := mapKey(v)
-		if idx, ok := indices[k]; ok {
-			indexList = append(indexList, idx)
-		} else {
-			idx := int32(len(uniqueValues))
-			indices[k] = idx
-			indexList = append(indexList, idx)
-			uniqueValues = append(uniqueValues, v)
-		}
-	}
-
-	return uniqueValues, indexList
-}
-
 func (d *dictStore) init() {
 	d.uniqueValues = make(map[interface{}]struct{})
 	d.valueList = nil
@@ -122,7 +102,6 @@ func (d *dictStore) addValue(v interface{}, size int) {
 }
 
 func (d *dictStore) getNextValue() (interface{}, error) {
-
 	if d.readPos >= len(d.valueList) {
 		return nil, errors.New("out of range")
 	}
@@ -136,10 +115,6 @@ func (d *dictStore) numValues() int32 {
 
 func (d *dictStore) nullValueCount() int32 {
 	return d.nullCount
-}
-
-func (d *dictStore) numDistinctValues() int32 {
-	return int32(len(d.uniqueValues))
 }
 
 func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
