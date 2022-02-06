@@ -165,7 +165,8 @@ func (c *Column) getDataSize() int64 {
 		// Booleans are stored in one bit, so the result is the number of items / 8
 		return int64(c.data.values.numValues())/8 + 1
 	}
-	return c.data.values.size
+	_, dataSize := c.data.values.sizes()
+	return dataSize
 }
 
 func (c *Column) getNextData() (map[string]interface{}, int32, error) {
@@ -271,9 +272,6 @@ type schema struct {
 
 	// selected columns in reading. if the size is zero, it means all the columns
 	selectedColumn []string
-
-	newPageFunc newDataPageFunc
-	codec       parquet.CompressionCodec
 }
 
 func (r *schema) ensureRoot() {
@@ -720,7 +718,7 @@ func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, re
 			if c[i].rep == parquet.FieldRepetitionType_REQUIRED && defLvl == c[i].maxD {
 				return errors.Errorf("the value %q is required", c[i].flatName)
 			}
-			if err := c[i].data.add(r, c[i], nil, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}
@@ -738,7 +736,7 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 	for i := range c {
 		d := data[c[i].name]
 		if c[i].data != nil {
-			if err := c[i].data.add(r, c[i], d, defLvl, maxRepLvl, repLvl); err != nil {
+			if err := c[i].data.add(d, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
 			}
 		}

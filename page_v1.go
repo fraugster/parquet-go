@@ -115,6 +115,8 @@ type dataPageWriterV1 struct {
 
 	codec      parquet.CompressionCodec
 	dictionary bool
+	dictValues []interface{}
+	page       *dataPage
 }
 
 func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
@@ -134,7 +136,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil,
 		DataPageHeader: &parquet.DataPageHeader{
-			NumValues: dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
+			NumValues: int32(dp.page.numValues) + int32(dp.page.nullValues),
 			Encoding:  enc,
 			// Only RLE supported for now, not sure if we need support for more encoding
 			DefinitionLevelEncoding: parquet.Encoding_RLE,
@@ -149,31 +151,30 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 	dataBuf := &bytes.Buffer{}
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevelsV1(dataBuf, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxRepetitionLevel(), dp.page.rL); err != nil {
 			return 0, 0, err
 		}
 	}
 
 	// Only write definition value higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevelsV1(dataBuf, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV1(dataBuf, dp.col.MaxDefinitionLevel(), dp.page.dL); err != nil {
 			return 0, 0, err
 		}
 	}
 
 	enc := dp.col.data.encoding()
+
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.dictValues)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	assembledValues := dp.col.data.values.assemble()
-
-	err = encodeValue(dataBuf, encoder, assembledValues)
+	err = encodeValue(dataBuf, encoder, dp.page.values)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -192,8 +193,10 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 	return compSize, unCompSize, writeFull(w, comp)
 }
 
-func newDataPageV1Writer(useDict bool) pageWriter {
+func newDataPageV1Writer(useDict bool, dictValues []interface{}, page *dataPage) pageWriter {
 	return &dataPageWriterV1{
 		dictionary: useDict,
+		dictValues: dictValues,
+		page:       page,
 	}
 }

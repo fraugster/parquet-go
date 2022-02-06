@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"fmt"
 	"io"
 	"math/bits"
 
@@ -8,14 +9,14 @@ import (
 )
 
 type dictDecoder struct {
-	values []interface{}
+	uniqueValues []interface{}
 
 	keys decoder
 }
 
 // just for tests
 func (d *dictDecoder) setValues(v []interface{}) {
-	d.values = v
+	d.uniqueValues = v
 }
 
 // the value should be there before the init
@@ -41,7 +42,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 	if d.keys == nil {
 		return 0, errors.New("no value is inside dictionary")
 	}
-	size := int32(len(d.values))
+	size := int32(len(d.uniqueValues))
 
 	for i := range dst {
 		key, err := d.keys.next()
@@ -53,64 +54,57 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 			return 0, errors.Errorf("dict: invalid index %d, values count are %d", key, size)
 		}
 
-		dst[i] = d.values[key]
+		dst[i] = d.uniqueValues[key]
 	}
 
 	return len(dst), nil
 }
 
 type dictStore struct {
-	values     []interface{}
-	data       []int32
-	indices    map[interface{}]int32
-	size       int64
-	valueSize  int64
-	keySize    int64
-	readPos    int
-	nullCount  int32
-	noDictMode bool
+	valueList        []interface{}
+	uniqueValues     map[interface{}]struct{}
+	uniqueValuesSize int64
+	allValuesSize    int64
+	readPos          int
+	nullCount        int32
+	noDictMode       bool
+}
+
+func (d *dictStore) getValues() []interface{} {
+	return d.valueList
+}
+
+func (d *dictStore) getDictValues() ([]interface{}, []int32) {
+	uniqueValues := []interface{}{}
+	indexList := []int32{}
+	indices := map[interface{}]int32{}
+
+	for _, v := range d.valueList {
+		k := mapKey(v)
+		if idx, ok := indices[k]; ok {
+			indexList = append(indexList, idx)
+		} else {
+			idx := int32(len(uniqueValues))
+			indices[k] = idx
+			indexList = append(indexList, idx)
+			uniqueValues = append(uniqueValues, v)
+		}
+	}
+
+	return uniqueValues, indexList
 }
 
 func (d *dictStore) init() {
-	d.indices = make(map[interface{}]int32)
-	d.values = nil
-	d.data = nil
-	d.nullCount = 0
-	d.readPos = 0
-	d.size = 0
-	d.valueSize = 0
+	d.uniqueValues = make(map[interface{}]struct{})
+	d.valueList = nil
+	d.reset()
 }
 
 func (d *dictStore) reset() {
-	d.data = nil
 	d.nullCount = 0
 	d.readPos = 0
-	d.size = 0
-	d.valueSize = 0
-}
-
-func (d *dictStore) assemble() []interface{} {
-	if d.noDictMode {
-		return d.values
-	}
-	ret := make([]interface{}, 0, len(d.data))
-	for i := range d.data {
-		ret = append(ret, d.values[d.data[i]])
-	}
-
-	return ret
-}
-
-func (d *dictStore) getIndex(in interface{}, size int) int32 {
-	key := mapKey(in)
-	if idx, ok := d.indices[key]; ok {
-		return idx
-	}
-	d.valueSize += int64(size)
-	d.values = append(d.values, in)
-	idx := int32(len(d.values) - 1)
-	d.indices[key] = idx
-	return idx
+	d.uniqueValuesSize = 0
+	d.allValuesSize = 0
 }
 
 func (d *dictStore) addValue(v interface{}, size int) {
@@ -118,35 +112,26 @@ func (d *dictStore) addValue(v interface{}, size int) {
 		d.nullCount++
 		return
 	}
-	d.size += int64(size)
-	if d.noDictMode {
-		d.values = append(d.values, v)
-		return
+	k := mapKey(v)
+	if _, found := d.uniqueValues[k]; !found {
+		d.uniqueValues[k] = struct{}{}
+		d.uniqueValuesSize += int64(size)
 	}
-	idx := d.getIndex(v, size)
-	d.data = append(d.data, idx)
+	d.allValuesSize += int64(size)
+	d.valueList = append(d.valueList, v)
 }
 
 func (d *dictStore) getNextValue() (interface{}, error) {
-	if d.noDictMode {
-		if d.readPos >= len(d.values) {
-			return nil, errors.New("out of range")
-		}
-		d.readPos++
-		return d.values[d.readPos-1], nil
-	}
 
-	if d.readPos >= len(d.data) {
+	if d.readPos >= len(d.valueList) {
 		return nil, errors.New("out of range")
 	}
 	d.readPos++
-	pos := d.data[d.readPos-1]
-	v := d.values[pos]
-	return v, nil
+	return d.valueList[d.readPos-1], nil
 }
 
 func (d *dictStore) numValues() int32 {
-	return int32(len(d.data))
+	return int32(len(d.valueList))
 }
 
 func (d *dictStore) nullValueCount() int32 {
@@ -154,31 +139,33 @@ func (d *dictStore) nullValueCount() int32 {
 }
 
 func (d *dictStore) numDistinctValues() int32 {
-	return int32(len(d.values))
+	return int32(len(d.uniqueValues))
 }
 
 func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
-	return d.valueSize, d.size
+	return d.uniqueValuesSize + int64(4*len(d.valueList)), d.allValuesSize
 }
 
 type dictEncoder struct {
-	w io.Writer
-	*dictStore
+	w          io.Writer
+	dictValues []interface{}
+	indexMap   map[interface{}]int32
+	indices    []int32
 }
 
 func (d *dictEncoder) Close() error {
-	v := len(d.values)
+	v := len(d.indices)
+	bitWidth := bits.Len(uint(v))
 
-	w := bits.Len(uint(v))
 	// first write the bitLength in a byte
-	if err := writeFull(d.w, []byte{byte(w)}); err != nil {
+	if err := writeFull(d.w, []byte{byte(bitWidth)}); err != nil {
 		return err
 	}
-	enc := newHybridEncoder(w)
+	enc := newHybridEncoder(bitWidth)
 	if err := enc.init(d.w); err != nil {
 		return err
 	}
-	if err := enc.encode(d.data); err != nil {
+	if err := enc.encode(d.indices); err != nil {
 		return err
 	}
 
@@ -187,17 +174,27 @@ func (d *dictEncoder) Close() error {
 
 func (d *dictEncoder) init(w io.Writer) error {
 	d.w = w
-	//d.dictStore.init()
+
+	d.indexMap = make(map[interface{}]int32)
+	for idx, v := range d.dictValues {
+		d.indexMap[mapKey(v)] = int32(idx)
+	}
 
 	return nil
 }
 
 func (d *dictEncoder) encodeValues(values []interface{}) error {
-	// TODO: remove this function
+	for _, v := range values {
+		if idx, ok := d.indexMap[mapKey(v)]; ok {
+			d.indices = append(d.indices, idx)
+		} else {
+			return fmt.Errorf("couldn't find value %v in dictionary values", v)
+		}
+	}
 	return nil
 }
 
 // just for tests
 func (d *dictEncoder) getValues() []interface{} {
-	return d.values
+	return d.dictValues
 }

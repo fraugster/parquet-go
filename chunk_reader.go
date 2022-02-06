@@ -45,7 +45,7 @@ func getBooleanValuesDecoder(pageEncoding parquet.Encoding, dictValues []interfa
 	case parquet.Encoding_RLE:
 		return &booleanRLEDecoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{values: dictValues}, nil
+		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
 	}
@@ -60,7 +60,7 @@ func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []inter
 	case parquet.Encoding_DELTA_BYTE_ARRAY:
 		return &byteArrayDeltaDecoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{values: dictValues}, nil
+		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for binary", pageEncoding)
 	}
@@ -73,7 +73,7 @@ func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, d
 	case parquet.Encoding_DELTA_BYTE_ARRAY:
 		return &byteArrayDeltaDecoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{values: dictValues}, nil
+		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
 	}
@@ -86,7 +86,7 @@ func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_DELTA_BINARY_PACKED:
 		return &int32DeltaBPDecoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{values: dictValues}, nil
+		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for int32", pageEncoding)
 	}
@@ -99,7 +99,7 @@ func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_DELTA_BINARY_PACKED:
 		return &int64DeltaBPDecoder{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{values: dictValues}, nil
+		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for int64", pageEncoding)
 	}
@@ -128,7 +128,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		case parquet.Encoding_PLAIN:
 			return &floatPlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
+			return &dictDecoder{uniqueValues: dictValues}, nil
 		}
 
 	case parquet.Type_DOUBLE:
@@ -136,7 +136,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		case parquet.Encoding_PLAIN:
 			return &doublePlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
+			return &dictDecoder{uniqueValues: dictValues}, nil
 		}
 
 	case parquet.Type_INT32:
@@ -150,7 +150,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		case parquet.Encoding_PLAIN:
 			return &int96PlainDecoder{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
-			return &dictDecoder{values: dictValues}, nil
+			return &dictDecoder{uniqueValues: dictValues}, nil
 		}
 
 	default:
@@ -196,13 +196,12 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 				return nil, false, err
 			}
 
-			// re-use the value dictionary store
-			p.values = col.getColumnStore().values.values
 			if err := p.read(r, ph, chunkMeta.Codec); err != nil {
 				return nil, false, err
 			}
 
 			dictPage = p
+
 			// Go to the next data Page
 			// if we have a DictionaryPageOffset we should return to DataPageOffset
 			if chunkMeta.DictionaryPageOffset != nil {

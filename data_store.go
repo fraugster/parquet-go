@@ -1,8 +1,6 @@
 package goparquet
 
 import (
-	"bytes"
-	"context"
 	"math/bits"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -33,16 +31,17 @@ type ColumnStore struct {
 
 	skipped bool
 
-	flushedPages      []flushedPage
+	dataPages []*dataPage
+
 	allDistinctValues map[interface{}]struct{}
 }
 
-type flushedPage struct {
-	compressedSize   int
-	uncompressedSize int
-	numValues        int64
-	nullValues       int64
-	buf              []byte
+type dataPage struct {
+	values     []interface{}
+	rL         *packedArray
+	dL         *packedArray
+	numValues  int64
+	nullValues int64
 }
 
 // useDictionary is simply a function to decide to use dictionary or not,
@@ -85,7 +84,7 @@ func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-func (cs *ColumnStore) add(r *schema, col *Column, v interface{}, dL uint16, maxRL, rL uint16) error {
+func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 	// if the current column is repeated, we should increase the maxRL here
 	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -107,7 +106,7 @@ func (cs *ColumnStore) add(r *schema, col *Column, v interface{}, dL uint16, max
 	}
 	if len(vals) == 0 {
 		// the MaxRl might be increased in the beginning and increased again in the next call but for nil its not important
-		return cs.add(r, col, nil, dL, maxRL, rL)
+		return cs.add(nil, dL, maxRL, rL)
 	}
 
 	for i, j := range vals {
@@ -124,7 +123,7 @@ func (cs *ColumnStore) add(r *schema, col *Column, v interface{}, dL uint16, max
 		}
 	}
 
-	if err := cs.flushPage(r, col, false); err != nil {
+	if err := cs.flushPage(false); err != nil {
 		return err
 	}
 
@@ -142,32 +141,19 @@ func (cs *ColumnStore) estimateSize() (total int64) {
 	return total
 }
 
-func (cs *ColumnStore) flushPage(r *schema, col *Column, force bool) error {
+func (cs *ColumnStore) flushPage(force bool) error {
 	size := cs.estimateSize()
 
 	if !force && size < 512*1024 { // TODO: make page size configurable.
 		return nil
 	}
 
-	page := r.newPageFunc(cs.useDictionary())
-
-	if err := page.init(r, col, r.codec); err != nil {
-		return err
-	}
-
-	var buf bytes.Buffer
-
-	compSize, unCompSize, err := page.write(context.TODO(), &buf)
-	if err != nil {
-		return err
-	}
-
-	cs.flushedPages = append(cs.flushedPages, flushedPage{
-		compressedSize:   compSize,
-		uncompressedSize: unCompSize,
-		numValues:        int64(cs.values.numValues()),
-		nullValues:       int64(cs.values.nullValueCount()),
-		buf:              buf.Bytes(),
+	cs.dataPages = append(cs.dataPages, &dataPage{
+		values:     cs.values.getValues(),
+		rL:         cs.rLevels,
+		dL:         cs.dLevels,
+		numValues:  int64(cs.values.numValues()),
+		nullValues: int64(cs.values.nullValueCount()),
 	})
 
 	cs.resetData()
@@ -207,14 +193,21 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 
 func (cs *ColumnStore) resetData() {
 	cs.readPos = 0
-	cs.values.reset() // this ensures that the values remain for when writing the dictionary page at the end but the data is emptied.
-	cs.rLevels.reset(cs.rLevels.bw)
-	cs.dLevels.reset(cs.dLevels.bw)
+	cs.values = &dictStore{}
+	cs.values.init()
+
+	rLevelBitWidth := cs.rLevels.bw
+	dLevelBitWidth := cs.dLevels.bw
+
+	cs.rLevels = &packedArray{}
+	cs.dLevels = &packedArray{}
+	cs.rLevels.reset(rLevelBitWidth)
+	cs.dLevels.reset(dLevelBitWidth)
 }
 
 func (cs *ColumnStore) readNextPage() error {
 	if cs.pageIdx >= len(cs.pages) {
-		return errors.New("out of range")
+		return errors.Errorf("out of range: requested page index = %d total number of pages = %d", cs.pageIdx, len(cs.pages))
 	}
 
 	data, dl, rl, err := cs.pages[cs.pageIdx].readValues(int(cs.pages[cs.pageIdx].numValues()))

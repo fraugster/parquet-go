@@ -20,7 +20,7 @@ import (
 func TestWriteThenReadFile(t *testing.T) {
 	ctx := context.Background()
 
-	testFunc := func(opts ...FileWriterOption) {
+	testFunc := func(t *testing.T, opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
 		wf, err := os.OpenFile("files/test1.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -62,7 +62,7 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.NoError(t, err, "creating file reader failed")
 
 		cols := r.Columns()
-		require.Len(t, cols, 2, fmt.Sprintf("expected 2 columns, got %d instead", len(cols)))
+		require.Len(t, cols, 2, "got %d column", len(cols))
 		require.Equal(t, "foo", cols[0].Name())
 		require.Equal(t, "foo", cols[0].FlatName())
 		require.Equal(t, "bar", cols[1].Name())
@@ -78,8 +78,12 @@ func TestWriteThenReadFile(t *testing.T) {
 		}
 	}
 
-	testFunc(WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
-	testFunc(WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
+	t.Run("datapagev1", func(t *testing.T) {
+		testFunc(t, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
+	})
+	t.Run("datapagev2", func(t *testing.T) {
+		testFunc(t, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
+	})
 }
 
 func TestWriteThenReadFileRepeated(t *testing.T) {

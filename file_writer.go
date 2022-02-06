@@ -44,15 +44,13 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 			w:   w,
 			pos: 0,
 		},
-		version: 1,
-		SchemaWriter: &schema{
-			newPageFunc: newDataPageV1Writer,
-		},
-		kvStore:     make(map[string]string),
-		rowGroups:   []*parquet.RowGroup{},
-		createdBy:   "parquet-go",
-		newPageFunc: newDataPageV1Writer,
-		ctx:         context.Background(),
+		version:      1,
+		SchemaWriter: &schema{},
+		kvStore:      make(map[string]string),
+		rowGroups:    []*parquet.RowGroup{},
+		createdBy:    "parquet-go",
+		newPageFunc:  newDataPageV1Writer,
+		ctx:          context.Background(),
 	}
 
 	for _, opt := range options {
@@ -80,7 +78,6 @@ func WithCreator(createdBy string) FileWriterOption {
 func WithCompressionCodec(codec parquet.CompressionCodec) FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.codec = codec
-		fw.SchemaWriter.(*schema).codec = codec
 	}
 }
 
@@ -120,7 +117,6 @@ func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 func WithDataPageV2() FileWriterOption {
 	return func(fw *FileWriter) {
 		fw.newPageFunc = newDataPageV2Writer
-		fw.SchemaWriter.(*schema).newPageFunc = newDataPageV2Writer
 	}
 }
 

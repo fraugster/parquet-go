@@ -48,10 +48,7 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 		return err
 	}
 
-	if cap(dp.values) < int(dp.numValues) {
-		dp.values = make([]interface{}, 0, dp.numValues)
-	}
-	dp.values = dp.values[:int(dp.numValues)]
+	dp.values = make([]interface{}, dp.numValues)
 
 	if err := dp.enc.init(reader); err != nil {
 		return err
@@ -59,21 +56,22 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 
 	// no error is accepted here, even EOF
 	if n, err := dp.enc.decodeValues(dp.values); err != nil {
-		return errors.Wrapf(err, "expected %d value read %d value", dp.numValues, n)
+		return errors.Wrapf(err, "expected %d values, read %d values", dp.numValues, n)
 	}
 
 	return nil
 }
 
 type dictPageWriter struct {
-	col *Column
-
-	codec parquet.CompressionCodec
+	col        *Column
+	codec      parquet.CompressionCodec
+	dictValues []interface{}
 }
 
-func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec, dictValues []interface{}) error {
 	dp.col = col
 	dp.codec = codec
+	dp.dictValues = dictValues
 	return nil
 }
 
@@ -84,7 +82,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 		CompressedPageSize:   int32(comp),
 		Crc:                  nil,
 		DictionaryPageHeader: &parquet.DictionaryPageHeader{
-			NumValues: dp.col.data.values.numDistinctValues(),
+			NumValues: int32(len(dp.dictValues)),
 			Encoding:  parquet.Encoding_PLAIN, // PLAIN_DICTIONARY is deprecated in the Parquet 2.0 specification
 			IsSorted:  nil,
 		},
@@ -101,7 +99,7 @@ func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, err
 		return 0, 0, err
 	}
 
-	err = encodeValue(dataBuf, encoder, dp.col.data.values.values)
+	err = encodeValue(dataBuf, encoder, dp.dictValues)
 	if err != nil {
 		return 0, 0, err
 	}

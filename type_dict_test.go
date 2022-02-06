@@ -9,8 +9,8 @@ import (
 func TestDictStore(t *testing.T) {
 	d := dictStore{}
 	d.init()
-	require.Equal(t, d.size, int64(0))
-	require.Equal(t, d.valueSize, int64(0))
+	require.Equal(t, d.allValuesSize, int64(0))
+	require.Equal(t, d.uniqueValuesSize, int64(0))
 
 	d.addValue(int32(1), 4)
 	d.addValue(int32(2), 4)
@@ -20,14 +20,14 @@ func TestDictStore(t *testing.T) {
 	d.addValue(int32(2), 4)
 	d.addValue(int32(3), 4)
 	d.addValue(int32(4), 4)
-	require.Equal(t, d.size, int64(32))
-	require.Equal(t, d.valueSize, int64(16))
+	require.Equal(t, d.allValuesSize, int64(32))
+	require.Equal(t, d.uniqueValuesSize, int64(16))
 	d.addValue(nil, 4)
-	require.Equal(t, d.size, int64(32))
+	require.Equal(t, d.allValuesSize, int64(32))
 
 	d.init()
-	require.Equal(t, d.size, int64(0))
-	require.Equal(t, d.valueSize, int64(0))
+	require.Equal(t, d.allValuesSize, int64(0))
+	require.Equal(t, d.uniqueValuesSize, int64(0))
 }
 
 func TestFuzzCrashDictDecoderDecodeValues(t *testing.T) {
