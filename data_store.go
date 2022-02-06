@@ -123,10 +123,6 @@ func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
 		}
 	}
 
-	if err := cs.flushPage(false); err != nil {
-		return err
-	}
-
 	return nil
 }
 

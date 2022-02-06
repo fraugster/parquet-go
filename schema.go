@@ -694,10 +694,16 @@ func (r *schema) AddData(m map[string]interface{}) error {
 	r.readOnly = 1
 	r.ensureRoot()
 	err := r.recursiveAddColumnData(r.root.children, m, 0, 0, 0)
-	if err == nil {
-		r.numRecords++
+	if err != nil {
+		return err
 	}
-	return err
+
+	if err := r.recursiveFlushPages(r.root.children); err != nil {
+		return err
+	}
+
+	r.numRecords++
+	return nil
 }
 
 func (r *schema) getData() (map[string]interface{}, error) {
@@ -724,6 +730,22 @@ func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, re
 		}
 		if c[i].children != nil {
 			if err := r.recursiveAddColumnNil(c[i].children, defLvl, maxRepLvl, repLvl); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *schema) recursiveFlushPages(c []*Column) error {
+	for i := range c {
+		if c[i].data != nil {
+			if err := c[i].data.flushPage(false); err != nil {
+				return err
+			}
+		}
+		if c[i].children != nil {
+			if err := r.recursiveFlushPages(c[i].children); err != nil {
 				return err
 			}
 		}
