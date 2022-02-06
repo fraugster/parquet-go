@@ -335,3 +335,7 @@ func (fw *FileWriter) AddColumn(path string, col *Column) error {
 func (fw *FileWriter) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	return fw.schemaWriter.AddGroup(path, rep)
 }
+
+func (fw *FileWriter) GetSchemaDefinition() *parquetschema.SchemaDefinition {
+	return fw.schemaWriter.GetSchemaDefinition()
+}
