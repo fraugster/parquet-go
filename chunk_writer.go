@@ -216,7 +216,9 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 	if *col.Type() == parquet.Type_BOOLEAN { // never ever use dictionary encoding on booleans.
 		useDict = false
 	}
-	// TODO: allow override
+	if !col.data.useDictionary() {
+		useDict = false
+	}
 
 	if useDict {
 		tmp := pos // make a copy, do not use the pos here

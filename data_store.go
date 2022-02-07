@@ -44,7 +44,7 @@ type dataPage struct {
 	nullValues int64
 }
 
-// useDictionary is simply a function to decide to use dictionary or not,
+// useDictionary is simply a function to decide to use dictionary or not.
 func (cs *ColumnStore) useDictionary() bool {
 	return cs.useDict
 }

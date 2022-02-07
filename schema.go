@@ -1004,8 +1004,8 @@ type SchemaReader interface {
 	isSelected(string) bool
 }
 
-// SchemaWriter is an interface with methods necessary in the FileWriter
-// to add groups and columns and to write data.
+// SchemaWriter was an interface with methods necessary in the FileWriter
+// to add groups and columns and to write data. Its use is deprecated.
 type SchemaWriter interface {
 	SchemaCommon
 

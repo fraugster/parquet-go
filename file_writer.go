@@ -328,14 +328,17 @@ func (fw *FileWriter) CurrentFileSize() int64 {
 	return fw.w.Pos()
 }
 
+// AddColumn adds a new data column to the schema of this file writer.
 func (fw *FileWriter) AddColumn(path string, col *Column) error {
 	return fw.schemaWriter.AddColumn(path, col)
 }
 
+// AddGroup adds a new group to the schema of this file writer.
 func (fw *FileWriter) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	return fw.schemaWriter.AddGroup(path, rep)
 }
 
+// GetSchemaDefinition returns the schema definition that has been set in this file writer.
 func (fw *FileWriter) GetSchemaDefinition() *parquetschema.SchemaDefinition {
 	return fw.schemaWriter.GetSchemaDefinition()
 }
