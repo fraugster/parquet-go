@@ -252,7 +252,7 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 
 		var buf bytes.Buffer
 
-		compressed, uncompressed, err := pw.write(context.TODO(), &buf)
+		compressed, uncompressed, err := pw.write(ctx, &buf)
 		if err != nil {
 			return nil, err
 		}
@@ -278,7 +278,7 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 		parquet.Encoding_RLE,
 		col.data.encoding(),
 	)
-	if col.data.useDict {
+	if useDict {
 		encodings[1] = parquet.Encoding_PLAIN // In dictionary we use PLAIN for the data, not the column encoding
 		encodings = append(encodings, parquet.Encoding_RLE_DICTIONARY)
 	}
