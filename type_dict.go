@@ -67,7 +67,6 @@ type dictStore struct {
 	allValuesSize    int64
 	readPos          int
 	nullCount        int32
-	noDictMode       bool
 }
 
 func (d *dictStore) getValues() []interface{} {

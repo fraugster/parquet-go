@@ -168,10 +168,9 @@ func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSiz
 	return newBlockReader(r, codec, compressedSize, uncompressedSize)
 }
 
-func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) ([]pageReader, bool, error) {
+func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (pages []pageReader, useDict bool, err error) {
 	var (
 		dictPage *dictPageReader
-		pages    []pageReader
 	)
 
 	for {
@@ -244,7 +243,7 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 		pages = append(pages, p)
 	}
 
-	return pages, dictPage == nil, nil
+	return pages, dictPage != nil, nil
 }
 
 func clone(in []interface{}) []interface{} {
@@ -281,7 +280,7 @@ func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	return err
 }
 
-func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) ([]pageReader, bool, error) {
+func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) (pages []pageReader, useDict bool, err error) {
 	if chunk.FilePath != nil {
 		return nil, false, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -304,8 +303,7 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 		offset = *chunk.MetaData.DictionaryPageOffset
 	}
 	// Seek to the beginning of the first Page
-	_, err := r.Seek(offset, io.SeekStart)
-	if err != nil {
+	if _, err := r.Seek(offset, io.SeekStart); err != nil {
 		return nil, false, err
 	}
 
@@ -347,11 +345,10 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 	return readPages(ctx, reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
-func readPageData(col *Column, pages []pageReader, noDict bool) error {
+func readPageData(col *Column, pages []pageReader, useDict bool) error {
 	s := col.getColumnStore()
 	s.pageIdx, s.pages = 0, pages
-	s.values.noDictMode = noDict
-	s.useDict = !noDict
+	s.useDict = useDict
 	if err := s.readNextPage(); err != nil {
 		return nil
 	}
@@ -376,11 +373,11 @@ func readRowGroup(ctx context.Context, r io.ReadSeeker, schema SchemaReader, row
 			c.data.skipped = true
 			continue
 		}
-		pages, noDict, err := readChunk(ctx, r, c, chunk)
+		pages, useDict, err := readChunk(ctx, r, c, chunk)
 		if err != nil {
 			return err
 		}
-		if err := readPageData(c, pages, noDict); err != nil {
+		if err := readPageData(c, pages, useDict); err != nil {
 			return err
 		}
 	}
