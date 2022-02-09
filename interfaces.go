@@ -24,7 +24,7 @@ type pageWriter interface {
 	write(ctx context.Context, w io.Writer) (int, int, error)
 }
 
-type newDataPageFunc func(useDict bool) pageWriter
+type newDataPageFunc func(useDict bool, dictValues []interface{}, page *dataPage) pageWriter
 
 type valuesDecoder interface {
 	init(io.Reader) error

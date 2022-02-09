@@ -108,27 +108,29 @@ var (
 				return rand.Int()%2 == 0
 			},
 		},
-		{
-			name: "DictionaryInt32",
-			enc:  &dictEncoder{},
-			dec:  &dictDecoder{},
-			rand: func() interface{} {
-				return rand.Int31n(100)
+		/*
+			{
+				name: "DictionaryInt32",
+				enc:  &dictEncoder{},
+				dec:  &dictDecoder{},
+				rand: func() interface{} {
+					return rand.Int31n(100)
+				},
 			},
-		},
-		{
-			name: "DictionaryInt96",
-			enc:  &dictEncoder{},
-			dec:  &dictDecoder{},
-			rand: func() interface{} {
-				var data [12]byte
-				for i := 0; i < 12; i++ {
-					data[i] = byte(rand.Intn(10)) // limit the values
-				}
+			{
+				name: "DictionaryInt96",
+				enc:  &dictEncoder{},
+				dec:  &dictDecoder{},
+				rand: func() interface{} {
+					var data [12]byte
+					for i := 0; i < 12; i++ {
+						data[i] = byte(rand.Intn(10)) // limit the values
+					}
 
-				return data
+					return data
+				},
 			},
-		},
+		*/
 		{
 			name: "ByteArrayFixedLen",
 			enc:  &byteArrayPlainEncoder{length: 3},
@@ -339,7 +341,7 @@ func TestStores(t *testing.T) {
 			err := st.add(data, 3, 3, 0)
 			require.NoError(t, err)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.values.getValues())
 			// Field is not Required, so def level should be one more
 			assert.Equal(t, []int32{4, 4, 4}, st.dLevels.toArray())
 			// Field is repeated so the rep level (except for the first one which is the new record)
@@ -349,7 +351,7 @@ func TestStores(t *testing.T) {
 			err = st.add(randArr(0), 3, 3, 0)
 			require.NoError(t, err)
 			// No Reset
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.values.getValues())
 			// The new field is nil
 			assert.Equal(t, []int32{4, 4, 4, 3}, st.dLevels.toArray())
 			assert.Equal(t, []int32{0, 4, 4, 0}, st.rLevels.toArray())
@@ -360,7 +362,7 @@ func TestStores(t *testing.T) {
 			err = st.add(getOne(data), 3, 3, 0)
 			require.NoError(t, err)
 
-			assert.Equal(t, convertToInterface(data), st.values.assemble())
+			assert.Equal(t, convertToInterface(data), st.values.getValues())
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3}, st.dLevels.toArray())
 			assert.Equal(t, []int32{0}, st.rLevels.toArray())
@@ -370,7 +372,7 @@ func TestStores(t *testing.T) {
 			require.NoError(t, err)
 			// No reset
 			dArr := []interface{}{getOne(data), getOne(data2)}
-			assert.Equal(t, dArr, st.values.assemble())
+			assert.Equal(t, dArr, st.values.getValues())
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3}, st.dLevels.toArray())
 			// rLevel is more than max, so its max now
@@ -387,7 +389,7 @@ func TestStores(t *testing.T) {
 			err = st.add(nil, 3, 3, 0)
 			assert.NoError(t, err)
 
-			assert.Equal(t, dArr, st.values.assemble())
+			assert.Equal(t, dArr, st.values.getValues())
 
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3, 3}, st.dLevels.toArray())

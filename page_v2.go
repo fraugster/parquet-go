@@ -136,6 +136,8 @@ type dataPageWriterV2 struct {
 
 	codec      parquet.CompressionCodec
 	dictionary bool
+	dictValues []interface{}
+	page       *dataPage
 }
 
 func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
@@ -156,9 +158,9 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		CompressedPageSize:   int32(comp + defSize + repSize),
 		Crc:                  nil,
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
-			NumValues:                  dp.col.data.values.numValues() + dp.col.data.values.nullValueCount(),
-			NumNulls:                   dp.col.data.values.nullValueCount(),
-			NumRows:                    int32(dp.schema.rowGroupNumRecords()),
+			NumValues:                  int32(dp.page.numValues) + int32(dp.page.nullValues),
+			NumNulls:                   int32(dp.page.nullValues),
+			NumRows:                    int32(dp.schema.rowGroupNumRecords()), // TODO: this is most likely wrong.
 			Encoding:                   enc,
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),
@@ -174,7 +176,7 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 
 	// Only write repetition value higher than zero
 	if dp.col.MaxRepetitionLevel() > 0 {
-		if err := encodeLevelsV2(rep, dp.col.MaxRepetitionLevel(), dp.col.data.rLevels); err != nil {
+		if err := encodeLevelsV2(rep, dp.col.MaxRepetitionLevel(), dp.page.rL); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -183,23 +185,24 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 
 	// Only write definition level higher than zero
 	if dp.col.MaxDefinitionLevel() > 0 {
-		if err := encodeLevelsV2(def, dp.col.MaxDefinitionLevel(), dp.col.data.dLevels); err != nil {
+		if err := encodeLevelsV2(def, dp.col.MaxDefinitionLevel(), dp.page.dL); err != nil {
 			return 0, 0, err
 		}
 	}
 
 	dataBuf := &bytes.Buffer{}
 	enc := dp.col.data.encoding()
+
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.col.data.values)
+	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.dictValues)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	if err = encodeValue(dataBuf, encoder, dp.col.data.values.assemble()); err != nil {
+	if err = encodeValue(dataBuf, encoder, dp.page.values); err != nil {
 		return 0, 0, err
 	}
 
@@ -225,8 +228,10 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 	return compSize + defLen + repLen, unCompSize + defLen + repLen, writeFull(w, comp)
 }
 
-func newDataPageV2Writer(useDict bool) pageWriter {
+func newDataPageV2Writer(useDict bool, dictValues []interface{}, page *dataPage) pageWriter {
 	return &dataPageWriterV2{
 		dictionary: useDict,
+		dictValues: dictValues,
+		page:       page,
 	}
 }

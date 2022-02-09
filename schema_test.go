@@ -87,7 +87,8 @@ func TestColumnSize(t *testing.T) {
 			err := sf.Col.add(arr[i], 0, 0, 0)
 			require.NoError(t, err)
 		}
-		require.Equal(t, size, sf.Col.values.size)
+		_, dataSize := sf.Col.values.sizes()
+		require.Equal(t, size, dataSize)
 	}
 }
 

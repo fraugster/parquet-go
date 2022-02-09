@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Implemented lazy loading of pages.
+- Added support for writing multiple data pages per row group.
+
 ## [v0.8.0] - 2022-02-02
 - Set correct total size and total compressed in row group data.
 - Fixed delta bit-pack encoding of int32 and int64 and delta-length bit-packing encoding of byte\_arrays when only a single value is written.

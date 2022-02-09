@@ -16,7 +16,9 @@ type FileWriter struct {
 	w writePos
 
 	version int32
-	SchemaWriter
+	//SchemaWriter
+
+	schemaWriter *schema
 
 	totalNumRecords int64
 	kvStore         map[string]string
@@ -28,7 +30,7 @@ type FileWriter struct {
 
 	codec parquet.CompressionCodec
 
-	newPage newDataPageFunc
+	newPageFunc newDataPageFunc
 
 	ctx context.Context
 }
@@ -45,11 +47,11 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 			pos: 0,
 		},
 		version:      1,
-		SchemaWriter: &schema{},
+		schemaWriter: &schema{},
 		kvStore:      make(map[string]string),
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",
-		newPage:      newDataPageV1Writer,
+		newPageFunc:  newDataPageV1Writer,
 		ctx:          context.Background(),
 	}
 
@@ -102,10 +104,16 @@ func WithMaxRowGroupSize(size int64) FileWriterOption {
 	}
 }
 
+func WithMaxPageSize(size int64) FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.schemaWriter.maxPageSize = size
+	}
+}
+
 // WithSchemaDefinition sets the schema definition to use for this parquet file.
 func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
-		if err := fw.SetSchemaDefinition(sd); err != nil {
+		if err := fw.schemaWriter.SetSchemaDefinition(sd); err != nil {
 			panic(err)
 		}
 	}
@@ -116,7 +124,7 @@ func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 // issues with older implementations of parquet.
 func WithDataPageV2() FileWriterOption {
 	return func(fw *FileWriter) {
-		fw.newPage = newDataPageV2Writer
+		fw.newPageFunc = newDataPageV2Writer
 	}
 }
 
@@ -194,7 +202,7 @@ func (fw *FileWriter) FlushRowGroup(opts ...FlushRowGroupOption) error {
 // FlushRowGroupWithContext writes the current row group to the parquet file.
 func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
 	// Write the entire row group
-	if fw.rowGroupNumRecords() == 0 {
+	if fw.schemaWriter.rowGroupNumRecords() == 0 {
 		return errors.New("nothing to write")
 	}
 
@@ -210,7 +218,7 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 		o(h)
 	}
 
-	cc, err := writeRowGroup(ctx, fw.w, fw.SchemaWriter, fw.codec, fw.newPage, h)
+	cc, err := writeRowGroup(ctx, fw.w, fw.schemaWriter, fw.codec, fw.newPageFunc, h)
 	if err != nil {
 		return err
 	}
@@ -226,12 +234,12 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 		Columns:             cc,
 		TotalByteSize:       totalUncompressedSize,
 		TotalCompressedSize: &totalCompressedSize,
-		NumRows:             fw.rowGroupNumRecords(),
+		NumRows:             fw.schemaWriter.rowGroupNumRecords(),
 		SortingColumns:      nil,
 	})
-	fw.totalNumRecords += fw.rowGroupNumRecords()
+	fw.totalNumRecords += fw.schemaWriter.rowGroupNumRecords()
 	// flush the schema
-	fw.SchemaWriter.resetData()
+	fw.schemaWriter.resetData()
 
 	return nil
 }
@@ -239,11 +247,11 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 // AddData adds a new record to the current row group and flushes it if auto-flush is enabled and the size
 // is equal to or greater than the configured maximum row group size.
 func (fw *FileWriter) AddData(m map[string]interface{}) error {
-	if err := fw.SchemaWriter.AddData(m); err != nil {
+	if err := fw.schemaWriter.AddData(m); err != nil {
 		return err
 	}
 
-	if fw.rowGroupFlushSize > 0 && fw.SchemaWriter.DataSize() >= fw.rowGroupFlushSize {
+	if fw.rowGroupFlushSize > 0 && fw.schemaWriter.DataSize() >= fw.rowGroupFlushSize {
 		return fw.FlushRowGroup()
 	}
 
@@ -265,7 +273,7 @@ func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
 // provided a file as io.Writer when creating the FileWriter, you still need
 // to Close that file handle separately.
 func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
-	if len(fw.rowGroups) == 0 || fw.rowGroupNumRecords() > 0 {
+	if len(fw.rowGroups) == 0 || fw.schemaWriter.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
 		}
@@ -285,7 +293,7 @@ func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGrou
 	}
 	meta := &parquet.FileMetaData{
 		Version:          fw.version,
-		Schema:           fw.getSchemaArray(),
+		Schema:           fw.schemaWriter.getSchemaArray(),
 		NumRows:          fw.totalNumRecords,
 		RowGroups:        fw.rowGroups,
 		KeyValueMetadata: kv,
@@ -310,7 +318,7 @@ func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGrou
 // a compression format other than UNCOMPRESSED, the final size will most likely be smaller and will dpeend on how well
 // your data can be compressed.
 func (fw *FileWriter) CurrentRowGroupSize() int64 {
-	return fw.SchemaWriter.DataSize()
+	return fw.schemaWriter.DataSize()
 }
 
 // CurrentFileSize returns the amount of data written to the file so far. This does not include data that is in the
@@ -318,4 +326,19 @@ func (fw *FileWriter) CurrentRowGroupSize() int64 {
 // footer is appended to the file upon closing.
 func (fw *FileWriter) CurrentFileSize() int64 {
 	return fw.w.Pos()
+}
+
+// AddColumn adds a new data column to the schema of this file writer.
+func (fw *FileWriter) AddColumn(path string, col *Column) error {
+	return fw.schemaWriter.AddColumn(path, col)
+}
+
+// AddGroup adds a new group to the schema of this file writer.
+func (fw *FileWriter) AddGroup(path string, rep parquet.FieldRepetitionType) error {
+	return fw.schemaWriter.AddGroup(path, rep)
+}
+
+// GetSchemaDefinition returns the schema definition that has been set in this file writer.
+func (fw *FileWriter) GetSchemaDefinition() *parquetschema.SchemaDefinition {
+	return fw.schemaWriter.GetSchemaDefinition()
 }
