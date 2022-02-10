@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PARQUET_TAG=${PARQUET_TAG:-"apache-parquet-format-2.8.0"}
+PARQUET_TAG=${PARQUET_TAG:-"apache-parquet-format-2.9.0"}
 
 message_exit() {
     echo $1

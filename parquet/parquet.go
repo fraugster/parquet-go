@@ -111,9 +111,10 @@ func (p *Type) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
-//Common types used by frameworks(e.g. hive, pig) using parquet.  This helps map
-//between types in those frameworks to the base types in parquet.  This is only
-//metadata and not needed to read or write the data.
+//DEPRECATED: Common types used by frameworks(e.g. hive, pig) using parquet.
+//ConvertedType is superseded by LogicalType.  This enum should not be extended.
+//
+//See LogicalTypes.md for conversion between ConvertedType and LogicalType.
 type ConvertedType int64
 
 const (
@@ -434,10 +435,11 @@ func (p *Encoding) Value() (driver.Value, error) {
 
 //Supported compression algorithms.
 //
-//Codecs added in 2.4 can be read by readers based on 2.4 and later.
+//Codecs added in format version X.Y can be read by readers based on X.Y and later.
 //Codec support may vary between readers based on the format version and
-//libraries available at runtime. Gzip, Snappy, and LZ4 codecs are
-//widely available, while Zstd and Brotli require additional libraries.
+//libraries available at runtime.
+//
+//See Compression.md for a detailed specification of these algorithms.
 type CompressionCodec int64
 
 const (
@@ -448,6 +450,7 @@ const (
 	CompressionCodec_BROTLI       CompressionCodec = 4
 	CompressionCodec_LZ4          CompressionCodec = 5
 	CompressionCodec_ZSTD         CompressionCodec = 6
+	CompressionCodec_LZ4_RAW      CompressionCodec = 7
 )
 
 func (p CompressionCodec) String() string {
@@ -466,6 +469,8 @@ func (p CompressionCodec) String() string {
 		return "LZ4"
 	case CompressionCodec_ZSTD:
 		return "ZSTD"
+	case CompressionCodec_LZ4_RAW:
+		return "LZ4_RAW"
 	}
 	return "<UNSET>"
 }
@@ -486,6 +491,8 @@ func CompressionCodecFromString(s string) (CompressionCodec, error) {
 		return CompressionCodec_LZ4, nil
 	case "ZSTD":
 		return CompressionCodec_ZSTD, nil
+	case "LZ4_RAW":
+		return CompressionCodec_LZ4_RAW, nil
 	}
 	return CompressionCodec(0), fmt.Errorf("not a valid CompressionCodec string")
 }
@@ -2798,8 +2805,8 @@ func (p *BsonType) String() string {
 // LogicalType annotations to replace ConvertedType.
 //
 // To maintain compatibility, implementations using LogicalType for a
-// SchemaElement must also set the corresponding ConvertedType from the
-// following table.
+// SchemaElement must also set the corresponding ConvertedType (if any)
+// from the following table.
 //
 // Attributes:
 //  - STRING
@@ -3637,10 +3644,14 @@ func (p *LogicalType) String() string {
 // the nesting is flattened to a single list by a depth-first traversal.
 // The children count is used to construct the nested relationship.
 // This field is not set when the element is a primitive type
-//  - ConvertedType: When the schema is the result of a conversion from another model
+//  - ConvertedType: DEPRECATED: When the schema is the result of a conversion from another model.
 // Used to record the original type to help with cross conversion.
-//  - Scale: Used when this column contains decimal data.
+//
+// This is superseded by logicalType.
+//  - Scale: DEPRECATED: Used when this column contains decimal data.
 // See the DECIMAL converted type for more details.
+//
+// This is superseded by using the DecimalType annotation in logicalType.
 //  - Precision
 //  - FieldID: When the original schema supports field ids, this will save the
 // original field id in the parquet schema
@@ -4923,7 +4934,7 @@ func (p *DictionaryPageHeader) String() string {
 // definition_levels_byte_length + repetition_levels_byte_length + 1 and compressed_page_size (included)
 // is compressed with the compression_codec.
 // If missing it is considered compressed
-//  - Statistics: optional statistics for this column chunk
+//  - Statistics: optional statistics for the data in this page *
 type DataPageHeaderV2 struct {
 	NumValues                  int32       `thrift:"num_values,1,required" db:"num_values" json:"num_values"`
 	NumNulls                   int32       `thrift:"num_nulls,2,required" db:"num_nulls" json:"num_nulls"`
@@ -6306,6 +6317,8 @@ func (p *BloomFilterHeader) String() string {
 //     uncompressed definition levels and the compressed column values.
 //     If no compression scheme is specified, the CRC shall be calculated on
 //     the uncompressed concatenation.
+// - In encrypted columns, CRC is calculated after page encryption; the
+//   encryption itself is performed after page compression (if compressed)
 // If enabled, this allows for disabling checksumming in HDFS if only a few
 // pages need to be read.
 //
