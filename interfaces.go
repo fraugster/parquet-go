@@ -58,12 +58,18 @@ type parquetColumn interface {
 	params() *ColumnParameters
 }
 
+type minMaxValues interface {
+	maxValue() []byte
+	minValue() []byte
+	reset()
+}
+
 type typedColumnStore interface {
 	parquetColumn
 	reset(repetitionType parquet.FieldRepetitionType)
-	// Min and Max in parquet byte
-	maxValue() []byte
-	minValue() []byte
+
+	stats() minMaxValues
+	pageStats() minMaxValues
 
 	// Should extract the value, turn it into an array and check for min and max on all values in this
 	getValues(v interface{}) ([]interface{}, error)

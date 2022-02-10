@@ -744,7 +744,7 @@ func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, re
 func (r *schema) recursiveFlushPages(c []*Column) error {
 	for i := range c {
 		if c[i].data != nil {
-			if err := c[i].data.flushPage(false); err != nil {
+			if err := c[i].data.flushPage(r, false); err != nil {
 				return err
 			}
 		}

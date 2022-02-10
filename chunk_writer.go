@@ -175,7 +175,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
+func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {
 	pos := w.Pos() // Save the position before writing data
 	chunkOffset := pos
 	var (
@@ -191,7 +191,7 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 	)
 
 	// flush final data page before writing dictionary page (if applicable) and all data pages.
-	if err := col.data.flushPage(true); err != nil {
+	if err := col.data.flushPage(sch, true); err != nil {
 		return nil, err
 	}
 
@@ -295,8 +295,8 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 	distinctCount := int64(len(dictValues))
 
 	stats := &parquet.Statistics{
-		MinValue:      col.data.minValue(),
-		MaxValue:      col.data.maxValue(),
+		MinValue:      col.data.stats().minValue(),
+		MaxValue:      col.data.stats().maxValue(),
 		NullCount:     &nullValues,
 		DistinctCount: &distinctCount,
 	}
@@ -328,11 +328,11 @@ func writeChunk(ctx context.Context, w writePos, sch SchemaWriter, col *Column, 
 	return ch, nil
 }
 
-func writeRowGroup(ctx context.Context, w writePos, schema SchemaWriter, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
-	dataCols := schema.Columns()
+func writeRowGroup(ctx context.Context, w writePos, sch *schema, codec parquet.CompressionCodec, pageFn newDataPageFunc, h *flushRowGroupOptionHandle) ([]*parquet.ColumnChunk, error) {
+	dataCols := sch.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		ch, err := writeChunk(ctx, w, schema, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
+		ch, err := writeChunk(ctx, w, sch, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
 		if err != nil {
 			return nil, err
 		}

@@ -34,6 +34,8 @@ type ColumnStore struct {
 	dataPages []*dataPage
 
 	maxPageSize int64
+
+	prevNumRecords int64 // this is just for correctly calculating how many rows are in a data page.
 }
 
 type dataPage struct {
@@ -42,6 +44,8 @@ type dataPage struct {
 	dL         *packedArray
 	numValues  int64
 	nullValues int64
+	numRows    int64
+	stats      *parquet.Statistics
 }
 
 // useDictionary is simply a function to decide to use dictionary or not.
@@ -72,6 +76,7 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	cs.dLevels.reset(bits.Len16(maxD))
 	cs.readPos = 0
 	cs.skipped = false
+	cs.prevNumRecords = 0
 
 	cs.typedColumnStore.reset(rep)
 }
@@ -144,12 +149,15 @@ func (cs *ColumnStore) getMaxPageSize() int64 {
 	return cs.maxPageSize
 }
 
-func (cs *ColumnStore) flushPage(force bool) error {
+func (cs *ColumnStore) flushPage(sch *schema, force bool) error {
 	size := cs.estimateSize()
 
 	if !force && size < cs.getMaxPageSize() {
 		return nil
 	}
+
+	numRows := sch.numRecords - cs.prevNumRecords
+	cs.prevNumRecords = sch.numRecords
 
 	cs.dataPages = append(cs.dataPages, &dataPage{
 		values:     cs.values.getValues(),
@@ -157,11 +165,22 @@ func (cs *ColumnStore) flushPage(force bool) error {
 		dL:         cs.dLevels,
 		numValues:  int64(cs.values.numValues()),
 		nullValues: int64(cs.values.nullValueCount()),
+		numRows:    numRows,
+		stats: &parquet.Statistics{
+			NullCount:     int64Ptr(int64(cs.values.nullValueCount())),
+			DistinctCount: int64Ptr(cs.values.distinctValueCount()),
+			MaxValue:      cs.pageStats().maxValue(),
+			MinValue:      cs.pageStats().minValue(),
+		},
 	})
 
 	cs.resetData()
 
 	return nil
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }
 
 // getRDLevelAt return the next rLevel in the read position, if there is no value left, it returns true
@@ -206,6 +225,8 @@ func (cs *ColumnStore) resetData() {
 	cs.dLevels = &packedArray{}
 	cs.rLevels.reset(rLevelBitWidth)
 	cs.dLevels.reset(dLevelBitWidth)
+
+	cs.pageStats().reset()
 }
 
 func (cs *ColumnStore) readNextPage() error {
@@ -318,14 +339,14 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
 
 	case parquet.Type_FLOAT:
-		return newPlainStore(&floatStore{ColumnParameters: params}), nil
+		return newPlainStore(&floatStore{ColumnParameters: params, st: newFloatStats(), pagest: newFloatStats()}), nil
 	case parquet.Type_DOUBLE:
-		return newPlainStore(&doubleStore{ColumnParameters: params}), nil
+		return newPlainStore(&doubleStore{ColumnParameters: params, st: newDoubleStats(), pagest: newDoubleStats()}), nil
 
 	case parquet.Type_INT32:
-		return newPlainStore(&int32Store{ColumnParameters: params}), nil
+		return newPlainStore(&int32Store{ColumnParameters: params, st: newInt32Stats(), pagest: newInt32Stats()}), nil
 	case parquet.Type_INT64:
-		return newPlainStore(&int64Store{ColumnParameters: params}), nil
+		return newPlainStore(&int64Store{ColumnParameters: params, st: newInt64Stats(), pagest: newInt64Stats()}), nil
 	case parquet.Type_INT96:
 		store := &int96Store{}
 		store.ColumnParameters = params
@@ -353,7 +374,7 @@ func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{ColumnParameters: params}, enc, useDict), nil
+	return newStore(&int32Store{ColumnParameters: params, st: newInt32Stats(), pagest: newInt32Stats()}, enc, useDict), nil
 }
 
 // NewInt64Store creates a new column store to store int64 values. If useDict is true,
@@ -364,7 +385,7 @@ func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{ColumnParameters: params}, enc, useDict), nil
+	return newStore(&int64Store{ColumnParameters: params, st: newInt64Stats(), pagest: newInt64Stats()}, enc, useDict), nil
 }
 
 // NewInt96Store creates a new column store to store int96 values. If useDict is true,
@@ -388,7 +409,7 @@ func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{ColumnParameters: params}, enc, useDict), nil
+	return newStore(&floatStore{ColumnParameters: params, st: newFloatStats(), pagest: newFloatStats()}, enc, useDict), nil
 }
 
 // NewDoubleStore creates a new column store to store double (float64) values. If useDict is true,
@@ -399,7 +420,7 @@ func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{ColumnParameters: params}, enc, useDict), nil
+	return newStore(&doubleStore{ColumnParameters: params, st: newDoubleStats(), pagest: newDoubleStats()}, enc, useDict), nil
 }
 
 // NewByteArrayStore creates a new column store to store byte arrays. If useDict is true,

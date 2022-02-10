@@ -55,10 +55,20 @@ func (d *doublePlainEncoder) encodeValues(values []interface{}) error {
 }
 
 type doubleStore struct {
-	repTyp   parquet.FieldRepetitionType
-	min, max float64
+	repTyp parquet.FieldRepetitionType
+
+	st     *doubleStats
+	pagest *doubleStats
 
 	*ColumnParameters
+}
+
+func (f *doubleStore) stats() minMaxValues {
+	return f.st
+}
+
+func (f *doubleStore) pageStats() minMaxValues {
+	return f.pagest
 }
 
 func (f *doubleStore) params() *ColumnParameters {
@@ -82,35 +92,13 @@ func (f *doubleStore) repetitionType() parquet.FieldRepetitionType {
 
 func (f *doubleStore) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
-	f.min = math.MaxFloat64
-	f.max = -math.MaxFloat64
-}
-
-func (f *doubleStore) maxValue() []byte {
-	if f.max == -math.MaxFloat64 {
-		return nil
-	}
-	ret := make([]byte, 8)
-	binary.LittleEndian.PutUint64(ret, math.Float64bits(f.max))
-	return ret
-}
-
-func (f *doubleStore) minValue() []byte {
-	if f.min == math.MaxFloat64 {
-		return nil
-	}
-	ret := make([]byte, 8)
-	binary.LittleEndian.PutUint64(ret, math.Float64bits(f.min))
-	return ret
+	f.st.reset()
+	f.pagest.reset()
 }
 
 func (f *doubleStore) setMinMax(j float64) {
-	if j < f.min {
-		f.min = j
-	}
-	if j > f.max {
-		f.max = j
-	}
+	f.st.setMinMax(j)
+	f.pagest.setMinMax(j)
 }
 
 func (f *doubleStore) getValues(v interface{}) ([]interface{}, error) {

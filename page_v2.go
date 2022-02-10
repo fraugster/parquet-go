@@ -147,7 +147,7 @@ func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet
 	return nil
 }
 
-func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool) *parquet.PageHeader {
+func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool, pageStats *parquet.Statistics, numRows int32) *parquet.PageHeader {
 	enc := dp.col.data.encoding()
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
@@ -160,12 +160,12 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  int32(dp.page.numValues) + int32(dp.page.nullValues),
 			NumNulls:                   int32(dp.page.nullValues),
-			NumRows:                    int32(dp.schema.rowGroupNumRecords()), // TODO: this is most likely wrong.
+			NumRows:                    numRows,
 			Encoding:                   enc,
 			DefinitionLevelsByteLength: int32(defSize),
 			RepetitionLevelsByteLength: int32(repSize),
 			IsCompressed:               isCompressed,
-			Statistics:                 nil,
+			Statistics:                 pageStats,
 		},
 	}
 	return ph
@@ -212,7 +212,7 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 	defLen, repLen := def.Len(), rep.Len()
-	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED)
+	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED, dp.page.stats, int32(dp.page.numRows))
 	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}

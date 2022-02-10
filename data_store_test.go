@@ -11,7 +11,7 @@ import (
 )
 
 func newIntStore() *ColumnStore {
-	d := newStore(&int32Store{ColumnParameters: &ColumnParameters{}}, parquet.Encoding_PLAIN, false)
+	d := newStore(&int32Store{ColumnParameters: &ColumnParameters{}, st: newInt32Stats(), pagest: newInt32Stats()}, parquet.Encoding_PLAIN, false)
 	return d
 }
 
