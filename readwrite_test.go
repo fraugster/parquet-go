@@ -837,7 +837,6 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, w.AddColumn("b", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
-	/* // the DELTA encodings don't seem to work at the moment.
 	s, err = NewByteArrayStore(parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, false, &ColumnParameters{})
 	require.NoError(t, err)
 	require.NoError(t, w.AddColumn("c", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
@@ -845,7 +844,6 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 	s, err = NewByteArrayStore(parquet.Encoding_DELTA_BYTE_ARRAY, false, &ColumnParameters{})
 	require.NoError(t, err)
 	require.NoError(t, w.AddColumn("d", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
-	*/
 
 	s, err = NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})
 	require.NoError(t, err)
@@ -858,8 +856,8 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 	testData := map[string]interface{}{
 		"a": true,
 		"b": false,
-		//"c": []byte("hello"),
-		//"d": []byte("world"),
+		"c": []byte("hello"),
+		"d": []byte("world"),
 		"e": float32(23.0),
 		"f": float64(42.0),
 	}
