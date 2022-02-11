@@ -56,10 +56,20 @@ func (d *floatPlainEncoder) encodeValues(values []interface{}) error {
 }
 
 type floatStore struct {
-	repTyp   parquet.FieldRepetitionType
-	min, max float32
+	repTyp parquet.FieldRepetitionType
+
+	stats     *floatStats
+	pageStats *floatStats
 
 	*ColumnParameters
+}
+
+func (f *floatStore) getStats() minMaxValues {
+	return f.stats
+}
+
+func (f *floatStore) getPageStats() minMaxValues {
+	return f.pageStats
 }
 
 func (f *floatStore) params() *ColumnParameters {
@@ -83,35 +93,13 @@ func (f *floatStore) repetitionType() parquet.FieldRepetitionType {
 
 func (f *floatStore) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
-	f.min = math.MaxFloat32
-	f.max = -math.MaxFloat32
-}
-
-func (f *floatStore) maxValue() []byte {
-	if f.max == -math.MaxFloat32 {
-		return nil
-	}
-	ret := make([]byte, 4)
-	binary.LittleEndian.PutUint32(ret, math.Float32bits(f.max))
-	return ret
-}
-
-func (f *floatStore) minValue() []byte {
-	if f.min == math.MaxFloat32 {
-		return nil
-	}
-	ret := make([]byte, 4)
-	binary.LittleEndian.PutUint32(ret, math.Float32bits(f.min))
-	return ret
+	f.stats.reset()
+	f.pageStats.reset()
 }
 
 func (f *floatStore) setMinMax(j float32) {
-	if j < f.min {
-		f.min = j
-	}
-	if j > f.max {
-		f.max = j
-	}
+	f.stats.setMinMax(j)
+	f.pageStats.setMinMax(j)
 }
 
 func (f *floatStore) getValues(v interface{}) ([]interface{}, error) {

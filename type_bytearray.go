@@ -292,10 +292,19 @@ func (b *byteArrayDeltaEncoder) Close() error {
 }
 
 type byteArrayStore struct {
-	repTyp   parquet.FieldRepetitionType
-	min, max []byte
+	repTyp    parquet.FieldRepetitionType
+	stats     statistics
+	pageStats statistics
 
 	*ColumnParameters
+}
+
+func (is *byteArrayStore) getStats() minMaxValues {
+	return &is.stats
+}
+
+func (is *byteArrayStore) getPageStats() minMaxValues {
+	return &is.pageStats
 }
 
 func (is *byteArrayStore) params() *ColumnParameters {
@@ -322,16 +331,9 @@ func (is *byteArrayStore) repetitionType() parquet.FieldRepetitionType {
 
 func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
 	is.repTyp = repetitionType
-	is.min = nil
-	is.max = nil
-}
 
-func (is *byteArrayStore) maxValue() []byte {
-	return is.max
-}
-
-func (is *byteArrayStore) minValue() []byte {
-	return is.min
+	is.stats.reset()
+	is.pageStats.reset()
 }
 
 func (is *byteArrayStore) setMinMax(j []byte) error {
@@ -342,18 +344,9 @@ func (is *byteArrayStore) setMinMax(j []byte) error {
 	if j == nil {
 		return nil
 	}
-	if is.max == nil || is.min == nil {
-		is.min = j
-		is.max = j
-		return nil
-	}
 
-	if bytes.Compare(j, is.min) < 0 {
-		is.min = j
-	}
-	if bytes.Compare(j, is.max) > 0 {
-		is.max = j
-	}
+	is.stats.setMinMax(j)
+	is.pageStats.setMinMax(j)
 
 	return nil
 }

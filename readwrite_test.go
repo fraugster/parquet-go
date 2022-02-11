@@ -20,10 +20,12 @@ import (
 func TestWriteThenReadFile(t *testing.T) {
 	ctx := context.Background()
 
-	testFunc := func(t *testing.T, opts ...FileWriterOption) {
+	testFunc := func(t *testing.T, name string, opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
-		wf, err := os.OpenFile("files/test1.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		filename := "files/test1_" + name + ".parquet"
+
+		wf, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		require.NoError(t, err, "creating file failed")
 
 		w := NewFileWriter(wf, opts...)
@@ -54,7 +56,7 @@ func TestWriteThenReadFile(t *testing.T) {
 
 		require.NoError(t, wf.Close())
 
-		rf, err := os.Open("files/test1.parquet")
+		rf, err := os.Open(filename)
 		require.NoError(t, err, "opening file failed")
 		defer rf.Close()
 
@@ -79,10 +81,10 @@ func TestWriteThenReadFile(t *testing.T) {
 	}
 
 	t.Run("datapagev1", func(t *testing.T) {
-		testFunc(t, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
+		testFunc(t, "datapagev1", WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
 	})
 	t.Run("datapagev2", func(t *testing.T) {
-		testFunc(t, WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
+		testFunc(t, "datapagev2", WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
 	})
 }
 

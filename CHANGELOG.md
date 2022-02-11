@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Updated to parquet-format 2.9.0.
+- Added support for page data statistics.
 
 ## [v0.9.0] - 2022-02-10
 

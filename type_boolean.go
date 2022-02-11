@@ -175,12 +175,12 @@ func (b *booleanStore) reset(repetitionType parquet.FieldRepetitionType) {
 	b.repTyp = repetitionType
 }
 
-func (b *booleanStore) maxValue() []byte {
-	return nil
+func (b *booleanStore) getStats() minMaxValues {
+	return &nilStats{}
 }
 
-func (b *booleanStore) minValue() []byte {
-	return nil
+func (b *booleanStore) getPageStats() minMaxValues {
+	return &nilStats{}
 }
 
 func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {

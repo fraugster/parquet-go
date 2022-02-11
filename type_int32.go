@@ -3,7 +3,6 @@ package goparquet
 import (
 	"encoding/binary"
 	"io"
-	"math"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/pkg/errors"
@@ -84,10 +83,20 @@ func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
 }
 
 type int32Store struct {
-	repTyp   parquet.FieldRepetitionType
-	min, max int32
+	repTyp parquet.FieldRepetitionType
+
+	stats     *int32Stats
+	pageStats *int32Stats
 
 	*ColumnParameters
+}
+
+func (is *int32Store) getStats() minMaxValues {
+	return is.stats
+}
+
+func (is *int32Store) getPageStats() minMaxValues {
+	return is.pageStats
 }
 
 func (is *int32Store) params() *ColumnParameters {
@@ -111,35 +120,13 @@ func (is *int32Store) repetitionType() parquet.FieldRepetitionType {
 
 func (is *int32Store) reset(rep parquet.FieldRepetitionType) {
 	is.repTyp = rep
-	is.min = math.MaxInt32
-	is.max = math.MinInt32
-}
-
-func (is *int32Store) maxValue() []byte {
-	if is.max == math.MinInt32 {
-		return nil
-	}
-	ret := make([]byte, 4)
-	binary.LittleEndian.PutUint32(ret, uint32(is.max))
-	return ret
-}
-
-func (is *int32Store) minValue() []byte {
-	if is.min == math.MaxInt32 {
-		return nil
-	}
-	ret := make([]byte, 4)
-	binary.LittleEndian.PutUint32(ret, uint32(is.min))
-	return ret
+	is.stats.reset()
+	is.pageStats.reset()
 }
 
 func (is *int32Store) setMinMax(j int32) {
-	if j < is.min {
-		is.min = j
-	}
-	if j > is.max {
-		is.max = j
-	}
+	is.stats.setMinMax(j)
+	is.pageStats.setMinMax(j)
 }
 
 func (is *int32Store) getValues(v interface{}) ([]interface{}, error) {

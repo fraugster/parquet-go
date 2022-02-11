@@ -116,6 +116,10 @@ func (d *dictStore) nullValueCount() int32 {
 	return d.nullCount
 }
 
+func (d *dictStore) distinctValueCount() int64 {
+	return int64(len(d.uniqueValues))
+}
+
 func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 	return d.uniqueValuesSize + int64(4*len(d.valueList)), d.allValuesSize
 }
