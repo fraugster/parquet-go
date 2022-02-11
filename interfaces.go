@@ -68,8 +68,8 @@ type typedColumnStore interface {
 	parquetColumn
 	reset(repetitionType parquet.FieldRepetitionType)
 
-	stats() minMaxValues
-	pageStats() minMaxValues
+	getStats() minMaxValues
+	getPageStats() minMaxValues
 
 	// Should extract the value, turn it into an array and check for min and max on all values in this
 	getValues(v interface{}) ([]interface{}, error)

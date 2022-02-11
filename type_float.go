@@ -58,18 +58,18 @@ func (d *floatPlainEncoder) encodeValues(values []interface{}) error {
 type floatStore struct {
 	repTyp parquet.FieldRepetitionType
 
-	st     *floatStats
-	pagest *floatStats
+	stats     *floatStats
+	pageStats *floatStats
 
 	*ColumnParameters
 }
 
-func (f *floatStore) stats() minMaxValues {
-	return f.st
+func (f *floatStore) getStats() minMaxValues {
+	return f.stats
 }
 
-func (f *floatStore) pageStats() minMaxValues {
-	return f.pagest
+func (f *floatStore) getPageStats() minMaxValues {
+	return f.pageStats
 }
 
 func (f *floatStore) params() *ColumnParameters {
@@ -93,13 +93,13 @@ func (f *floatStore) repetitionType() parquet.FieldRepetitionType {
 
 func (f *floatStore) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
-	f.st.reset()
-	f.pagest.reset()
+	f.stats.reset()
+	f.pageStats.reset()
 }
 
 func (f *floatStore) setMinMax(j float32) {
-	f.st.setMinMax(j)
-	f.pagest.setMinMax(j)
+	f.stats.setMinMax(j)
+	f.pageStats.setMinMax(j)
 }
 
 func (f *floatStore) getValues(v interface{}) ([]interface{}, error) {

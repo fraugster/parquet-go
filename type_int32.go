@@ -85,18 +85,18 @@ func (d *int32DeltaBPEncoder) encodeValues(values []interface{}) error {
 type int32Store struct {
 	repTyp parquet.FieldRepetitionType
 
-	st     *int32Stats
-	pagest *int32Stats
+	stats     *int32Stats
+	pageStats *int32Stats
 
 	*ColumnParameters
 }
 
-func (is *int32Store) stats() minMaxValues {
-	return is.st
+func (is *int32Store) getStats() minMaxValues {
+	return is.stats
 }
 
-func (is *int32Store) pageStats() minMaxValues {
-	return is.pagest
+func (is *int32Store) getPageStats() minMaxValues {
+	return is.pageStats
 }
 
 func (is *int32Store) params() *ColumnParameters {
@@ -120,13 +120,13 @@ func (is *int32Store) repetitionType() parquet.FieldRepetitionType {
 
 func (is *int32Store) reset(rep parquet.FieldRepetitionType) {
 	is.repTyp = rep
-	is.st.reset()
-	is.pagest.reset()
+	is.stats.reset()
+	is.pageStats.reset()
 }
 
 func (is *int32Store) setMinMax(j int32) {
-	is.st.setMinMax(j)
-	is.pagest.setMinMax(j)
+	is.stats.setMinMax(j)
+	is.pageStats.setMinMax(j)
 }
 
 func (is *int32Store) getValues(v interface{}) ([]interface{}, error) {

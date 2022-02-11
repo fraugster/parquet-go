@@ -19,24 +19,24 @@ func (s *nilStats) maxValue() []byte {
 func (s *nilStats) reset() {
 }
 
-type stats struct {
+type statistics struct {
 	min []byte
 	max []byte
 }
 
-func (s *stats) minValue() []byte {
+func (s *statistics) minValue() []byte {
 	return s.min
 }
 
-func (s *stats) maxValue() []byte {
+func (s *statistics) maxValue() []byte {
 	return s.max
 }
 
-func (s *stats) reset() {
+func (s *statistics) reset() {
 	s.min, s.max = nil, nil
 }
 
-func (s *stats) setMinMax(j []byte) {
+func (s *statistics) setMinMax(j []byte) {
 	if s.max == nil || s.min == nil {
 		s.min = j
 		s.max = j

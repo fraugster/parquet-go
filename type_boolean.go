@@ -175,11 +175,11 @@ func (b *booleanStore) reset(repetitionType parquet.FieldRepetitionType) {
 	b.repTyp = repetitionType
 }
 
-func (b *booleanStore) stats() minMaxValues {
+func (b *booleanStore) getStats() minMaxValues {
 	return &nilStats{}
 }
 
-func (b *booleanStore) pageStats() minMaxValues {
+func (b *booleanStore) getPageStats() minMaxValues {
 	return &nilStats{}
 }
 

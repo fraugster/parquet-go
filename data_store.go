@@ -169,8 +169,8 @@ func (cs *ColumnStore) flushPage(sch *schema, force bool) error {
 		stats: &parquet.Statistics{
 			NullCount:     int64Ptr(int64(cs.values.nullValueCount())),
 			DistinctCount: int64Ptr(cs.values.distinctValueCount()),
-			MaxValue:      cs.pageStats().maxValue(),
-			MinValue:      cs.pageStats().minValue(),
+			MaxValue:      cs.getPageStats().maxValue(),
+			MinValue:      cs.getPageStats().minValue(),
 		},
 	})
 
@@ -226,7 +226,7 @@ func (cs *ColumnStore) resetData() {
 	cs.rLevels.reset(rLevelBitWidth)
 	cs.dLevels.reset(dLevelBitWidth)
 
-	cs.pageStats().reset()
+	cs.getPageStats().reset()
 }
 
 func (cs *ColumnStore) readNextPage() error {
@@ -339,14 +339,14 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
 
 	case parquet.Type_FLOAT:
-		return newPlainStore(&floatStore{ColumnParameters: params, st: newFloatStats(), pagest: newFloatStats()}), nil
+		return newPlainStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}), nil
 	case parquet.Type_DOUBLE:
-		return newPlainStore(&doubleStore{ColumnParameters: params, st: newDoubleStats(), pagest: newDoubleStats()}), nil
+		return newPlainStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}), nil
 
 	case parquet.Type_INT32:
-		return newPlainStore(&int32Store{ColumnParameters: params, st: newInt32Stats(), pagest: newInt32Stats()}), nil
+		return newPlainStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}), nil
 	case parquet.Type_INT64:
-		return newPlainStore(&int64Store{ColumnParameters: params, st: newInt64Stats(), pagest: newInt64Stats()}), nil
+		return newPlainStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}), nil
 	case parquet.Type_INT96:
 		store := &int96Store{}
 		store.ColumnParameters = params
@@ -374,7 +374,7 @@ func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{ColumnParameters: params, st: newInt32Stats(), pagest: newInt32Stats()}, enc, useDict), nil
+	return newStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, enc, useDict), nil
 }
 
 // NewInt64Store creates a new column store to store int64 values. If useDict is true,
@@ -385,7 +385,7 @@ func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{ColumnParameters: params, st: newInt64Stats(), pagest: newInt64Stats()}, enc, useDict), nil
+	return newStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, enc, useDict), nil
 }
 
 // NewInt96Store creates a new column store to store int96 values. If useDict is true,
@@ -409,7 +409,7 @@ func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{ColumnParameters: params, st: newFloatStats(), pagest: newFloatStats()}, enc, useDict), nil
+	return newStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, enc, useDict), nil
 }
 
 // NewDoubleStore creates a new column store to store double (float64) values. If useDict is true,
@@ -420,7 +420,7 @@ func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters
 	default:
 		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{ColumnParameters: params, st: newDoubleStats(), pagest: newDoubleStats()}, enc, useDict), nil
+	return newStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, enc, useDict), nil
 }
 
 // NewByteArrayStore creates a new column store to store byte arrays. If useDict is true,

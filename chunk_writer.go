@@ -295,8 +295,8 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 	distinctCount := int64(len(dictValues))
 
 	stats := &parquet.Statistics{
-		MinValue:      col.data.stats().minValue(),
-		MaxValue:      col.data.stats().maxValue(),
+		MinValue:      col.data.getStats().minValue(),
+		MaxValue:      col.data.getStats().maxValue(),
 		NullCount:     &nullValues,
 		DistinctCount: &distinctCount,
 	}

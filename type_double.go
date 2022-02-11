@@ -57,18 +57,18 @@ func (d *doublePlainEncoder) encodeValues(values []interface{}) error {
 type doubleStore struct {
 	repTyp parquet.FieldRepetitionType
 
-	st     *doubleStats
-	pagest *doubleStats
+	stats     *doubleStats
+	pageStats *doubleStats
 
 	*ColumnParameters
 }
 
-func (f *doubleStore) stats() minMaxValues {
-	return f.st
+func (f *doubleStore) getStats() minMaxValues {
+	return f.stats
 }
 
-func (f *doubleStore) pageStats() minMaxValues {
-	return f.pagest
+func (f *doubleStore) getPageStats() minMaxValues {
+	return f.pageStats
 }
 
 func (f *doubleStore) params() *ColumnParameters {
@@ -92,13 +92,13 @@ func (f *doubleStore) repetitionType() parquet.FieldRepetitionType {
 
 func (f *doubleStore) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
-	f.st.reset()
-	f.pagest.reset()
+	f.stats.reset()
+	f.pageStats.reset()
 }
 
 func (f *doubleStore) setMinMax(j float64) {
-	f.st.setMinMax(j)
-	f.pagest.setMinMax(j)
+	f.stats.setMinMax(j)
+	f.pageStats.setMinMax(j)
 }
 
 func (f *doubleStore) getValues(v interface{}) ([]interface{}, error) {
