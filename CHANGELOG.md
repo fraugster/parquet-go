@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated to parquet-format 2.9.0.
 - Added support for page data statistics.
+- Added support for writing per-page CRC32 checksums.
+- Added support for optional CRC32 checksum validation on read.
 
 ## [v0.9.0] - 2022-02-10
 

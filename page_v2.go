@@ -3,6 +3,8 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -72,7 +74,7 @@ func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dataPageReaderV2) read(r io.Reader, sch *schema, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	// 1- Uncompressed size is affected by the level lens.
 	// 2- In page V2 the rle size is in header, not in level stream
 	if ph.DataPageHeaderV2 == nil {
@@ -99,30 +101,32 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 		}
 	}
 
-	// Its safe to call this {r,d}Decoder later, since the stream they operate on are in memory
-	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
-	// read both level size
-	if levelsSize > 0 {
-		data := make([]byte, levelsSize)
-		n, err := io.ReadFull(r, data)
-		if err != nil {
-			return errors.Wrapf(err, "need to read %d byte but there was only %d byte", levelsSize, n)
-		}
+	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(ph.GetCompressedPageSize())))
+	if err != nil {
+		return errors.Wrap(err, "read failed")
+	}
 
-		if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-			if err := dp.rDecoder.init(bytes.NewReader(data[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
-				return errors.Wrapf(err, "read repetition level failed")
-			}
-		}
-
-		if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-			if err := dp.dDecoder.init(bytes.NewReader(data[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):])); err != nil {
-				return errors.Wrapf(err, "read definition level failed")
-			}
+	if sch.validateCRC && ph.Crc != nil {
+		if sum := crc32.ChecksumIEEE(dataPageBlock); sum != uint32(*ph.Crc) {
+			return fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*ph.Crc))
 		}
 	}
 
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
+	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
+
+	if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
+		if err := dp.rDecoder.init(bytes.NewReader(dataPageBlock[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
+			return errors.Wrapf(err, "read repetition level failed")
+		}
+	}
+
+	if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
+		if err := dp.dDecoder.init(bytes.NewReader(dataPageBlock[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):levelsSize])); err != nil {
+			return errors.Wrapf(err, "read definition level failed")
+		}
+	}
+
+	reader, err := newBlockReader(dataPageBlock[levelsSize:], codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
 	if err != nil {
 		return err
 	}
@@ -138,6 +142,7 @@ type dataPageWriterV2 struct {
 	dictionary bool
 	dictValues []interface{}
 	page       *dataPage
+	enableCRC  bool
 }
 
 func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
@@ -147,7 +152,7 @@ func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet
 	return nil
 }
 
-func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool, pageStats *parquet.Statistics, numRows int32) *parquet.PageHeader {
+func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isCompressed bool, pageStats *parquet.Statistics, numRows int32, crc32Checksum *int32) *parquet.PageHeader {
 	enc := dp.col.data.encoding()
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
@@ -156,7 +161,7 @@ func (dp *dataPageWriterV2) getHeader(comp, unComp, defSize, repSize int, isComp
 		Type:                 parquet.PageType_DATA_PAGE_V2,
 		UncompressedPageSize: int32(unComp + defSize + repSize),
 		CompressedPageSize:   int32(comp + defSize + repSize),
-		Crc:                  nil,
+		Crc:                  crc32Checksum,
 		DataPageHeaderV2: &parquet.DataPageHeaderV2{
 			NumValues:                  int32(dp.page.numValues) + int32(dp.page.nullValues),
 			NumNulls:                   int32(dp.page.nullValues),
@@ -210,9 +215,16 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 	if err != nil {
 		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
 	}
+
+	var crc32Checksum *int32
+	if dp.enableCRC {
+		v := int32(crc32.ChecksumIEEE(append(append(rep.Bytes(), def.Bytes()...), comp...))) // TODO: is this correct?
+		crc32Checksum = &v
+	}
+
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 	defLen, repLen := def.Len(), rep.Len()
-	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED, dp.page.stats, int32(dp.page.numRows))
+	header := dp.getHeader(compSize, unCompSize, defLen, repLen, dp.codec != parquet.CompressionCodec_UNCOMPRESSED, dp.page.stats, int32(dp.page.numRows), crc32Checksum)
 	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}
@@ -228,10 +240,11 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 	return compSize + defLen + repLen, unCompSize + defLen + repLen, writeFull(w, comp)
 }
 
-func newDataPageV2Writer(useDict bool, dictValues []interface{}, page *dataPage) pageWriter {
+func newDataPageV2Writer(useDict bool, dictValues []interface{}, page *dataPage, enableCRC bool) pageWriter {
 	return &dataPageWriterV2{
 		dictionary: useDict,
 		dictValues: dictValues,
 		page:       page,
+		enableCRC:  enableCRC,
 	}
 }

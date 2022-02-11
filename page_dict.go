@@ -3,6 +3,8 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -43,7 +45,18 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 
 	dp.ph = ph
 
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+	dictPageBlock, err := io.ReadAll(io.LimitReader(r, int64(ph.GetCompressedPageSize())))
+	if err != nil {
+		return errors.Wrap(err, "read failed")
+	}
+
+	if ph.Crc != nil {
+		if sum := crc32.ChecksumIEEE(dictPageBlock); sum != uint32(*ph.Crc) {
+			return fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*ph.Crc))
+		}
+	}
+
+	reader, err := newBlockReader(dictPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
 	if err != nil {
 		return err
 	}
@@ -75,12 +88,12 @@ func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.C
 	return nil
 }
 
-func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
+func (dp *dictPageWriter) getHeader(comp, unComp int, crc32Checksum *int32) *parquet.PageHeader {
 	ph := &parquet.PageHeader{
 		Type:                 parquet.PageType_DICTIONARY_PAGE,
 		UncompressedPageSize: int32(unComp),
 		CompressedPageSize:   int32(comp),
-		Crc:                  nil,
+		Crc:                  crc32Checksum,
 		DictionaryPageHeader: &parquet.DictionaryPageHeader{
 			NumValues: int32(len(dp.dictValues)),
 			Encoding:  parquet.Encoding_PLAIN, // PLAIN_DICTIONARY is deprecated in the Parquet 2.0 specification
@@ -90,7 +103,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int) *parquet.PageHeader {
 	return ph
 }
 
-func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, error) {
+func (dp *dictPageWriter) write(ctx context.Context, sch *schema, w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 
@@ -110,7 +123,13 @@ func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, err
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 
-	header := dp.getHeader(compSize, unCompSize)
+	var crc32Checksum *int32
+	if sch.enableCRC {
+		sum := int32(crc32.ChecksumIEEE(comp))
+		crc32Checksum = &sum
+	}
+
+	header := dp.getHeader(compSize, unCompSize, crc32Checksum)
 	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}

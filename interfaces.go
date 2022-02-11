@@ -10,7 +10,7 @@ import (
 // pageReader is an internal interface used only internally to read the pages
 type pageReader interface {
 	init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error
-	read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
+	read(r io.Reader, sch *schema, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
 
 	readValues(size int) (values []interface{}, dLevel *packedArray, rLevel *packedArray, err error)
 
@@ -24,7 +24,7 @@ type pageWriter interface {
 	write(ctx context.Context, w io.Writer) (int, int, error)
 }
 
-type newDataPageFunc func(useDict bool, dictValues []interface{}, page *dataPage) pageWriter
+type newDataPageFunc func(useDict bool, dictValues []interface{}, page *dataPage, enableCRC bool) pageWriter
 
 type valuesDecoder interface {
 	init(io.Reader) error
