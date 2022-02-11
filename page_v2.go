@@ -115,13 +115,13 @@ func (dp *dataPageReaderV2) read(r io.Reader, sch *schema, ph *parquet.PageHeade
 	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength
 
 	if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
-		if err := dp.rDecoder.init(bytes.NewReader(dataPageBlock[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
+		if err = dp.rDecoder.init(bytes.NewReader(dataPageBlock[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
 			return errors.Wrapf(err, "read repetition level failed")
 		}
 	}
 
 	if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
-		if err := dp.dDecoder.init(bytes.NewReader(dataPageBlock[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):levelsSize])); err != nil {
+		if err = dp.dDecoder.init(bytes.NewReader(dataPageBlock[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):levelsSize])); err != nil {
 			return errors.Wrapf(err, "read definition level failed")
 		}
 	}
@@ -135,13 +135,13 @@ func (dp *dataPageReaderV2) read(r io.Reader, sch *schema, ph *parquet.PageHeade
 }
 
 type dataPageWriterV2 struct {
-	col    *Column
-	schema SchemaWriter
-
-	codec      parquet.CompressionCodec
-	dictionary bool
 	dictValues []interface{}
+	col        *Column
+	schema     SchemaWriter
+	codec      parquet.CompressionCodec
 	page       *dataPage
+
+	dictionary bool
 	enableCRC  bool
 }
 

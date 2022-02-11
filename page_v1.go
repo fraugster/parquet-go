@@ -125,12 +125,12 @@ func (dp *dataPageReaderV1) read(r io.Reader, sch *schema, ph *parquet.PageHeade
 }
 
 type dataPageWriterV1 struct {
-	col *Column
-
-	codec      parquet.CompressionCodec
-	dictionary bool
 	dictValues []interface{}
+	col        *Column
+	codec      parquet.CompressionCodec
 	page       *dataPage
+
+	dictionary bool
 	enableCRC  bool
 }
 
