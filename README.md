@@ -44,7 +44,7 @@ unmarshalling.
 | Byte Stream Split                        | No   | No   |
 | Data page V1                             | Yes  | Yes  |
 | Data page V2                             | Yes  | Yes  |
-| Statistics in page meta data             | No   | No   |
+| Statistics in page meta data             | No   | Yes  | Page meta data is generally not made available to users and not used by parquet-go.
 | Index Pages                              | No   | No   |
 | Dictionary Pages                         | Yes  | Yes  |
 | Encryption                               | No   | No   |
