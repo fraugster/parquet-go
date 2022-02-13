@@ -1263,34 +1263,57 @@ func TestWriteThenReadMultiplePages(t *testing.T) {
 	sd, err := parquetschema.ParseSchemaDefinition(mySchema)
 	require.NoError(t, err)
 
-	f := new(bytes.Buffer)
+	testData := []struct {
+		name    string
+		options []FileWriterOption
+	}{
 
-	fw := NewFileWriter(f, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY))
-	defer fw.Close()
-
-	const numRows = 100000
-
-	records := []map[string]interface{}{}
-
-	for i := 0; i < numRows; i++ {
-		tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
-		rec := map[string]interface{}{"ts_str": []byte(tsStr)}
-		records = append(records, rec)
-		require.NoError(t, fw.AddData(rec))
+		{
+			name: "snappy",
+			options: []FileWriterOption{
+				WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+			},
+		},
+		{
+			name: "snappy_1kb_page",
+			options: []FileWriterOption{
+				WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithMaxPageSize(1 * 1024),
+			},
+		},
 	}
 
-	require.NoError(t, fw.Close())
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			f := new(bytes.Buffer)
 
-	r, err := NewFileReader(bytes.NewReader(f.Bytes()))
-	require.NoError(t, err)
+			fw := NewFileWriter(f, tt.options...)
+			defer fw.Close()
 
-	rowCount := r.NumRows()
-	require.Equal(t, int64(numRows), rowCount)
+			const numRows = 75
 
-	for i := int64(0); i < rowCount; i++ {
-		data, err := r.NextRow()
-		require.NoError(t, err)
-		require.Equal(t, records[i], data, "%d. records don't match", i)
-		//fmt.Printf("in %d. %s\n", i, string(data["ts_str"].([]byte)))
+			records := []map[string]interface{}{}
+
+			for i := 0; i < numRows; i++ {
+				tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
+				rec := map[string]interface{}{"ts_str": []byte(tsStr)}
+				records = append(records, rec)
+				require.NoError(t, fw.AddData(rec))
+			}
+
+			require.NoError(t, fw.Close())
+
+			r, err := NewFileReader(bytes.NewReader(f.Bytes()))
+			require.NoError(t, err)
+
+			rowCount := r.NumRows()
+			require.Equal(t, int64(numRows), rowCount)
+
+			for i := int64(0); i < rowCount; i++ {
+				data, err := r.NextRow()
+				require.NoError(t, err)
+				require.Equal(t, records[i], data, "%d. records don't match", i)
+				//fmt.Printf("in %d. %s\n", i, string(data["ts_str"].([]byte)))
+			}
+		})
 	}
 }
