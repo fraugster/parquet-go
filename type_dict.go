@@ -132,7 +132,7 @@ type dictEncoder struct {
 }
 
 func (d *dictEncoder) Close() error {
-	v := len(d.indices)
+	v := len(d.dictValues)
 	bitWidth := bits.Len(uint(v))
 
 	// first write the bitLength in a byte
