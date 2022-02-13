@@ -38,14 +38,12 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
-func getBooleanValuesDecoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesDecoder, error) {
+func getBooleanValuesDecoder(pageEncoding parquet.Encoding) (valuesDecoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &booleanPlainDecoder{}, nil
 	case parquet.Encoding_RLE:
 		return &booleanRLEDecoder{}, nil
-	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
 	}
@@ -113,7 +111,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
-		return getBooleanValuesDecoder(pageEncoding, dictValues)
+		return getBooleanValuesDecoder(pageEncoding)
 
 	case parquet.Type_BYTE_ARRAY:
 		return getByteArrayValuesDecoder(pageEncoding, dictValues)
