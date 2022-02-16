@@ -12,13 +12,11 @@ import (
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface
 type dictPageReader struct {
-	ph *parquet.PageHeader
-
-	numValues int32
-	enc       valuesDecoder
-
 	values []interface{}
+	enc    valuesDecoder
+	ph     *parquet.PageHeader
 
+	numValues   int32
 	validateCRC bool
 }
 
