@@ -3,7 +3,6 @@ package goparquet
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"hash/crc32"
 	"io"
 
@@ -19,6 +18,8 @@ type dictPageReader struct {
 	enc       valuesDecoder
 
 	values []interface{}
+
+	validateCRC bool
 }
 
 func (dp *dictPageReader) init(dict valuesDecoder) error {
@@ -45,15 +46,9 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 
 	dp.ph = ph
 
-	dictPageBlock, err := io.ReadAll(io.LimitReader(r, int64(ph.GetCompressedPageSize())))
+	dictPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), dp.validateCRC, ph.Crc)
 	if err != nil {
-		return errors.Wrap(err, "read failed")
-	}
-
-	if ph.Crc != nil {
-		if sum := crc32.ChecksumIEEE(dictPageBlock); sum != uint32(*ph.Crc) {
-			return fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*ph.Crc))
-		}
+		return err
 	}
 
 	reader, err := newBlockReader(dictPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())

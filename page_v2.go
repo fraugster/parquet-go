@@ -3,7 +3,6 @@ package goparquet
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"hash/crc32"
 	"io"
 
@@ -74,7 +73,7 @@ func (dp *dataPageReaderV2) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV2) read(r io.Reader, sch *schema, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
+func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) error {
 	// 1- Uncompressed size is affected by the level lens.
 	// 2- In page V2 the rle size is in header, not in level stream
 	if ph.DataPageHeaderV2 == nil {
@@ -101,15 +100,9 @@ func (dp *dataPageReaderV2) read(r io.Reader, sch *schema, ph *parquet.PageHeade
 		}
 	}
 
-	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(ph.GetCompressedPageSize())))
+	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
 	if err != nil {
-		return errors.Wrap(err, "read failed")
-	}
-
-	if sch.validateCRC && ph.Crc != nil {
-		if sum := crc32.ChecksumIEEE(dataPageBlock); sum != uint32(*ph.Crc) {
-			return fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*ph.Crc))
-		}
+		return err
 	}
 
 	levelsSize := ph.DataPageHeaderV2.RepetitionLevelsByteLength + ph.DataPageHeaderV2.DefinitionLevelsByteLength

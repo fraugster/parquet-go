@@ -10,7 +10,7 @@ import (
 // pageReader is an internal interface used only internally to read the pages
 type pageReader interface {
 	init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error
-	read(r io.Reader, sch *schema, ph *parquet.PageHeader, codec parquet.CompressionCodec) error
+	read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) error
 
 	readValues(size int) (values []interface{}, dLevel *packedArray, rLevel *packedArray, err error)
 

@@ -3,7 +3,6 @@ package goparquet
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"hash/crc32"
 	"io"
 
@@ -81,7 +80,7 @@ func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV1) read(r io.Reader, sch *schema, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) (err error) {
 	if ph.DataPageHeader == nil {
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
@@ -90,15 +89,9 @@ func (dp *dataPageReaderV1) read(r io.Reader, sch *schema, ph *parquet.PageHeade
 		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
 
-	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(ph.GetCompressedPageSize())))
+	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
 	if err != nil {
-		return errors.Wrap(err, "read failed")
-	}
-
-	if sch.validateCRC && ph.Crc != nil {
-		if sum := crc32.ChecksumIEEE(dataPageBlock); sum != uint32(*ph.Crc) {
-			return fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*ph.Crc))
-		}
+		return err
 	}
 
 	reader, err := newBlockReader(dataPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())

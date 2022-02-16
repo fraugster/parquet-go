@@ -3,6 +3,7 @@ package goparquet
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"math/bits"
 
@@ -160,6 +161,25 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
+func readPageBlock(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32, validateCRC bool, crc *int32) ([]byte, error) {
+	if compressedSize < 0 || uncompressedSize < 0 {
+		return nil, errors.New("invalid page data size")
+	}
+
+	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(compressedSize)))
+	if err != nil {
+		return nil, errors.Wrap(err, "read failed")
+	}
+
+	if validateCRC && crc != nil {
+		if sum := crc32.ChecksumIEEE(dataPageBlock); sum != uint32(*crc) {
+			return nil, fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*crc))
+		}
+	}
+
+	return dataPageBlock, nil
+}
+
 func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (pages []pageReader, useDict bool, err error) {
 	var (
 		dictPage *dictPageReader
@@ -178,7 +198,7 @@ func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, c
 			if dictPage != nil {
 				return nil, false, errors.New("there should be only one dictionary")
 			}
-			p := &dictPageReader{}
+			p := &dictPageReader{validateCRC: sch.validateCRC}
 			de, err := getDictValuesDecoder(col.Element())
 			if err != nil {
 				return nil, false, err
@@ -229,7 +249,7 @@ func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, c
 			return nil, false, err
 		}
 
-		if err := p.read(r, sch, ph, chunkMeta.Codec); err != nil {
+		if err := p.read(r, ph, chunkMeta.Codec, sch.validateCRC); err != nil {
 			return nil, false, err
 		}
 		pages = append(pages, p)
