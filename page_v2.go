@@ -211,7 +211,7 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 
 	var crc32Checksum *int32
 	if dp.enableCRC {
-		v := int32(crc32.ChecksumIEEE(append(append(rep.Bytes(), def.Bytes()...), comp...))) // TODO: is this correct?
+		v := int32(crc32.ChecksumIEEE(append(append(rep.Bytes(), def.Bytes()...), comp...)))
 		crc32Checksum = &v
 	}
 
