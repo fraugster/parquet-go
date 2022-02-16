@@ -981,154 +981,330 @@ func TestWriteThenReadFileUnsetOptional(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 }
 
-func TestReadWriteDeltaLengthByteArrayEncoding(t *testing.T) {
-	var buf bytes.Buffer
-
-	wr := NewFileWriter(&buf)
-
-	bas, err := NewByteArrayStore(parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, true, &ColumnParameters{})
-	if err != nil {
-		t.Fatal(err)
+func TestReadWriteFixedLenByteArrayEncodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   []byte
+	}{
+		{name: "delta_byte_array_with_dict", enc: parquet.Encoding_DELTA_BYTE_ARRAY, useDict: true, input: []byte{1, 3, 2, 14, 99, 42}},
+		{name: "delta_byte_array_no_dict", enc: parquet.Encoding_DELTA_BYTE_ARRAY, useDict: false, input: []byte{7, 5, 254, 127, 42, 23}},
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: []byte{9, 8, 7, 6, 5, 4}},
 	}
 
-	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err := wr.AddColumn("name", col); err != nil {
-		t.Fatal(err)
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			wr := NewFileWriter(&buf)
+
+			l := int32(len(tt.input))
+			store, err := NewFixedByteArrayStore(tt.enc, tt.useDict, &ColumnParameters{TypeLength: &l})
+			require.NoError(t, err)
+
+			require.NoError(t, wr.AddColumn("value", NewDataColumn(store, parquet.FieldRepetitionType_REQUIRED)))
+
+			inputRow := map[string]interface{}{"value": tt.input}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			require.NoError(t, err)
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.Error(t, err)
+			require.True(t, errors.Is(err, io.EOF))
+		})
+	}
+}
+
+func TestReadWriteByteArrayEncodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   []byte
+	}{
+		{name: "delta_byte_array_with_dict", enc: parquet.Encoding_DELTA_BYTE_ARRAY, useDict: true, input: []byte{1, 3, 2, 14, 99, 42}},
+		{name: "delta_byte_array_no_dict", enc: parquet.Encoding_DELTA_BYTE_ARRAY, useDict: false, input: []byte{7, 5, 254, 127, 42, 23}},
+		{name: "delta_length_byte_array_with_dict", enc: parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, useDict: true, input: []byte{1, 5, 15, 25, 35, 75}},
+		{name: "delta_length_byte_array_no_dict", enc: parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, useDict: false, input: []byte{75, 25, 5, 35, 15, 1}},
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: []byte{9, 8, 7, 6, 5, 4}},
 	}
 
-	for i := 0; i < 1; i++ {
-		rec := map[string]interface{}{
-			"name": []byte("dan"),
-		}
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			wr := NewFileWriter(&buf)
 
-		if err := wr.AddData(rec); err != nil {
-			t.Fatal(err)
-		}
+			store, err := NewByteArrayStore(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			require.NoError(t, wr.AddColumn("value", NewDataColumn(store, parquet.FieldRepetitionType_REQUIRED)))
+
+			inputRow := map[string]interface{}{"value": tt.input}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			require.NoError(t, err)
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.Error(t, err)
+			require.True(t, errors.Is(err, io.EOF))
+		})
+	}
+}
+
+func TestReadWriteInt64Encodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   int64
+	}{
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: 87743737636726},
+		{name: "plain_with_dict", enc: parquet.Encoding_PLAIN, useDict: true, input: 42},
+		{name: "delta_binary_packed", enc: parquet.Encoding_DELTA_BINARY_PACKED, useDict: false, input: 6363228832},
 	}
 
-	if err := wr.Close(); err != nil {
-		t.Fatal(err)
-	}
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
 
-	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatal(err)
-	}
+			wr := NewFileWriter(&buf)
 
-	for {
-		row, err := rd.NextRow()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+			bas, err := NewInt64Store(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+			require.NoError(t, wr.AddColumn("number", col))
+
+			inputRow := map[string]interface{}{
+				"number": tt.input,
 			}
-			t.Fatal(err)
-		}
-		t.Log(row)
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.True(t, errors.Is(err, io.EOF))
+		})
 	}
 }
 
-func TestReadWriteDeltaBinaryPackedInt32(t *testing.T) {
-	var buf bytes.Buffer
-
-	wr := NewFileWriter(&buf)
-
-	bas, err := NewInt32Store(parquet.Encoding_DELTA_BINARY_PACKED, true, &ColumnParameters{})
-	if err != nil {
-		t.Fatal(err)
+func TestReadWriteInt32Encodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   int32
+	}{
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: 3628282},
+		{name: "plain_with_dict", enc: parquet.Encoding_PLAIN, useDict: true, input: 23},
+		{name: "delta_binary_packed", enc: parquet.Encoding_DELTA_BINARY_PACKED, useDict: false, input: 9361082},
 	}
 
-	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err := wr.AddColumn("number", col); err != nil {
-		t.Fatal(err)
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			wr := NewFileWriter(&buf)
+
+			bas, err := NewInt32Store(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+			require.NoError(t, wr.AddColumn("number", col))
+
+			inputRow := map[string]interface{}{
+				"number": tt.input,
+			}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.True(t, errors.Is(err, io.EOF))
+		})
 	}
-
-	numRecords := 1
-
-	for i := 0; i < numRecords; i++ {
-		rec := map[string]interface{}{
-			"number": int32(42),
-		}
-
-		if err := wr.AddData(rec); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err := wr.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("Reading data...")
-
-	for i := 0; i < numRecords; i++ {
-		row, err := rd.NextRow()
-		if err != nil {
-			t.Fatalf("got error at record %d of %d: %v", i+1, numRecords, err)
-		}
-		t.Log(row)
-	}
-
-	_, err = rd.NextRow()
-	require.True(t, errors.Is(err, io.EOF))
-
-	t.Logf("Finished")
 }
 
-func TestReadWriteDeltaBinaryPackedInt64(t *testing.T) {
-	var buf bytes.Buffer
-
-	wr := NewFileWriter(&buf)
-
-	bas, err := NewInt64Store(parquet.Encoding_DELTA_BINARY_PACKED, true, &ColumnParameters{})
-	if err != nil {
-		t.Fatal(err)
+func TestReadWriteInt96Encodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   [12]byte
+	}{
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: TimeToInt96(time.Date(2020, 3, 16, 14, 30, 0, 0, time.UTC))},
+		{name: "plain_with_dict", enc: parquet.Encoding_PLAIN, useDict: true, input: TimeToInt96(time.Now())},
 	}
 
-	col := NewDataColumn(bas, parquet.FieldRepetitionType_OPTIONAL)
-	if err := wr.AddColumn("number", col); err != nil {
-		t.Fatal(err)
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			wr := NewFileWriter(&buf)
+
+			bas, err := NewInt96Store(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+			require.NoError(t, wr.AddColumn("ts", col))
+
+			inputRow := map[string]interface{}{
+				"ts": tt.input,
+			}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.True(t, errors.Is(err, io.EOF))
+		})
+	}
+}
+
+func TestReadWriteFloatEncodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   float32
+	}{
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: 1.1111},
+		{name: "plain_with_dict", enc: parquet.Encoding_PLAIN, useDict: true, input: 2.2222},
 	}
 
-	numRecords := 1
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
 
-	for i := 0; i < numRecords; i++ {
-		rec := map[string]interface{}{
-			"number": int64(23),
-		}
+			wr := NewFileWriter(&buf)
 
-		if err := wr.AddData(rec); err != nil {
-			t.Fatal(err)
-		}
+			bas, err := NewFloatStore(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+			require.NoError(t, wr.AddColumn("number", col))
+
+			inputRow := map[string]interface{}{
+				"number": tt.input,
+			}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.True(t, errors.Is(err, io.EOF))
+		})
+	}
+}
+
+func TestReadWriteDoubleEncodings(t *testing.T) {
+	testData := []struct {
+		name    string
+		enc     parquet.Encoding
+		useDict bool
+		input   float64
+	}{
+		{name: "plain_no_dict", enc: parquet.Encoding_PLAIN, useDict: false, input: 42.123456},
+		{name: "plain_with_dict", enc: parquet.Encoding_PLAIN, useDict: true, input: 32.98765},
 	}
 
-	if err := wr.Close(); err != nil {
-		t.Fatal(err)
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			wr := NewFileWriter(&buf)
+
+			bas, err := NewDoubleStore(tt.enc, tt.useDict, &ColumnParameters{})
+			require.NoError(t, err)
+
+			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+			require.NoError(t, wr.AddColumn("number", col))
+
+			inputRow := map[string]interface{}{
+				"number": tt.input,
+			}
+
+			require.NoError(t, wr.AddData(inputRow))
+
+			require.NoError(t, wr.Close())
+
+			rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			outputRow, err := rd.NextRow()
+			require.NoError(t, err)
+
+			require.Equal(t, inputRow, outputRow)
+
+			_, err = rd.NextRow()
+			require.True(t, errors.Is(err, io.EOF))
+		})
 	}
-
-	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("Reading data...")
-
-	for i := 0; i < numRecords; i++ {
-		row, err := rd.NextRow()
-		if err != nil {
-			t.Fatalf("got error at record %d of %d: %v", i+1, numRecords, err)
-		}
-		t.Log(row)
-	}
-
-	_, err = rd.NextRow()
-	require.True(t, errors.Is(err, io.EOF))
-
-	t.Logf("Finished")
 }
 
 func TestWriteThenReadMultiplePages(t *testing.T) {
@@ -1139,34 +1315,57 @@ func TestWriteThenReadMultiplePages(t *testing.T) {
 	sd, err := parquetschema.ParseSchemaDefinition(mySchema)
 	require.NoError(t, err)
 
-	f := new(bytes.Buffer)
+	testData := []struct {
+		name    string
+		options []FileWriterOption
+	}{
 
-	fw := NewFileWriter(f, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY))
-	defer fw.Close()
-
-	const numRows = 100000
-
-	records := []map[string]interface{}{}
-
-	for i := 0; i < numRows; i++ {
-		tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
-		rec := map[string]interface{}{"ts_str": []byte(tsStr)}
-		records = append(records, rec)
-		require.NoError(t, fw.AddData(rec))
+		{
+			name: "snappy",
+			options: []FileWriterOption{
+				WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+			},
+		},
+		{
+			name: "snappy_1kb_page",
+			options: []FileWriterOption{
+				WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithMaxPageSize(1 * 1024),
+			},
+		},
 	}
 
-	require.NoError(t, fw.Close())
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			f := new(bytes.Buffer)
 
-	r, err := NewFileReader(bytes.NewReader(f.Bytes()))
-	require.NoError(t, err)
+			fw := NewFileWriter(f, tt.options...)
+			defer fw.Close()
 
-	rowCount := r.NumRows()
-	require.Equal(t, int64(numRows), rowCount)
+			const numRows = 75
 
-	for i := int64(0); i < rowCount; i++ {
-		data, err := r.NextRow()
-		require.NoError(t, err)
-		require.Equal(t, records[i], data, "%d. records don't match", i)
-		//fmt.Printf("in %d. %s\n", i, string(data["ts_str"].([]byte)))
+			records := []map[string]interface{}{}
+
+			for i := 0; i < numRows; i++ {
+				tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
+				rec := map[string]interface{}{"ts_str": []byte(tsStr)}
+				records = append(records, rec)
+				require.NoError(t, fw.AddData(rec))
+			}
+
+			require.NoError(t, fw.Close())
+
+			r, err := NewFileReader(bytes.NewReader(f.Bytes()))
+			require.NoError(t, err)
+
+			rowCount := r.NumRows()
+			require.Equal(t, int64(numRows), rowCount)
+
+			for i := int64(0); i < rowCount; i++ {
+				data, err := r.NextRow()
+				require.NoError(t, err)
+				require.Equal(t, records[i], data, "%d. records don't match", i)
+				//fmt.Printf("in %d. %s\n", i, string(data["ts_str"].([]byte)))
+			}
+		})
 	}
 }

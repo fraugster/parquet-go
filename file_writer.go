@@ -33,6 +33,8 @@ type FileWriter struct {
 	newPageFunc newDataPageFunc
 
 	ctx context.Context
+
+	schemaDef *parquetschema.SchemaDefinition
 }
 
 // FileWriterOption describes an option function that is applied to a FileWriter when it is created.
@@ -57,6 +59,14 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 
 	for _, opt := range options {
 		opt(fw)
+	}
+
+	// if a WithSchemaDefinition option was provided, the schema needs to be set after everything else
+	// as other options can change settings on the schemaWriter (such as the maximum page size).
+	if fw.schemaDef != nil {
+		if err := fw.schemaWriter.SetSchemaDefinition(fw.schemaDef); err != nil {
+			panic(err) // TODO: this shouldn't happen, but still isn't great. We messed up the API design for options and NewFileWriter.
+		}
 	}
 
 	return fw
@@ -113,9 +123,7 @@ func WithMaxPageSize(size int64) FileWriterOption {
 // WithSchemaDefinition sets the schema definition to use for this parquet file.
 func WithSchemaDefinition(sd *parquetschema.SchemaDefinition) FileWriterOption {
 	return func(fw *FileWriter) {
-		if err := fw.schemaWriter.SetSchemaDefinition(sd); err != nil {
-			panic(err)
-		}
+		fw.schemaDef = sd
 	}
 }
 

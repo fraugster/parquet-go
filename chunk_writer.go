@@ -10,14 +10,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func getBooleanValuesEncoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesEncoder, error) {
+func getBooleanValuesEncoder(pageEncoding parquet.Encoding) (valuesEncoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &booleanPlainEncoder{}, nil
 	case parquet.Encoding_RLE:
 		return &booleanRLEEncoder{}, nil
-	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictEncoder{dictValues: dictValues}, nil
 	default:
 		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
 	}
@@ -97,7 +95,7 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
-		return getBooleanValuesEncoder(pageEncoding, dictValues)
+		return getBooleanValuesEncoder(pageEncoding)
 
 	case parquet.Type_BYTE_ARRAY:
 		return getByteArrayValuesEncoder(pageEncoding, dictValues)
