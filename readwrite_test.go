@@ -20,7 +20,7 @@ import (
 func TestWriteThenReadFile(t *testing.T) {
 	ctx := context.Background()
 
-	testFunc := func(t *testing.T, name string, opts ...FileWriterOption) {
+	testFunc := func(t *testing.T, name string, opts []FileWriterOption, ropts []FileReaderOption) {
 		_ = os.Mkdir("files", 0755)
 
 		filename := fmt.Sprintf("files/test1_%s.parquet", name)
@@ -69,7 +69,7 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.NoError(t, err, "opening file failed")
 		defer rf.Close()
 
-		r, err := NewFileReader(rf)
+		r, err := NewFileReaderWithOptions(rf, ropts...)
 		require.NoError(t, err, "creating file reader failed")
 
 		cols := r.Columns()
@@ -135,7 +135,7 @@ func TestWriteThenReadFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			testFunc(t, tt.Name, tt.WriteOpts...)
+			testFunc(t, tt.Name, tt.WriteOpts, tt.ReadOpts)
 		})
 	}
 }
