@@ -61,11 +61,11 @@ func customerMapTest(parquet, csvFl string) func(t *testing.T) {
 			if err := reader.readRowGroup(context.Background()); err == io.EOF {
 				break
 			}
-			count := reader.rowGroupNumRecords()
+			count := reader.schemaReader.rowGroupNumRecords()
 			for i := int64(0); i < count; i++ {
 				rec, err := r.Read()
 				require.NoError(t, err)
-				read, err := reader.getData()
+				read, err := reader.schemaReader.getData()
 				require.NoError(t, err)
 				csvData := toCustomerMap(t, rec)
 				assert.Equal(t, csvData, read)

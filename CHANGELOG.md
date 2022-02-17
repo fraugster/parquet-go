@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added support for page data statistics.
 - Improved test coverage.
 - Fixed issue with dictionary encoding where bit width was determined incorrectly.
+- Added support for writing per-page CRC32 checksums.
+- Added support for optional CRC32 checksum validation on read.
 - Fixed issue with float32/64 dictionary encoding where trying to encode NaN failed with an error.
 
 ## [v0.9.0] - 2022-02-10

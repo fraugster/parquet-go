@@ -24,7 +24,7 @@ func TestWriteThenReadFile(t *testing.T) {
 	testFunc := func(t *testing.T, name string, opts ...FileWriterOption) {
 		_ = os.Mkdir("files", 0755)
 
-		filename := "files/test1_" + name + ".parquet"
+		filename := fmt.Sprintf("files/test1_%s.parquet", name)
 
 		wf, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		require.NoError(t, err, "creating file failed")
@@ -37,8 +37,12 @@ func TestWriteThenReadFile(t *testing.T) {
 		barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 		require.NoError(t, err, "failed to create barStore")
 
+		bazStore, err := NewInt32Store(parquet.Encoding_PLAIN, true, &ColumnParameters{})
+		require.NoError(t, err, "failed to create bazStore")
+
 		require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
 		require.NoError(t, w.AddColumn("bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
+		require.NoError(t, w.AddColumn("baz", NewDataColumn(bazStore, parquet.FieldRepetitionType_OPTIONAL)))
 
 		const (
 			numRecords = 10000
@@ -50,7 +54,12 @@ func TestWriteThenReadFile(t *testing.T) {
 				require.NoError(t, w.FlushRowGroup(), "%d. AddData failed", idx)
 			}
 
-			require.NoError(t, w.AddData(map[string]interface{}{"foo": int64(idx), "bar": []byte("value" + fmt.Sprint(idx))}), "%d. AddData failed", idx)
+			data := map[string]interface{}{"foo": int64(idx), "bar": []byte("value" + fmt.Sprint(idx))}
+			if idx%20 != 0 {
+				data["baz"] = int32(idx % 16)
+			}
+
+			require.NoError(t, w.AddData(data), "%d. AddData failed", idx)
 		}
 
 		assert.NoError(t, w.Close(), "Close failed")
@@ -65,15 +74,17 @@ func TestWriteThenReadFile(t *testing.T) {
 		require.NoError(t, err, "creating file reader failed")
 
 		cols := r.Columns()
-		require.Len(t, cols, 2, "got %d column", len(cols))
+		require.Len(t, cols, 3, "got %d column", len(cols))
 		require.Equal(t, "foo", cols[0].Name())
 		require.Equal(t, "foo", cols[0].FlatName())
 		require.Equal(t, "bar", cols[1].Name())
 		require.Equal(t, "bar", cols[1].FlatName())
+		require.Equal(t, "baz", cols[2].Name())
+		require.Equal(t, "baz", cols[2].FlatName())
 		for g := 0; g < r.RowGroupCount(); g++ {
 			require.NoError(t, r.readRowGroup(ctx), "Reading row group failed")
-			for i := 0; i < int(r.rowGroupNumRecords()); i++ {
-				data, err := r.getData()
+			for i := 0; i < int(r.schemaReader.rowGroupNumRecords()); i++ {
+				data, err := r.schemaReader.getData()
 				require.NoError(t, err)
 				_, ok := data["foo"]
 				require.True(t, ok)
@@ -81,12 +92,53 @@ func TestWriteThenReadFile(t *testing.T) {
 		}
 	}
 
-	t.Run("datapagev1", func(t *testing.T) {
-		testFunc(t, "datapagev1", WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"))
-	})
-	t.Run("datapagev2", func(t *testing.T) {
-		testFunc(t, "datapagev2", WithCompressionCodec(parquet.CompressionCodec_SNAPPY), WithCreator("parquet-go-unittest"), WithDataPageV2())
-	})
+	tests := []struct {
+		Name      string
+		WriteOpts []FileWriterOption
+		ReadOpts  []FileReaderOption
+	}{
+		{
+			Name: "datapagev1",
+			WriteOpts: []FileWriterOption{
+				WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				WithCreator("parquet-go-unittest"),
+			},
+			ReadOpts: []FileReaderOption{},
+		},
+		{
+			Name: "datapagev2",
+			WriteOpts: []FileWriterOption{
+				WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				WithCreator("parquet-go-unittest"), WithDataPageV2(),
+			},
+			ReadOpts: []FileReaderOption{},
+		},
+		{
+			Name: "datapagev1_crc",
+			WriteOpts: []FileWriterOption{
+				WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				WithCreator("parquet-go-unittest"),
+				WithCRC(true),
+			},
+			ReadOpts: []FileReaderOption{WithCRC32Validation(true)},
+		},
+		{
+			Name: "datapagev2_crc",
+			WriteOpts: []FileWriterOption{
+				WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				WithCreator("parquet-go-unittest"),
+				WithDataPageV2(),
+				WithCRC(true),
+			},
+			ReadOpts: []FileReaderOption{WithCRC32Validation(true)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			testFunc(t, tt.Name, tt.WriteOpts...)
+		})
+	}
 }
 
 func TestWriteThenReadFileRepeated(t *testing.T) {
@@ -129,9 +181,9 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -176,8 +228,8 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
-	root := r.SchemaReader.(*schema).root
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
+	root := r.schemaReader.root
 	for i := range data {
 		_, ok := data[i]["foo"]
 		rL, dL, b := root.getFirstRDLevel()
@@ -191,7 +243,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 			assert.Equal(t, int32(0), dL)
 		}
 
-		get, err := r.getData()
+		get, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], get)
 	}
@@ -239,9 +291,9 @@ func TestWriteThenReadFileNested(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -313,9 +365,9 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -424,9 +476,9 @@ func TestWriteThenReadFileMap(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -471,9 +523,9 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(len(data)), r.rowGroupNumRecords())
+	require.Equal(t, int64(len(data)), r.schemaReader.rowGroupNumRecords())
 	for i := range data {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, data[i], d)
 	}
@@ -507,9 +559,9 @@ func TestWriteEmptyDict(t *testing.T) {
 	require.NoError(t, err, "creating file reader failed")
 	require.NoError(t, r.readRowGroup(ctx))
 
-	require.Equal(t, int64(1000), r.rowGroupNumRecords())
+	require.Equal(t, int64(1000), r.schemaReader.rowGroupNumRecords())
 	for i := 0; i < 1000; i++ {
-		d, err := r.getData()
+		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{}, d)
 	}
