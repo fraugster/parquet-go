@@ -7,15 +7,16 @@ import (
 	"strings"
 
 	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 	"github.com/pkg/errors"
 )
 
-// FileReader is used to read data from a parquet file. Always use NewFileReader to create
-// such an object.
+// FileReader is used to read data from a parquet file. Always use NewFileReader or a related
+// function  to create such an object.
 type FileReader struct {
-	meta *parquet.FileMetaData
-	SchemaReader
-	reader io.ReadSeeker
+	meta         *parquet.FileMetaData
+	schemaReader *schema
+	reader       io.ReadSeeker
 
 	rowGroupPosition int
 	currentRecord    int64
@@ -24,68 +25,125 @@ type FileReader struct {
 	ctx context.Context
 }
 
+// NewFileReaderWithOptions creates a new FileReader. You can provide a list of FileReaderOptions to configure
+// aspects of its behaviour, such as limiting the columns to read, the file metadata to use, or the
+// context to use. For a full list of options, please see the type FileReaderOption.
+func NewFileReaderWithOptions(r io.ReadSeeker, readerOptions ...FileReaderOption) (*FileReader, error) {
+	opts := newFileReaderOptions()
+	if err := opts.apply(readerOptions); err != nil {
+		return nil, err
+	}
+
+	var err error
+	if opts.metaData == nil {
+		opts.metaData, err = ReadFileMetaData(r, true)
+		if err != nil {
+			return nil, errors.Wrap(err, "reading file meta data failed")
+		}
+	}
+
+	schema, err := makeSchema(opts.metaData, opts.validateCRC)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating schema failed")
+	}
+
+	schema.SetSelectedColumns(opts.columns...)
+	// Reset the reader to the beginning of the file
+	if _, err := r.Seek(4, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return &FileReader{
+		meta:         opts.metaData,
+		schemaReader: schema,
+		reader:       r,
+		ctx:          opts.ctx,
+	}, nil
+}
+
+// FileReaderOption is an option that can be passed on to NewFileReaderWithOptions when
+// creating a new parquet file reader.
+type FileReaderOption func(*fileReaderOptions) error
+type fileReaderOptions struct {
+	metaData    *parquet.FileMetaData
+	ctx         context.Context
+	columns     []string
+	validateCRC bool
+}
+
+func newFileReaderOptions() *fileReaderOptions {
+	return &fileReaderOptions{ctx: context.Background()}
+}
+
+func (o *fileReaderOptions) apply(opts []FileReaderOption) error {
+	for _, f := range opts {
+		if err := f(o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WithReaderContext configures a custom context for the file reader. If none
+// is provided, context.Background() is used as a default.
+func WithReaderContext(ctx context.Context) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		opts.ctx = ctx
+		return nil
+	}
+}
+
+// WithFileMetaData allows you to provide your own file metadata. If none
+// is set with this option, the file reader will read it from the parquet
+// file.
+func WithFileMetaData(metaData *parquet.FileMetaData) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		opts.metaData = metaData
+		return nil
+	}
+}
+
+// WithColumns limits the columns which are read. If none are set, then
+// all columns will be read by the parquet file reader.
+func WithColumns(columns ...string) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		opts.columns = columns
+		return nil
+	}
+}
+
+// WithCRC32Validation allows you to configure whether CRC32 page checksums will
+// be validated when they're read. By default, checksum validation is disabled.
+func WithCRC32Validation(enable bool) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		opts.validateCRC = enable
+		return nil
+	}
+}
+
 // NewFileReader creates a new FileReader. You can limit the columns that are read by providing
 // the names of the specific columns to read using dotted notation. If no columns are provided,
 // then all columns are read.
 func NewFileReader(r io.ReadSeeker, columns ...string) (*FileReader, error) {
-	return NewFileReaderWithContext(context.Background(), r, columns...)
+	return NewFileReaderWithOptions(r, WithColumns(columns...))
 }
 
 // NewFileReaderWithContext creates a new FileReader. You can limit the columns that are read by providing
 // the names of the specific columns to read using dotted notation. If no columns are provided,
 // then all columns are read. The provided context.Context overrides the default context (which is a context.Background())
 // for use in other methods of the *FileReader type.
+//
+// Deprecated: use the function NewFileReaderWithOptions and the option WithContext instead.
 func NewFileReaderWithContext(ctx context.Context, r io.ReadSeeker, columns ...string) (*FileReader, error) {
-	meta, err := ReadFileMetaData(r, true)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading file meta data failed")
-	}
-
-	schema, err := makeSchema(meta)
-	if err != nil {
-		return nil, errors.Wrap(err, "creating schema failed")
-	}
-
-	schema.SetSelectedColumns(columns...)
-	// Reset the reader to the beginning of the file
-	if _, err := r.Seek(4, io.SeekStart); err != nil {
-		return nil, err
-	}
-	return &FileReader{
-		meta:         meta,
-		SchemaReader: schema,
-		reader:       r,
-		ctx:          ctx,
-	}, nil
+	return NewFileReaderWithOptions(r, WithReaderContext(ctx), WithColumns(columns...))
 }
 
 // NewFileReaderWithMetaData creates a new FileReader with custom file meta data. You can limit the columns that
 // are read by providing the names of the specific columns to read using dotted notation. If no columns are provided,
 // then all columns are read.
+//
+// Deprecated: use the function NewFileReaderWithOptions and the option WithFileMetaData instead.
 func NewFileReaderWithMetaData(r io.ReadSeeker, meta *parquet.FileMetaData, columns ...string) (*FileReader, error) {
-	var err error
-	if meta == nil {
-		meta, err = ReadFileMetaData(r, true)
-		if err != nil {
-			return nil, errors.Wrap(err, "reading file meta data failed")
-		}
-	}
-
-	schema, err := makeSchema(meta)
-	if err != nil {
-		return nil, errors.Wrap(err, "creating schema failed")
-	}
-
-	schema.SetSelectedColumns(columns...)
-	// Reset the reader to the beginning of the file
-	if _, err := r.Seek(4, io.SeekStart); err != nil {
-		return nil, err
-	}
-	return &FileReader{
-		meta:         meta,
-		SchemaReader: schema,
-		reader:       r,
-	}, nil
+	return NewFileReaderWithOptions(r, WithFileMetaData(meta), WithColumns(columns...))
 }
 
 // SeekToRowGroup seeks to a particular row group, identified by its index.
@@ -106,7 +164,7 @@ func (f *FileReader) readRowGroup(ctx context.Context) error {
 		return io.EOF
 	}
 	f.rowGroupPosition++
-	return readRowGroup(ctx, f.reader, f.SchemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
+	return readRowGroup(ctx, f.reader, f.schemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
 // CurrentRowGroup returns information about the current row group.
@@ -129,7 +187,7 @@ func (f *FileReader) NumRows() int64 {
 }
 
 func (f *FileReader) advanceIfNeeded(ctx context.Context) error {
-	if f.rowGroupPosition == 0 || f.currentRecord >= f.SchemaReader.rowGroupNumRecords() || f.skipRowGroup {
+	if f.rowGroupPosition == 0 || f.currentRecord >= f.schemaReader.rowGroupNumRecords() || f.skipRowGroup {
 		if err := f.readRowGroup(ctx); err != nil {
 			f.skipRowGroup = true
 			return err
@@ -152,7 +210,7 @@ func (f *FileReader) RowGroupNumRowsWithContext(ctx context.Context) (int64, err
 		return 0, err
 	}
 
-	return f.SchemaReader.rowGroupNumRecords(), nil
+	return f.schemaReader.rowGroupNumRecords(), nil
 }
 
 // NextRow reads the next row from the parquet file. If required, it will load the next row group.
@@ -167,7 +225,7 @@ func (f *FileReader) NextRowWithContext(ctx context.Context) (map[string]interfa
 	}
 
 	f.currentRecord++
-	return f.SchemaReader.getData()
+	return f.schemaReader.getData()
 }
 
 // SkipRowGroup skips the currently loaded row group and advances to the next row group.
@@ -199,6 +257,16 @@ func (f *FileReader) ColumnMetaData(colName string) (map[string]string, error) {
 		}
 	}
 	return nil, fmt.Errorf("column %q not found", colName)
+}
+
+// Columns returns the list of columns.
+func (f *FileReader) Columns() []*Column {
+	return f.schemaReader.Columns()
+}
+
+// GetSchemaDefinition returns the current schema definition.
+func (f *FileReader) GetSchemaDefinition() *parquetschema.SchemaDefinition {
+	return f.schemaReader.GetSchemaDefinition()
 }
 
 func keyValueMetaDataToMap(kvMetaData []*parquet.KeyValue) map[string]string {

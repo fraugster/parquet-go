@@ -274,6 +274,9 @@ type schema struct {
 
 	// selected columns in reading. if the size is zero, it means all the columns
 	selectedColumn []string
+
+	enableCRC   bool // if true, CRC32 checksums will be computed for pages upon writing.
+	validateCRC bool // if true, CRC32 checksums will be validated for pages upon reading.
 }
 
 func (r *schema) ensureRoot() {
@@ -1015,7 +1018,7 @@ type SchemaWriter interface {
 	DataSize() int64
 }
 
-func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
+func makeSchema(meta *parquet.FileMetaData, validateCRC bool) (*schema, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
 	}
@@ -1037,6 +1040,7 @@ func makeSchema(meta *parquet.FileMetaData) (SchemaReader, error) {
 				FieldID:       meta.Schema[0].FieldID,
 			},
 		},
+		validateCRC: validateCRC,
 	}
 	err := s.readSchema(meta.Schema[1:])
 	if err != nil {

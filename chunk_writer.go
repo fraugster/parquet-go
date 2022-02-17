@@ -225,7 +225,7 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 		if err := dict.init(sch, col, codec, dictValues); err != nil {
 			return nil, err
 		}
-		compSize, unCompSize, err := dict.write(ctx, w)
+		compSize, unCompSize, err := dict.write(ctx, sch, w)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +242,7 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 	)
 
 	for _, page := range col.data.dataPages {
-		pw := pageFn(useDict, dictValues, page)
+		pw := pageFn(useDict, dictValues, page, sch.enableCRC)
 
 		if err := pw.init(sch, col, codec); err != nil {
 			return nil, err

@@ -3,6 +3,7 @@ package goparquet
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"math/bits"
 
@@ -158,15 +159,26 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
-func createDataReader(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
+func readPageBlock(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32, validateCRC bool, crc *int32) ([]byte, error) {
 	if compressedSize < 0 || uncompressedSize < 0 {
 		return nil, errors.New("invalid page data size")
 	}
 
-	return newBlockReader(r, codec, compressedSize, uncompressedSize)
+	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(compressedSize)))
+	if err != nil {
+		return nil, errors.Wrap(err, "read failed")
+	}
+
+	if validateCRC && crc != nil {
+		if sum := crc32.ChecksumIEEE(dataPageBlock); sum != uint32(*crc) {
+			return nil, fmt.Errorf("CRC32 check failed: expected CRC32 %x, got %x", sum, uint32(*crc))
+		}
+	}
+
+	return dataPageBlock, nil
 }
 
-func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (pages []pageReader, useDict bool, err error) {
+func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, chunkMeta *parquet.ColumnMetaData, dDecoder, rDecoder getLevelDecoder) (pages []pageReader, useDict bool, err error) {
 	var (
 		dictPage *dictPageReader
 	)
@@ -184,7 +196,7 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 			if dictPage != nil {
 				return nil, false, errors.New("there should be only one dictionary")
 			}
-			p := &dictPageReader{}
+			p := &dictPageReader{validateCRC: sch.validateCRC}
 			de, err := getDictValuesDecoder(col.Element())
 			if err != nil {
 				return nil, false, err
@@ -235,7 +247,7 @@ func readPages(ctx context.Context, r *offsetReader, col *Column, chunkMeta *par
 			return nil, false, err
 		}
 
-		if err := p.read(r, ph, chunkMeta.Codec); err != nil {
+		if err := p.read(r, ph, chunkMeta.Codec, sch.validateCRC); err != nil {
 			return nil, false, err
 		}
 		pages = append(pages, p)
@@ -278,7 +290,7 @@ func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	return err
 }
 
-func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) (pages []pageReader, useDict bool, err error) {
+func readChunk(ctx context.Context, sch *schema, r io.ReadSeeker, col *Column, chunk *parquet.ColumnChunk) (pages []pageReader, useDict bool, err error) {
 	if chunk.FilePath != nil {
 		return nil, false, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -340,7 +352,7 @@ func readChunk(ctx context.Context, r io.ReadSeeker, col *Column, chunk *parquet
 			return &levelDecoderWrapper{decoder: constDecoder(0), max: col.MaxDefinitionLevel()}, nil
 		}
 	}
-	return readPages(ctx, reader, col, chunk.MetaData, dDecoder, rDecoder)
+	return readPages(ctx, sch, reader, col, chunk.MetaData, dDecoder, rDecoder)
 }
 
 func readPageData(col *Column, pages []pageReader, useDict bool) error {
@@ -354,24 +366,24 @@ func readPageData(col *Column, pages []pageReader, useDict bool) error {
 	return nil
 }
 
-func readRowGroup(ctx context.Context, r io.ReadSeeker, schema SchemaReader, rowGroups *parquet.RowGroup) error {
-	dataCols := schema.Columns()
-	schema.resetData()
-	schema.setNumRecords(rowGroups.NumRows)
+func readRowGroup(ctx context.Context, r io.ReadSeeker, sch *schema, rowGroups *parquet.RowGroup) error {
+	dataCols := sch.Columns()
+	sch.resetData()
+	sch.setNumRecords(rowGroups.NumRows)
 	for _, c := range dataCols {
 		idx := c.Index()
 		if len(rowGroups.Columns) <= idx {
 			return fmt.Errorf("column index %d is out of bounds", idx)
 		}
 		chunk := rowGroups.Columns[c.Index()]
-		if !schema.isSelected(c.flatName) {
+		if !sch.isSelected(c.flatName) {
 			if err := skipChunk(r, c, chunk); err != nil {
 				return err
 			}
 			c.data.skipped = true
 			continue
 		}
-		pages, useDict, err := readChunk(ctx, r, c, chunk)
+		pages, useDict, err := readChunk(ctx, sch, r, c, chunk)
 		if err != nil {
 			return err
 		}

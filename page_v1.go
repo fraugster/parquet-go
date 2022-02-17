@@ -3,6 +3,7 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -79,7 +80,7 @@ func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getV
 	return nil
 }
 
-func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) (err error) {
+func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) (err error) {
 	if ph.DataPageHeader == nil {
 		return errors.Errorf("null DataPageHeader in %+v", ph)
 	}
@@ -87,7 +88,13 @@ func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parq
 	if dp.valuesCount = ph.DataPageHeader.NumValues; dp.valuesCount < 0 {
 		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
-	reader, err := createDataReader(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+
+	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
+	if err != nil {
+		return err
+	}
+
+	reader, err := newBlockReader(dataPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
 	if err != nil {
 		return err
 	}
@@ -111,12 +118,13 @@ func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parq
 }
 
 type dataPageWriterV1 struct {
-	col *Column
-
-	codec      parquet.CompressionCodec
-	dictionary bool
 	dictValues []interface{}
+	col        *Column
+	codec      parquet.CompressionCodec
 	page       *dataPage
+
+	dictionary bool
+	enableCRC  bool
 }
 
 func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
@@ -125,7 +133,7 @@ func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet
 	return nil
 }
 
-func (dp *dataPageWriterV1) getHeader(comp, unComp int, pageStats *parquet.Statistics) *parquet.PageHeader {
+func (dp *dataPageWriterV1) getHeader(comp, unComp int, pageStats *parquet.Statistics, crc32Checksum *int32) *parquet.PageHeader {
 	enc := dp.col.data.encoding()
 	if dp.dictionary {
 		enc = parquet.Encoding_RLE_DICTIONARY
@@ -134,7 +142,7 @@ func (dp *dataPageWriterV1) getHeader(comp, unComp int, pageStats *parquet.Stati
 		Type:                 parquet.PageType_DATA_PAGE,
 		UncompressedPageSize: int32(unComp),
 		CompressedPageSize:   int32(comp),
-		Crc:                  nil,
+		Crc:                  crc32Checksum,
 		DataPageHeader: &parquet.DataPageHeader{
 			NumValues: int32(dp.page.numValues) + int32(dp.page.nullValues),
 			Encoding:  enc,
@@ -185,7 +193,13 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 
-	header := dp.getHeader(compSize, unCompSize, dp.page.stats)
+	var crc32Checksum *int32
+	if dp.enableCRC {
+		v := int32(crc32.ChecksumIEEE(comp))
+		crc32Checksum = &v
+	}
+
+	header := dp.getHeader(compSize, unCompSize, dp.page.stats, crc32Checksum)
 	if err := writeThrift(ctx, header, w); err != nil {
 		return 0, 0, err
 	}
@@ -193,10 +207,11 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 	return compSize, unCompSize, writeFull(w, comp)
 }
 
-func newDataPageV1Writer(useDict bool, dictValues []interface{}, page *dataPage) pageWriter {
+func newDataPageV1Writer(useDict bool, dictValues []interface{}, page *dataPage, enableCRC bool) pageWriter {
 	return &dataPageWriterV1{
 		dictionary: useDict,
 		dictValues: dictValues,
 		page:       page,
+		enableCRC:  enableCRC,
 	}
 }

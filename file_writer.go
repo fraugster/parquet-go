@@ -136,6 +136,12 @@ func WithDataPageV2() FileWriterOption {
 	}
 }
 
+func WithCRC(enableCRC bool) FileWriterOption {
+	return func(fw *FileWriter) {
+		fw.schemaWriter.enableCRC = enableCRC
+	}
+}
+
 // WithWriterContext overrides the default context (which is a context.Background())
 // in the FileWriter with the provided context.Context object.
 func WithWriterContext(ctx context.Context) FileWriterOption {
