@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"os"
 	"testing"
@@ -1368,4 +1369,84 @@ func TestWriteThenReadMultiplePages(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadWriteDoubleNaN(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	bas, err := NewDoubleStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
+	require.NoError(t, err)
+
+	col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+	require.NoError(t, wr.AddColumn("value", col))
+
+	data := []float64{42.23, math.NaN(), math.NaN(), 23.42, math.Inf(1), math.Inf(-1), 1.111}
+
+	for _, f := range data {
+		require.NoError(t, wr.AddData(map[string]interface{}{
+			"value": f,
+		}))
+	}
+
+	require.NoError(t, wr.Close())
+
+	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range data {
+		outputRow, err := rd.NextRow()
+		require.NoError(t, err)
+		if math.IsNaN(data[i]) {
+			require.True(t, math.IsNaN(outputRow["value"].(float64)))
+		} else {
+			require.Equal(t, data[i], outputRow["value"].(float64))
+		}
+	}
+
+	_, err = rd.NextRow()
+	require.True(t, errors.Is(err, io.EOF))
+}
+
+func TestReadWriteFloatNaN(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	bas, err := NewFloatStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
+	require.NoError(t, err)
+
+	col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
+	require.NoError(t, wr.AddColumn("value", col))
+
+	data := []float32{42.23, float32(math.NaN()), float32(math.NaN()), 23.42, float32(math.Inf(1)), float32(math.Inf(-1)), 1.111}
+
+	for _, f := range data {
+		require.NoError(t, wr.AddData(map[string]interface{}{
+			"value": f,
+		}))
+	}
+
+	require.NoError(t, wr.Close())
+
+	rd, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range data {
+		outputRow, err := rd.NextRow()
+		require.NoError(t, err)
+		if math.IsNaN(float64(data[i])) {
+			require.True(t, math.IsNaN(float64(outputRow["value"].(float32))))
+		} else {
+			require.Equal(t, data[i], outputRow["value"].(float32))
+		}
+	}
+
+	_, err = rd.NextRow()
+	require.True(t, errors.Is(err, io.EOF))
 }
