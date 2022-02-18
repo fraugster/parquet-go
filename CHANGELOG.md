@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.10.0] - 2022-02-18
+
 - Updated to parquet-format 2.9.0.
 - Added support for page data statistics.
 - Improved test coverage.
@@ -92,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.10.0...HEAD
+[v0.10.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.10.0
 [v0.9.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.9.0
 [v0.8.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.8.0
 [v0.7.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.7.0
