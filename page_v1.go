@@ -127,7 +127,7 @@ type dataPageWriterV1 struct {
 	enableCRC  bool
 }
 
-func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV1) init(col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil

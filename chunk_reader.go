@@ -376,7 +376,7 @@ func readRowGroup(ctx context.Context, r io.ReadSeeker, sch *schema, rowGroups *
 			return fmt.Errorf("column index %d is out of bounds", idx)
 		}
 		chunk := rowGroups.Columns[c.Index()]
-		if !sch.isSelected(c.flatName) {
+		if !sch.isSelectedByPath(c.path) {
 			if err := skipChunk(r, c, chunk); err != nil {
 				return err
 			}

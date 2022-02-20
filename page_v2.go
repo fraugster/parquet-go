@@ -130,7 +130,6 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 type dataPageWriterV2 struct {
 	dictValues []interface{}
 	col        *Column
-	schema     SchemaWriter
 	codec      parquet.CompressionCodec
 	page       *dataPage
 
@@ -138,10 +137,9 @@ type dataPageWriterV2 struct {
 	enableCRC  bool
 }
 
-func (dp *dataPageWriterV2) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV2) init(col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
-	dp.schema = schema
 	return nil
 }
 

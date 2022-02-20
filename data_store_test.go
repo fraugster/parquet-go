@@ -103,11 +103,11 @@ func TestOneColumnRepeated(t *testing.T) {
 
 func TestComplexPart1(t *testing.T) {
 	row := &schema{}
-	require.NoError(t, row.AddGroup("Name", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, row.AddGroup("Name.Language", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, row.AddColumn("Name.Language.Code", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
-	require.NoError(t, row.AddColumn("Name.Language.Country", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
-	require.NoError(t, row.AddColumn("Name.URL", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Name"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Name", "Language"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddColumnByPath(ColumnPath{"Name", "Language", "Code"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, row.AddColumnByPath(ColumnPath{"Name", "Language", "Country"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
+	require.NoError(t, row.AddColumnByPath(ColumnPath{"Name", "URL"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
 
 	row.resetData()
 
@@ -178,9 +178,9 @@ func TestComplexPart1(t *testing.T) {
 
 func TestComplexPart2(t *testing.T) {
 	row := &schema{}
-	require.NoError(t, row.AddGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
-	require.NoError(t, row.AddColumn("Links.Backward", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
-	require.NoError(t, row.AddColumn("Links.Forward", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Links"}, parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.AddColumnByPath(ColumnPath{"Links", "Backward"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
+	require.NoError(t, row.AddColumnByPath(ColumnPath{"Links", "Forward"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	row.resetData()
 
 	data := []map[string]interface{}{
@@ -228,11 +228,11 @@ func TestComplex(t *testing.T) {
 	// Based on this picture https://i.stack.imgur.com/raOFu.png from this doc https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36632.pdf
 	row := &schema{}
 	require.NoError(t, row.AddColumn("DocId", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
-	require.NoError(t, row.AddGroup("Links", parquet.FieldRepetitionType_OPTIONAL))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Links"}, parquet.FieldRepetitionType_OPTIONAL))
 	require.NoError(t, row.AddColumn("Links.Backward", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	require.NoError(t, row.AddColumn("Links.Forward", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
-	require.NoError(t, row.AddGroup("Name", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, row.AddGroup("Name.Language", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Name"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"Name", "Language"}, parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.AddColumn("Name.Language.Code", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, row.AddColumn("Name.Language.Country", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
 	require.NoError(t, row.AddColumn("Name.URL", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
@@ -346,7 +346,7 @@ func TestComplex(t *testing.T) {
 func TestTwitterBlog(t *testing.T) {
 	// Sample from here https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
 	row := &schema{}
-	require.NoError(t, row.AddGroup("level1", parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"level1"}, parquet.FieldRepetitionType_REPEATED))
 	require.NoError(t, row.AddColumn("level1.level2", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	row.resetData()
 
@@ -437,9 +437,9 @@ func TestZeroRL(t *testing.T) {
 	//			}
 	//		}
 	//	}
-	require.NoError(t, row.AddGroup("baz", parquet.FieldRepetitionType_REQUIRED))
-	require.NoError(t, row.AddGroup("baz.list", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, row.AddGroup("baz.list.element", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz"}, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz", "list"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz", "list", "element"}, parquet.FieldRepetitionType_REQUIRED))
 	require.NoError(t, row.AddColumn("baz.list.element.quux", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
 	row.resetData()
 
@@ -476,9 +476,9 @@ func TestZeroRL(t *testing.T) {
 	assert.Equal(t, data, read)
 
 	row = &schema{}
-	require.NoError(t, row.AddGroup("baz", parquet.FieldRepetitionType_REQUIRED))
-	require.NoError(t, row.AddGroup("baz.list", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, row.AddGroup("baz.list.element", parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz"}, parquet.FieldRepetitionType_REQUIRED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz", "list"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, row.AddGroupByPath(ColumnPath{"baz", "list", "element"}, parquet.FieldRepetitionType_REQUIRED))
 	require.NoError(t, row.AddColumn("baz.list.element.quux", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
 	row.resetData()
 	require.NoError(t, row.AddData(data))

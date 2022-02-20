@@ -225,7 +225,7 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 		if err := dict.init(sch, col, codec, dictValues); err != nil {
 			return nil, err
 		}
-		compSize, unCompSize, err := dict.write(ctx, sch, w)
+		compSize, unCompSize, err := dict.write(ctx, w)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +244,7 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 	for _, page := range col.data.dataPages {
 		pw := pageFn(useDict, dictValues, page, sch.enableCRC)
 
-		if err := pw.init(sch, col, codec); err != nil {
+		if err := pw.init(col, codec); err != nil {
 			return nil, err
 		}
 
@@ -305,7 +305,7 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 		MetaData: &parquet.ColumnMetaData{
 			Type:                  col.data.parquetType(),
 			Encodings:             encodings,
-			PathInSchema:          col.pathArray(),
+			PathInSchema:          col.path,
 			Codec:                 codec,
 			NumValues:             numValues + nullValues,
 			TotalUncompressedSize: totalUnComp,
@@ -330,7 +330,7 @@ func writeRowGroup(ctx context.Context, w writePos, sch *schema, codec parquet.C
 	dataCols := sch.Columns()
 	var res = make([]*parquet.ColumnChunk, 0, len(dataCols))
 	for _, ci := range dataCols {
-		ch, err := writeChunk(ctx, w, sch, ci, codec, pageFn, h.getMetaData(ci.FlatName()))
+		ch, err := writeChunk(ctx, w, sch, ci, codec, pageFn, h.getMetaData(ci.Path()))
 		if err != nil {
 			return nil, err
 		}

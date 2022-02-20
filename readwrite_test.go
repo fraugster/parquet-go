@@ -263,9 +263,9 @@ func TestWriteThenReadFileNested(t *testing.T) {
 	barStore, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
 	require.NoError(t, err, "failed to create barStore")
 
-	require.NoError(t, w.AddGroup("baz", parquet.FieldRepetitionType_REPEATED))
-	require.NoError(t, w.AddColumn("baz.foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
-	require.NoError(t, w.AddColumn("baz.bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
+	require.NoError(t, w.AddGroupByPath(ColumnPath{"baz"}, parquet.FieldRepetitionType_REPEATED))
+	require.NoError(t, w.AddColumnByPath(ColumnPath{"baz", "foo"}, NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, w.AddColumnByPath(ColumnPath{"baz", "bar"}, NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
 
 	data := []map[string]interface{}{
 		{
@@ -1448,5 +1448,42 @@ func TestReadWriteFloatNaN(t *testing.T) {
 	}
 
 	_, err = rd.NextRow()
+	require.True(t, errors.Is(err, io.EOF))
+}
+
+func TestWriteThenReadSetSchemaDefinition(t *testing.T) {
+	var buf bytes.Buffer
+
+	wr := NewFileWriter(&buf)
+
+	sd, err := parquetschema.ParseSchemaDefinition(`message msg { required int64 foo; }`)
+	require.NoError(t, err)
+
+	require.NoError(t, wr.SetSchemaDefinition(sd))
+
+	require.NoError(t, wr.AddData(map[string]interface{}{"foo": int64(23)}))
+
+	require.NoError(t, wr.Close())
+
+	require.Equal(t, sd.String(), wr.GetSchemaDefinition().String())
+
+	require.Equal(t, 1, len(wr.Columns()))
+	require.Equal(t, parquet.TypePtr(parquet.Type_INT64), wr.GetColumnByName("foo").Type())
+	require.Nil(t, wr.GetColumnByName("bar"))
+	require.Nil(t, wr.GetColumnByPath(ColumnPath{"bar"}))
+	require.NotNil(t, wr.GetColumnByPath(ColumnPath{"foo"}))
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	sd2 := r.GetSchemaDefinition()
+
+	require.Equal(t, sd.String(), sd2.String())
+
+	row, err := r.NextRow()
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{"foo": int64(23)}, row)
+
+	_, err = r.NextRow()
 	require.True(t, errors.Is(err, io.EOF))
 }

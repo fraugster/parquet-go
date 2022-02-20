@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
@@ -66,7 +65,7 @@ type FileReaderOption func(*fileReaderOptions) error
 type fileReaderOptions struct {
 	metaData    *parquet.FileMetaData
 	ctx         context.Context
-	columns     []string
+	columns     []ColumnPath
 	validateCRC bool
 }
 
@@ -104,7 +103,22 @@ func WithFileMetaData(metaData *parquet.FileMetaData) FileReaderOption {
 
 // WithColumns limits the columns which are read. If none are set, then
 // all columns will be read by the parquet file reader.
+//
+// Deprecated: use WithColumnPaths instead.
 func WithColumns(columns ...string) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		parsedCols := []ColumnPath{}
+		for _, c := range columns {
+			parsedCols = append(parsedCols, parseColumnPath(c))
+		}
+		opts.columns = parsedCols
+		return nil
+	}
+}
+
+// WithColumnPaths limits the columns which are read. If none are set, then
+// all columns will be read by the parquet file reader.
+func WithColumnPaths(columns ...ColumnPath) FileReaderOption {
 	return func(opts *fileReaderOptions) error {
 		opts.columns = columns
 		return nil
@@ -250,18 +264,54 @@ func (f *FileReader) MetaData() map[string]string {
 
 // ColumnMetaData returns a map of metadata key-value pairs for the provided column in the current
 // row group. The column name has to be provided in its dotted notation.
+//
+// Deprecated: use ColumnMetaDataPath instead.
 func (f *FileReader) ColumnMetaData(colName string) (map[string]string, error) {
+	return f.ColumnMetaDataByPath(parseColumnPath(colName))
+}
+
+// ColumnMetaData returns a map of metadata key-value pairs for the provided column in the current
+// row group. The column is provided as ColumnPath.
+func (f *FileReader) ColumnMetaDataByPath(path ColumnPath) (map[string]string, error) {
 	for _, col := range f.CurrentRowGroup().Columns {
-		if colName == strings.Join(col.MetaData.PathInSchema, ".") {
+		if path.Equal(ColumnPath(col.MetaData.PathInSchema)) {
 			return keyValueMetaDataToMap(col.MetaData.KeyValueMetadata), nil
 		}
 	}
-	return nil, fmt.Errorf("column %q not found", colName)
+	return nil, fmt.Errorf("column %q not found", path.flatName())
+}
+
+// SetSelectedColumns sets the columns which are read. By default, all columns
+// will be read.
+//
+// Deprecated: use SetSelectedColumnsByPath instead.
+func (f *FileReader) SetSelectedColumns(cols ...string) {
+	parsedCols := []ColumnPath{}
+	for _, c := range cols {
+		parsedCols = append(parsedCols, parseColumnPath(c))
+	}
+	f.schemaReader.SetSelectedColumns(parsedCols...)
+}
+
+func (f *FileReader) SetSelectedColumnsByPath(cols ...ColumnPath) {
+	f.schemaReader.SetSelectedColumns(cols...)
 }
 
 // Columns returns the list of columns.
 func (f *FileReader) Columns() []*Column {
 	return f.schemaReader.Columns()
+}
+
+// GetColumnByName returns a column identified by name. If the column doesn't exist,
+// the method returns nil.
+func (f *FileReader) GetColumnByName(name string) *Column {
+	return f.schemaReader.GetColumnByName(name)
+}
+
+// GetColumnByPath returns a column identified by its path. If the column doesn't exist,
+// nil is returned.
+func (fw *FileReader) GetColumnByPath(path ColumnPath) *Column {
+	return fw.schemaReader.GetColumnByPath(path)
 }
 
 // GetSchemaDefinition returns the current schema definition.

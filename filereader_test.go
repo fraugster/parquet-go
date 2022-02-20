@@ -88,10 +88,102 @@ func TestByteReaderSelectedInner(t *testing.T) {
 	}
 }
 
+func TestByteReaderSelectedInnerByColumnPath(t *testing.T) {
+	r := buildTestStream(t)
+	pr, err := NewFileReaderWithOptions(bytes.NewReader(r), WithColumnPaths(ColumnPath{"x", "c"}))
+	require.NoError(t, err)
+
+	for {
+		data, err := pr.NextRow()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 2, len(data))
+		x, ok := data["x"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, 1, len(x))
+		y, ok := data["y"]
+		require.True(t, ok)
+		require.Empty(t, y)
+	}
+}
+
 func TestByteReaderSelectedInnerFull(t *testing.T) {
 	r := buildTestStream(t)
 	pr, err := NewFileReader(bytes.NewReader(r), "x")
 	require.NoError(t, err)
+
+	require.NotNil(t, pr.GetColumnByName("x.c"))
+
+	for {
+		data, err := pr.NextRow()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 2, len(data))
+		x, ok := data["x"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, 2, len(x))
+		y, ok := data["y"]
+		require.True(t, ok)
+		require.Empty(t, y)
+	}
+}
+
+func TestByteReaderSelectedInnerFullByColumnPath(t *testing.T) {
+	r := buildTestStream(t)
+	pr, err := NewFileReaderWithOptions(bytes.NewReader(r), WithColumnPaths(ColumnPath{"x"}))
+	require.NoError(t, err)
+
+	require.NotNil(t, pr.GetColumnByPath(ColumnPath{"x", "c"}))
+
+	for {
+		data, err := pr.NextRow()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 2, len(data))
+		x, ok := data["x"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, 2, len(x))
+		y, ok := data["y"]
+		require.True(t, ok)
+		require.Empty(t, y)
+	}
+}
+
+func TestByteReaderSelectedInnerFullSetSelectedColumns(t *testing.T) {
+	r := buildTestStream(t)
+	pr, err := NewFileReaderWithOptions(bytes.NewReader(r))
+	require.NoError(t, err)
+
+	pr.SetSelectedColumns("x")
+
+	for {
+		data, err := pr.NextRow()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 2, len(data))
+		x, ok := data["x"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, 2, len(x))
+		y, ok := data["y"]
+		require.True(t, ok)
+		require.Empty(t, y)
+	}
+}
+
+func TestByteReaderSelectedInnerFullSetSelectedColumnsByPath(t *testing.T) {
+	r := buildTestStream(t)
+	pr, err := NewFileReaderWithOptions(bytes.NewReader(r))
+	require.NoError(t, err)
+
+	pr.SetSelectedColumnsByPath(ColumnPath{"x"})
 
 	for {
 		data, err := pr.NextRow()

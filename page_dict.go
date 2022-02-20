@@ -69,12 +69,14 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 }
 
 type dictPageWriter struct {
+	sch        *schema
 	col        *Column
 	codec      parquet.CompressionCodec
 	dictValues []interface{}
 }
 
-func (dp *dictPageWriter) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec, dictValues []interface{}) error {
+func (dp *dictPageWriter) init(sch *schema, col *Column, codec parquet.CompressionCodec, dictValues []interface{}) error {
+	dp.sch = sch
 	dp.col = col
 	dp.codec = codec
 	dp.dictValues = dictValues
@@ -96,7 +98,7 @@ func (dp *dictPageWriter) getHeader(comp, unComp int, crc32Checksum *int32) *par
 	return ph
 }
 
-func (dp *dictPageWriter) write(ctx context.Context, sch *schema, w io.Writer) (int, int, error) {
+func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, error) {
 	// In V1 data page is compressed separately
 	dataBuf := &bytes.Buffer{}
 
@@ -117,7 +119,7 @@ func (dp *dictPageWriter) write(ctx context.Context, sch *schema, w io.Writer) (
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 
 	var crc32Checksum *int32
-	if sch.enableCRC {
+	if dp.sch.enableCRC {
 		sum := int32(crc32.ChecksumIEEE(comp))
 		crc32Checksum = &sum
 	}

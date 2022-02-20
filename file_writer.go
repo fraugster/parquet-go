@@ -150,27 +150,35 @@ func WithWriterContext(ctx context.Context) FileWriterOption {
 	}
 }
 
+type columnKeyValues struct {
+	path ColumnPath
+	kv   map[string]string
+}
+
 type flushRowGroupOptionHandle struct {
-	cols   map[string]map[string]string
+	cols   []columnKeyValues
 	global map[string]string
 }
 
 func newFlushRowGroupOptionHandle() *flushRowGroupOptionHandle {
 	return &flushRowGroupOptionHandle{
-		cols:   make(map[string]map[string]string),
 		global: make(map[string]string),
 	}
 }
 
-func (h *flushRowGroupOptionHandle) getMetaData(col string) map[string]string {
+func (h *flushRowGroupOptionHandle) getMetaData(path ColumnPath) map[string]string {
 	data := make(map[string]string)
 
 	for k, v := range h.global {
 		data[k] = v
 	}
 
-	for k, v := range h.cols[col] {
-		data[k] = v
+	for _, col := range h.cols {
+		if col.path.Equal(path) {
+			for k, v := range col.kv {
+				data[k] = v
+			}
+		}
 	}
 
 	if len(data) > 0 {
@@ -184,16 +192,22 @@ type FlushRowGroupOption func(h *flushRowGroupOptionHandle)
 
 // WithRowGroupMetaDataForColumn adds key-value metadata to a particular column that is identified
 // by its full dotted-notation name.
+//
+// Deprecated: use WithRowGroupMetaDataForColumnPath instead.
 func WithRowGroupMetaDataForColumn(col string, kv map[string]string) FlushRowGroupOption {
+	return WithRowGroupMetaDataForColumnPath(parseColumnPath(col), kv)
+}
+
+// WithRowGroupMetaDataForColumnPath adds key-value metadata to a particular column that is identified
+// by its ColumnPath.
+func WithRowGroupMetaDataForColumnPath(path ColumnPath, kv map[string]string) FlushRowGroupOption {
 	return func(h *flushRowGroupOptionHandle) {
-		colKV := h.cols[col]
-		if colKV == nil {
-			colKV = make(map[string]string)
-		}
-		for k, v := range kv {
-			colKV[k] = v
-		}
-		h.cols[col] = colKV
+		// at this point, we don't worry if we have multiple records for the same column.
+		// All the data will get merged in getMetaData.
+		h.cols = append(h.cols, columnKeyValues{
+			path: path,
+			kv:   kv,
+		})
 	}
 }
 
@@ -342,17 +356,64 @@ func (fw *FileWriter) CurrentFileSize() int64 {
 	return fw.w.Pos()
 }
 
-// AddColumn adds a new data column to the schema of this file writer.
+// AddColumn adds a single column to the parquet schema. The path is provided in dotted notation. All
+// parent elements in this dot-separated path need to exist, otherwise the method returns an error. Any
+// data contained in the column store is reset.
+//
+// Deprecated: use AddColumnByPath instead. AddColumn uses '.' as separator between
+// path elements, which makes it impossible to address columns that contains a '.' in their name.
 func (fw *FileWriter) AddColumn(path string, col *Column) error {
 	return fw.schemaWriter.AddColumn(path, col)
 }
 
-// AddGroup adds a new group to the schema of this file writer.
+// AddColumnByPath adds a single column to the parquet schema. The path is provided as ColumnPath. All
+// parent elements in the column path need to exist, otherwise the method returns an error. Any
+// data contained in the column store is reset.
+func (fw *FileWriter) AddColumnByPath(path ColumnPath, col *Column) error {
+	return fw.schemaWriter.AddColumnByPath(path, col)
+}
+
+// AddGroup adds a new group to the parquet schema. The provided path is written in dotted notation.
+// All parent elements in this dot-separated path need to exist, otherwise the method returns an error.
+//
+// Deprecated: use AddGroupByPath instead. AddGroup uses '.' as separator between
+// path elements, which makes it impossible to address columns that contains a '.' in their name.
 func (fw *FileWriter) AddGroup(path string, rep parquet.FieldRepetitionType) error {
-	return fw.schemaWriter.AddGroup(path, rep)
+	return fw.schemaWriter.AddGroupByPath(parseColumnPath(path), rep)
+}
+
+// AddGroupByPath adds a new group to the parquet schema.The path is provided as ColumnPath.
+// All parent elements in this dot-separated path need to exist, otherwise the method returns an error.
+func (fw *FileWriter) AddGroupByPath(path ColumnPath, rep parquet.FieldRepetitionType) error {
+	return fw.schemaWriter.AddGroupByPath(path, rep)
 }
 
 // GetSchemaDefinition returns the schema definition that has been set in this file writer.
 func (fw *FileWriter) GetSchemaDefinition() *parquetschema.SchemaDefinition {
 	return fw.schemaWriter.GetSchemaDefinition()
+}
+
+// SetSchemaDefinitions sets the schema definition for this file writer.
+func (fw *FileWriter) SetSchemaDefinition(schemaDef *parquetschema.SchemaDefinition) error {
+	return fw.schemaWriter.SetSchemaDefinition(schemaDef)
+}
+
+// Columns returns the list of columns.
+func (fw *FileWriter) Columns() []*Column {
+	return fw.schemaWriter.Columns()
+}
+
+// GetColumnByName returns a column identified by name. If the column doesn't exist,
+// the method returns nil.
+//
+// Deprecated: use GetColumnByPath instead. GetColumnByName uses '.' as separator between
+// path elements, which makes it impossible to address columns that contains a '.' in their name.
+func (fw *FileWriter) GetColumnByName(name string) *Column {
+	return fw.schemaWriter.GetColumnByName(name)
+}
+
+// GetColumnByPath returns a column identified by its path. If the column doesn't exist,
+// nil is returned.
+func (fw *FileWriter) GetColumnByPath(path ColumnPath) *Column {
+	return fw.schemaWriter.GetColumnByPath(path)
 }
