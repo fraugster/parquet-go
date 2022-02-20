@@ -1,6 +1,7 @@
 package floor
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/pkg/errors"
 )
 
 // NewWriter creates a new high-level writer for parquet.
@@ -233,7 +233,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			field.SetInt64(int64(value.Uint()))
 		default:
-			return errors.Errorf("unable to decode %s:%s to int64", elem.Name, value.Kind())
+			return fmt.Errorf("unable to decode %s:%s to int64", elem.Name, value.Kind())
 		}
 		return nil
 	case parquet.Type_INT32:
@@ -243,7 +243,7 @@ func (m *reflectMarshaller) decodeValue(field interfaces.MarshalElement, value r
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			field.SetInt32(int32(value.Uint()))
 		default:
-			return errors.Errorf("unable to decode %s:%s to int32", elem.Name, value.Kind())
+			return fmt.Errorf("unable to decode %s:%s to int32", elem.Name, value.Kind())
 		}
 		return nil
 	case parquet.Type_INT96:

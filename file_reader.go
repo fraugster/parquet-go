@@ -7,7 +7,6 @@ import (
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/pkg/errors"
 )
 
 // FileReader is used to read data from a parquet file. Always use NewFileReader or a related
@@ -37,13 +36,13 @@ func NewFileReaderWithOptions(r io.ReadSeeker, readerOptions ...FileReaderOption
 	if opts.metaData == nil {
 		opts.metaData, err = ReadFileMetaData(r, true)
 		if err != nil {
-			return nil, errors.Wrap(err, "reading file meta data failed")
+			return nil, fmt.Errorf("reading file meta data failed: %w", err)
 		}
 	}
 
 	schema, err := makeSchema(opts.metaData, opts.validateCRC)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating schema failed")
+		return nil, fmt.Errorf("creating schema failed: %w", err)
 	}
 
 	schema.SetSelectedColumns(opts.columns...)

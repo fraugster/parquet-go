@@ -3,12 +3,10 @@ package goparquet
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
-	"math/bits"
-
 	"math"
-
-	"github.com/pkg/errors"
+	"math/bits"
 )
 
 type deltaBitPackEncoder32 struct {
@@ -35,16 +33,16 @@ func (d *deltaBitPackEncoder32) init(w io.Writer) error {
 	d.w = w
 
 	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return errors.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
+		return fmt.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
-		return errors.Errorf("invalid mini block count, it is %d", d.miniBlockCount)
+		return fmt.Errorf("invalid mini block count, it is %d", d.miniBlockCount)
 	}
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount%8 != 0 {
-		return errors.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
+		return fmt.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
 	}
 
 	d.firstValue = 0
@@ -194,16 +192,16 @@ func (d *deltaBitPackEncoder64) init(w io.Writer) error {
 	d.w = w
 
 	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return errors.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
+		return fmt.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
-		return errors.Errorf("invalid mini block count, it is %d", d.miniBlockCount)
+		return fmt.Errorf("invalid mini block count, it is %d", d.miniBlockCount)
 	}
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount%8 != 0 {
-		return errors.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
+		return fmt.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
 	}
 
 	d.firstValue = 0

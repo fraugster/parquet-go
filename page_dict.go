@@ -3,11 +3,12 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface
@@ -31,15 +32,15 @@ func (dp *dictPageReader) init(dict valuesDecoder) error {
 
 func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec) error {
 	if ph.DictionaryPageHeader == nil {
-		return errors.Errorf("null DictionaryPageHeader in %+v", ph)
+		return fmt.Errorf("null DictionaryPageHeader in %+v", ph)
 	}
 
 	if dp.numValues = ph.DictionaryPageHeader.NumValues; dp.numValues < 0 {
-		return errors.Errorf("negative NumValues in DICTIONARY_PAGE: %d", dp.numValues)
+		return fmt.Errorf("negative NumValues in DICTIONARY_PAGE: %d", dp.numValues)
 	}
 
 	if ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN && ph.DictionaryPageHeader.Encoding != parquet.Encoding_PLAIN_DICTIONARY {
-		return errors.Errorf("only Encoding_PLAIN and Encoding_PLAIN_DICTIONARY is supported for dict values encoder")
+		return fmt.Errorf("only Encoding_PLAIN and Encoding_PLAIN_DICTIONARY is supported for dict values encoder")
 	}
 
 	dp.ph = ph
@@ -62,7 +63,7 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 
 	// no error is accepted here, even EOF
 	if n, err := dp.enc.decodeValues(dp.values); err != nil {
-		return errors.Wrapf(err, "expected %d values, read %d values", dp.numValues, n)
+		return fmt.Errorf("expected %d values, read %d values: %w", dp.numValues, n, err)
 	}
 
 	return nil
@@ -114,7 +115,7 @@ func (dp *dictPageWriter) write(ctx context.Context, w io.Writer) (int, int, err
 
 	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
+		return 0, 0, fmt.Errorf("compressing data failed with %s method: %w", dp.codec, err)
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 

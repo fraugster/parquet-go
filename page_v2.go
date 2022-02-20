@@ -3,11 +3,11 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 type dataPageReaderV2 struct {
@@ -36,20 +36,20 @@ func (dp *dataPageReaderV2) readValues(size int) (values []interface{}, dLevel *
 
 	rLevel, _, err = decodePackedArray(dp.rDecoder, size)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "read repetition levels failed")
+		return nil, nil, nil, fmt.Errorf("read repetition levels failed: %w", err)
 	}
 
 	var notNull int
 	dLevel, notNull, err = decodePackedArray(dp.dDecoder, size)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "read definition levels failed")
+		return nil, nil, nil, fmt.Errorf("read definition levels failed: %w", err)
 	}
 
 	val := make([]interface{}, notNull)
 
 	if notNull != 0 {
 		if n, err := dp.valuesDecoder.decodeValues(val); err != nil {
-			return nil, nil, nil, errors.Wrapf(err, "read values from page failed, need %d values but read %d", notNull, n)
+			return nil, nil, nil, fmt.Errorf("read values from page failed, need %d values but read %d: %w", notNull, n, err)
 		}
 	}
 	dp.position += size
@@ -77,18 +77,18 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 	// 1- Uncompressed size is affected by the level lens.
 	// 2- In page V2 the rle size is in header, not in level stream
 	if ph.DataPageHeaderV2 == nil {
-		return errors.Errorf("null DataPageHeaderV2 in %+v", ph)
+		return fmt.Errorf("null DataPageHeaderV2 in %+v", ph)
 	}
 
 	if dp.valuesCount = ph.DataPageHeaderV2.NumValues; dp.valuesCount < 0 {
-		return errors.Errorf("negative NumValues in DATA_PAGE_V2: %d", dp.valuesCount)
+		return fmt.Errorf("negative NumValues in DATA_PAGE_V2: %d", dp.valuesCount)
 	}
 
 	if ph.DataPageHeaderV2.RepetitionLevelsByteLength < 0 {
-		return errors.Errorf("invalid RepetitionLevelsByteLength")
+		return fmt.Errorf("invalid RepetitionLevelsByteLength %d", ph.DataPageHeaderV2.RepetitionLevelsByteLength)
 	}
 	if ph.DataPageHeaderV2.DefinitionLevelsByteLength < 0 {
-		return errors.Errorf("invalid DefinitionLevelsByteLength")
+		return fmt.Errorf("invalid DefinitionLevelsByteLength %d", ph.DataPageHeaderV2.DefinitionLevelsByteLength)
 	}
 	dp.encoding = ph.DataPageHeaderV2.Encoding
 	dp.ph = ph
@@ -109,13 +109,13 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 
 	if ph.DataPageHeaderV2.RepetitionLevelsByteLength > 0 {
 		if err = dp.rDecoder.init(bytes.NewReader(dataPageBlock[:int(ph.DataPageHeaderV2.RepetitionLevelsByteLength)])); err != nil {
-			return errors.Wrapf(err, "read repetition level failed")
+			return fmt.Errorf("read repetition level failed: %w", err)
 		}
 	}
 
 	if ph.DataPageHeaderV2.DefinitionLevelsByteLength > 0 {
 		if err = dp.dDecoder.init(bytes.NewReader(dataPageBlock[int(ph.DataPageHeaderV2.RepetitionLevelsByteLength):levelsSize])); err != nil {
-			return errors.Wrapf(err, "read definition level failed")
+			return fmt.Errorf("read definition level failed: %w", err)
 		}
 	}
 
@@ -204,7 +204,7 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 
 	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
+		return 0, 0, fmt.Errorf("compressing data failed with %s method: %w", dp.codec, err)
 	}
 
 	var crc32Checksum *int32

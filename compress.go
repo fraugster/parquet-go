@@ -3,11 +3,11 @@ package goparquet
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"sync"
-
-	"github.com/pkg/errors"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/golang/snappy"
@@ -81,7 +81,7 @@ func compressBlock(block []byte, method parquet.CompressionCodec) ([]byte, error
 
 	c, ok := compressors[method]
 	if !ok {
-		return nil, errors.Errorf("method %q is not supported", method.String())
+		return nil, fmt.Errorf("method %q is not supported", method.String())
 	}
 
 	return c.CompressBlock(block)
@@ -93,7 +93,7 @@ func decompressBlock(block []byte, method parquet.CompressionCodec) ([]byte, err
 
 	c, ok := compressors[method]
 	if !ok {
-		return nil, errors.Errorf("method %q is not supported", method.String())
+		return nil, fmt.Errorf("method %q is not supported", method.String())
 	}
 
 	return c.DecompressBlock(block)
@@ -105,16 +105,16 @@ func newBlockReader(buf []byte, codec parquet.CompressionCodec, compressedSize i
 	}
 
 	if len(buf) != int(compressedSize) {
-		return nil, errors.Errorf("compressed data must be %d byte but its %d byte", compressedSize, len(buf))
+		return nil, fmt.Errorf("compressed data must be %d byte but its %d byte", compressedSize, len(buf))
 	}
 
 	res, err := decompressBlock(buf, codec)
 	if err != nil {
-		return nil, errors.Wrap(err, "decompression failed")
+		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
 
 	if len(res) != int(uncompressedSize) {
-		return nil, errors.Errorf("decompressed data must be %d byte but its %d byte", uncompressedSize, len(res))
+		return nil, fmt.Errorf("decompressed data must be %d byte but its %d byte", uncompressedSize, len(res))
 	}
 
 	return bytes.NewReader(res), nil

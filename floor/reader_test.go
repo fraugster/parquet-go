@@ -1,21 +1,18 @@
 package floor
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/fraugster/parquet-go/floor/interfaces"
-
 	"github.com/davecgh/go-spew/spew"
-	"github.com/stretchr/testify/require"
-
 	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewReaderFailures(t *testing.T) {
@@ -153,17 +150,17 @@ func (l *emailList) MarshalParquet(obj interfaces.MarshalObject) error {
 func (l *emailList) UnmarshalParquet(obj interfaces.UnmarshalObject) error {
 	list, err := obj.GetField("emails").List()
 	if err != nil {
-		return errors.Wrap(err, "couldn't get emails as list")
+		return fmt.Errorf("couldn't get emails as list: %w", err)
 	}
 
 	for list.Next() {
 		v, err := list.Value()
 		if err != nil {
-			return errors.Wrap(err, "couldn't get list value")
+			return fmt.Errorf("couldn't get list value: %w", err)
 		}
 		vv, err := v.ByteArray()
 		if err != nil {
-			return errors.Wrap(err, "couldn't get list value as byte array")
+			return fmt.Errorf("couldn't get list value as byte array: %w", err)
 		}
 		l.emails = append(l.emails, string(vv))
 	}

@@ -3,11 +3,11 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"sort"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 func getBooleanValuesEncoder(pageEncoding parquet.Encoding) (valuesEncoder, error) {
@@ -17,7 +17,7 @@ func getBooleanValuesEncoder(pageEncoding parquet.Encoding) (valuesEncoder, erro
 	case parquet.Encoding_RLE:
 		return &booleanRLEEncoder{}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for boolean", pageEncoding)
 	}
 }
 
@@ -32,7 +32,7 @@ func getByteArrayValuesEncoder(pageEncoding parquet.Encoding, dictValues []inter
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{dictValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for binary", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for binary", pageEncoding)
 	}
 }
 
@@ -45,7 +45,7 @@ func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, d
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{dictValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
+		return nil, fmt.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
 	}
 }
 
@@ -63,7 +63,7 @@ func getInt32ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{dictValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for int32", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for int32", pageEncoding)
 	}
 }
 
@@ -83,7 +83,7 @@ func getInt64ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 			dictValues: dictValues,
 		}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for int64", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for int64", pageEncoding)
 	}
 }
 
@@ -102,7 +102,7 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ.Type)
+			return nil, fmt.Errorf("type %s with nil type len", typ.Type)
 		}
 		return getFixedLenByteArrayValuesEncoder(pageEncoding, int(*typ.TypeLength), dictValues)
 
@@ -143,10 +143,10 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	default:
-		return nil, errors.Errorf("unsupported type: %s", typ.Type)
+		return nil, fmt.Errorf("unsupported type: %s", typ.Type)
 	}
 
-	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
+	return nil, fmt.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
 func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
@@ -155,7 +155,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 		return &byteArrayPlainEncoder{}, nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ)
+			return nil, fmt.Errorf("type %s with nil type len", typ)
 		}
 		return &byteArrayPlainEncoder{length: int(*typ.TypeLength)}, nil
 	case parquet.Type_FLOAT:
@@ -170,7 +170,7 @@ func getDictValuesEncoder(typ *parquet.SchemaElement) (valuesEncoder, error) {
 		return &int96PlainEncoder{}, nil
 	}
 
-	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
+	return nil, fmt.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
 func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec parquet.CompressionCodec, pageFn newDataPageFunc, kvMetaData map[string]string) (*parquet.ColumnChunk, error) {

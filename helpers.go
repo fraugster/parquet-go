@@ -3,13 +3,14 @@ package goparquet
 import (
 	"context"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"math"
 	"math/bits"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/pkg/errors"
 )
 
 // DefaultHashFunc is used to generate a hash value to detect and handle duplicate values.
@@ -89,7 +90,7 @@ func writeFull(w io.Writer, buf []byte) error {
 	}
 
 	if cnt != len(buf) {
-		return errors.Errorf("need to write %d byte wrote %d", cnt, len(buf))
+		return fmt.Errorf("need to write %d byte wrote %d", cnt, len(buf))
 	}
 
 	return nil
@@ -261,25 +262,33 @@ func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
 func encodeLevelsV1(w io.Writer, max uint16, values *packedArray) error {
 	rle := newHybridEncoder(bits.Len16(max))
 	if err := rle.initSize(w); err != nil {
-		return errors.Wrap(err, "level writer initialize with size failed")
+		return fmt.Errorf("level writer initialize with size failed: %w", err)
 	}
 	if err := rle.encodePacked(values); err != nil {
-		return errors.Wrap(err, "level writer encode values failed")
+		return fmt.Errorf("level writer encode values failed: %w", err)
 	}
 
-	return errors.Wrap(rle.Close(), "level writer flush failed")
+	if err := rle.Close(); err != nil {
+		return fmt.Errorf("level writer flush failed: %w", err)
+	}
+
+	return nil
 }
 
 func encodeLevelsV2(w io.Writer, max uint16, values *packedArray) error {
 	rle := newHybridEncoder(bits.Len16(max))
 	if err := rle.init(w); err != nil {
-		return errors.Wrap(err, "level writer initialize with size failed")
+		return fmt.Errorf("level writer initialize with size failed: %w", err)
 	}
 	if err := rle.encodePacked(values); err != nil {
-		return errors.Wrap(err, "level writer encode values failed")
+		return fmt.Errorf("level writer encode values failed: %w", err)
 	}
 
-	return errors.Wrap(rle.Close(), "level writer flush failed")
+	if err := rle.Close(); err != nil {
+		return fmt.Errorf("level writer flush failed: %w", err)
+	}
+
+	return nil
 }
 
 func mapKey(a interface{}) interface{} {

@@ -3,11 +3,11 @@ package goparquet
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-
-	"github.com/pkg/errors"
 )
 
 type byteArrayPlainDecoder struct {
@@ -75,7 +75,7 @@ func (b *byteArrayPlainEncoder) writeBytes(data []byte) error {
 			return err
 		}
 	} else if len(data) != l {
-		return errors.Errorf("the byte array should be with length %d but is %d", l, len(data))
+		return fmt.Errorf("the byte array should be with length %d but is %d", l, len(data))
 	}
 
 	return writeFull(b.w, data)
@@ -120,7 +120,7 @@ func (b *byteArrayDeltaLengthDecoder) next() ([]byte, error) {
 	size := int(b.lens[b.position])
 	value := make([]byte, size)
 	if _, err := io.ReadFull(b.r, value); err != nil {
-		return nil, errors.Wrap(err, "there is no byte left")
+		return nil, fmt.Errorf("there is no byte left: %w", err)
 	}
 	b.position++
 
@@ -226,7 +226,7 @@ func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) (int, error) {
 		value := make([]byte, 0, prefixLen+len(suffix))
 		if len(d.previousValue) < prefixLen {
 			// prevent panic from invalid input
-			return 0, errors.Errorf("invalid prefix len in the stream, the value is %d byte but the it needs %d byte", len(d.previousValue), prefixLen)
+			return 0, fmt.Errorf("invalid prefix len in the stream, the value is %d byte but the it needs %d byte", len(d.previousValue), prefixLen)
 		}
 		if prefixLen > 0 {
 			value = append(value, d.previousValue[:prefixLen]...)
@@ -338,7 +338,7 @@ func (is *byteArrayStore) reset(repetitionType parquet.FieldRepetitionType) {
 
 func (is *byteArrayStore) setMinMax(j []byte) error {
 	if is.TypeLength != nil && *is.TypeLength > 0 && int32(len(j)) != *is.TypeLength {
-		return errors.Errorf("the size of data should be %d but is %d", *is.TypeLength, len(j))
+		return fmt.Errorf("the size of data should be %d but is %d", *is.TypeLength, len(j))
 	}
 	// For nil value there is no need to set the min/max
 	if j == nil {
@@ -358,14 +358,14 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 		vals = []interface{}{typed}
 	case [][]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
-			return nil, errors.Errorf("the value is not repeated but it is an array")
+			return nil, fmt.Errorf("the value is not repeated but it is an array")
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
 			vals[j] = typed[j]
 		}
 	default:
-		return nil, errors.Errorf("unsupported type for storing in []byte column %T => %+v", v, v)
+		return nil, fmt.Errorf("unsupported type for storing in []byte column %T => %+v", v, v)
 	}
 
 	return vals, nil

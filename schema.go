@@ -1,12 +1,12 @@
 package goparquet
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -697,7 +697,7 @@ func (r *schema) addColumnOrGroupByPath(pa ColumnPath, col *Column) error {
 		}
 
 		if !found {
-			return errors.Errorf("path %s failed on %q", pa, pa[i])
+			return fmt.Errorf("path %s failed on %q", pa, pa[i])
 		}
 
 		if c.parent != 0 {
@@ -705,7 +705,7 @@ func (r *schema) addColumnOrGroupByPath(pa ColumnPath, col *Column) error {
 		}
 
 		if c.children == nil && i < len(pa)-1 {
-			return errors.Errorf("path %s is not parent at %q", pa, pa[i])
+			return fmt.Errorf("path %s is not parent at %q", pa, pa[i])
 		}
 	}
 
@@ -737,15 +737,15 @@ func (r *schema) findDataColumn(path string) (*Column, error) {
 			}
 		}
 		if !found {
-			return nil, errors.Errorf("path %s failed on %q", path, pa[i])
+			return nil, fmt.Errorf("path %s failed on %q", path, pa[i])
 		}
 		if c == nil && i < len(pa)-1 {
-			return nil, errors.Errorf("path %s is not parent at %q", path, pa[i])
+			return nil, fmt.Errorf("path %s is not parent at %q", path, pa[i])
 		}
 	}
 
 	if ret == nil || ret.data == nil {
-		return nil, errors.Errorf("path %s doesnt end on data", path)
+		return nil, fmt.Errorf("path %s doesnt end on data", path)
 	}
 
 	return ret, nil
@@ -783,7 +783,7 @@ func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, re
 	for i := range c {
 		if c[i].data != nil {
 			if c[i].rep == parquet.FieldRepetitionType_REQUIRED && defLvl == c[i].maxD {
-				return errors.Errorf("the value %q is required", c[i].path.flatName())
+				return fmt.Errorf("the value %q is required", c[i].path.flatName())
 			}
 			if err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
@@ -838,14 +838,14 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 				}
 			case map[string]interface{}: // Not repeated
 				if c[i].rep == parquet.FieldRepetitionType_REPEATED {
-					return errors.Errorf("repeated group should be array")
+					return fmt.Errorf("repeated group should be array")
 				}
 				if err := r.recursiveAddColumnData(c[i].children, v, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
 			case []map[string]interface{}:
 				if c[i].rep != parquet.FieldRepetitionType_REPEATED {
-					return errors.Errorf("no repeated group should not be array")
+					return fmt.Errorf("no repeated group should not be array")
 				}
 				m := maxRepLvl + 1
 				rL := repLvl
@@ -862,7 +862,7 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 				}
 
 			default:
-				return errors.Errorf("data is not a map or array of map, its a %T", v)
+				return fmt.Errorf("data is not a map or array of map, its a %T", v)
 			}
 		}
 	}
@@ -874,11 +874,11 @@ func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, path ColumnPa
 	s := schema[idx]
 
 	if s.Name == "" {
-		return 0, errors.Errorf("name in schema on index %d is empty", idx)
+		return 0, fmt.Errorf("name in schema on index %d is empty", idx)
 	}
 
 	if s.RepetitionType == nil {
-		return 0, errors.Errorf("field RepetitionType is nil in index %d", idx)
+		return 0, fmt.Errorf("field RepetitionType is nil in index %d", idx)
 	}
 
 	if *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
@@ -910,19 +910,19 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, path ColumnPat
 
 	s := schema[idx]
 	if s.Type != nil {
-		return 0, errors.Errorf("field Type is not nil in index %d", idx)
+		return 0, fmt.Errorf("field Type is not nil in index %d", idx)
 	}
 	if s.NumChildren == nil {
-		return 0, errors.Errorf("the field NumChildren is invalid in index %d", idx)
+		return 0, fmt.Errorf("the field NumChildren is invalid in index %d", idx)
 	}
 
 	if *s.NumChildren <= 0 {
-		return 0, errors.Errorf("the field NumChildren is zero in index %d", idx)
+		return 0, fmt.Errorf("the field NumChildren is zero in index %d", idx)
 	}
 	l := int(*s.NumChildren)
 
 	if len(schema) <= idx+l {
-		return 0, errors.Errorf("not enough element in the schema list in index %d", idx)
+		return 0, fmt.Errorf("not enough element in the schema list in index %d", idx)
 	}
 
 	if s.RepetitionType != nil && *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {

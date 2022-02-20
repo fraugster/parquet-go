@@ -1,11 +1,10 @@
 package goparquet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
-
-	"github.com/pkg/errors"
 )
 
 type dictDecoder struct {
@@ -27,7 +26,7 @@ func (d *dictDecoder) init(r io.Reader) error {
 	}
 	w := int(buf[0])
 	if w < 0 || w > 32 {
-		return errors.Errorf("invalid bitwidth %d", w)
+		return fmt.Errorf("invalid bitwidth %d", w)
 	}
 	if w >= 0 {
 		d.keys = newHybridDecoder(w)
@@ -51,7 +50,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 		}
 
 		if key < 0 || key >= size {
-			return 0, errors.Errorf("dict: invalid index %d, values count are %d", key, size)
+			return 0, fmt.Errorf("dict: invalid index %d, values count are %d", key, size)
 		}
 
 		dst[i] = d.uniqueValues[key]
