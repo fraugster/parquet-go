@@ -309,8 +309,8 @@ func (f *FileReader) GetColumnByName(name string) *Column {
 
 // GetColumnByPath returns a column identified by its path. If the column doesn't exist,
 // nil is returned.
-func (fw *FileReader) GetColumnByPath(path ColumnPath) *Column {
-	return fw.schemaReader.GetColumnByPath(path)
+func (f *FileReader) GetColumnByPath(path ColumnPath) *Column {
+	return f.schemaReader.GetColumnByPath(path)
 }
 
 // GetSchemaDefinition returns the current schema definition.
