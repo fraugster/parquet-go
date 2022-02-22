@@ -1,11 +1,11 @@
 package goparquet
 
 import (
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-
-	"github.com/pkg/errors"
 )
 
 type int96PlainDecoder struct {
@@ -35,7 +35,7 @@ func (i *int96PlainDecoder) decodeValues(dst []interface{}) (int, error) {
 		}
 
 		if err != nil {
-			return idx, errors.Wrap(err, "not enough byte to read the Int96")
+			return idx, fmt.Errorf("not enough byte to read Int96: %w", err)
 		}
 	}
 	return len(dst), nil
@@ -91,7 +91,7 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 		vals = []interface{}{typed}
 	case [][12]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
-			return nil, errors.Errorf("the value is not repeated but it is an array")
+			return nil, errors.New("the value is not repeated but it is an array")
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
@@ -101,7 +101,7 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 			vals[j] = typed[j]
 		}
 	default:
-		return nil, errors.Errorf("unsupported type for storing in Int96 column: %T => %+v", v, v)
+		return nil, fmt.Errorf("unsupported type for storing in Int96 column: %T => %+v", v, v)
 	}
 
 	return vals, nil

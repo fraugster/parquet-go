@@ -1,12 +1,12 @@
 package goparquet
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -21,10 +21,10 @@ const (
 // Please the NewDataColumn, NewListColumn or NewMapColumn functions to create
 // a Column object correctly.
 type Column struct {
-	index          int
-	name, flatName string
+	index int
+	name  string
+	path  ColumnPath
 
-	nameArray []string
 	// one of the following should be not null. data or children
 	data     *ColumnStore
 	children []*Column
@@ -40,17 +40,51 @@ type Column struct {
 	params *ColumnParameters
 }
 
+// ColumnPath describes the path through the hierarchy of the schema for a particular column. For a top-level
+// column of the schema, the column path only contains one element, while for nested columns, the path consists
+// of multiple elements.
+type ColumnPath []string
+
+func parseColumnPath(s string) ColumnPath {
+	return strings.Split(s, ".")
+}
+
+func (c ColumnPath) flatName() string {
+	return strings.Join(c, ".")
+}
+
+// Equal returns true if all path elements of this ColumnPath are equal to the
+// corresponding path elements of the ColumnPath provided as parameter, false
+// otherwise.
+func (c ColumnPath) Equal(d ColumnPath) bool {
+	if len(c) != len(d) {
+		return false
+	}
+	for i := range c {
+		if c[i] != d[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// HasPrefix returns true if all path elements of the ColumnPath provided as parameter
+// are equal to the corresponding path elements of this ColumnPath.
+func (c ColumnPath) HasPrefix(d ColumnPath) bool {
+	if len(d) > len(c) {
+		return false
+	}
+	for i := range d {
+		if c[i] != d[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Children returns the column's child columns.
 func (c *Column) Children() []*Column {
 	return c.children
-}
-
-func (c *Column) pathArray() []string {
-	if c.nameArray == nil {
-		c.nameArray = strings.Split(c.flatName, ".")
-	}
-
-	return c.nameArray
 }
 
 func (c *Column) getSchemaArray() []*parquet.SchemaElement {
@@ -77,8 +111,16 @@ func (c *Column) MaxRepetitionLevel() uint16 {
 }
 
 // FlatName returns the name of the column and its parents in dotted notation.
+//
+// Deprecated: use Path instead. If a column or group name contains '.', the returned
+// flat name cannot be used to properly address them.
 func (c *Column) FlatName() string {
-	return c.flatName
+	return c.path.flatName()
+}
+
+// Path returns the full column path of the column.
+func (c *Column) Path() ColumnPath {
+	return c.path
 }
 
 // Name returns the column name.
@@ -273,7 +315,7 @@ type schema struct {
 	maxPageSize int64
 
 	// selected columns in reading. if the size is zero, it means all the columns
-	selectedColumn []string
+	selectedColumns []ColumnPath
 
 	enableCRC   bool // if true, CRC32 checksums will be computed for pages upon writing.
 	validateCRC bool // if true, CRC32 checksums will be validated for pages upon reading.
@@ -284,7 +326,6 @@ func (r *schema) ensureRoot() {
 		r.root = &Column{
 			index:    0,
 			name:     "msg",
-			flatName: "", // the flat name for root element is empty
 			data:     nil,
 			children: []*Column{},
 			rep:      0,
@@ -295,21 +336,21 @@ func (r *schema) ensureRoot() {
 	}
 }
 
-func (r *schema) SetSelectedColumns(selected ...string) {
-	r.selectedColumn = selected
+func (r *schema) SetSelectedColumns(cols ...ColumnPath) {
+	r.selectedColumns = cols
 }
 
-func (r *schema) isSelected(path string) bool {
-	if len(r.selectedColumn) == 0 {
+func (r *schema) isSelectedByPath(path ColumnPath) bool {
+	if len(r.selectedColumns) == 0 {
 		return true
 	}
 
-	for _, pattern := range r.selectedColumn {
-		if pattern == path {
+	for _, p := range r.selectedColumns {
+		if p.Equal(path) {
 			return true
 		}
 
-		if strings.HasPrefix(path, pattern+".") {
+		if path.HasPrefix(p) {
 			return true
 		}
 	}
@@ -346,8 +387,29 @@ func (r *schema) Columns() []*Column {
 func (r *schema) GetColumnByName(path string) *Column {
 	data := r.Columns()
 	for i := range data {
-		if data[i].flatName == path {
+		if data[i].path.flatName() == path {
 			return data[i]
+		}
+	}
+
+	return nil
+}
+
+func (r *schema) GetColumnByPath(path ColumnPath) *Column {
+	return r.getColumnByPath(r.root, path)
+}
+
+func (r *schema) getColumnByPath(col *Column, path ColumnPath) *Column {
+	if len(path) == 0 {
+		return nil
+	}
+
+	for _, c := range col.children {
+		if c.name == path[0] {
+			if len(path) == 1 {
+				return c
+			}
+			return r.getColumnByPath(c, path[1:])
 		}
 	}
 
@@ -402,7 +464,7 @@ func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
 	r.root = root
 
 	for _, c := range r.root.children {
-		recursiveFix(c, "", 0, 0)
+		recursiveFix(c, ColumnPath{}, 0, 0)
 	}
 
 	return nil
@@ -572,10 +634,8 @@ func NewMapColumn(key, value *Column, rep parquet.FieldRepetitionType) (*Column,
 	}, nil
 }
 
-// AddGroup adds a new group to the parquet schema. The provided path is written in dotted notation.
-// All parent elements in this dot-separated path need to exist, otherwise the method returns an error.
-func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
-	return r.addColumnOrGroup(path, &Column{
+func (r *schema) AddGroupByPath(path ColumnPath, rep parquet.FieldRepetitionType) error {
+	return r.addColumnOrGroupByPath(path, &Column{
 		children: []*Column{},
 		data:     nil,
 		rep:      rep,
@@ -583,14 +643,15 @@ func (r *schema) AddGroup(path string, rep parquet.FieldRepetitionType) error {
 	})
 }
 
-// AddColumn adds a single column to the parquet schema. The path is provided in dotted notation. All
-// parent elements in this dot-separated path need to exist, otherwise the method returns an error. Any
-// data contained in the column store is reset.
 func (r *schema) AddColumn(path string, col *Column) error {
-	return r.addColumnOrGroup(path, col)
+	return r.addColumnOrGroupByPath(parseColumnPath(path), col)
 }
 
-func recursiveFix(col *Column, path string, maxR, maxD uint16) {
+func (r *schema) AddColumnByPath(path ColumnPath, col *Column) error {
+	return r.addColumnOrGroupByPath(path, col)
+}
+
+func recursiveFix(col *Column, colPath ColumnPath, maxR, maxD uint16) {
 	if col.rep != parquet.FieldRepetitionType_REQUIRED {
 		maxD++
 	}
@@ -600,32 +661,25 @@ func recursiveFix(col *Column, path string, maxR, maxD uint16) {
 
 	col.maxR = maxR
 	col.maxD = maxD
-	col.flatName = path + "." + col.name
-	if path == "" {
-		col.flatName = col.name
-	}
+	col.path = append(colPath, col.name)
 	if col.data != nil {
 		col.data.reset(col.rep, col.maxR, col.maxD)
 		return
 	}
 
 	for i := range col.children {
-		recursiveFix(col.children[i], col.flatName, maxR, maxD)
+		recursiveFix(col.children[i], col.path, maxR, maxD)
 	}
 }
 
-// do not call this function externally
-func (r *schema) addColumnOrGroup(path string, col *Column) error {
+func (r *schema) addColumnOrGroupByPath(pa ColumnPath, col *Column) error {
 	if r.readOnly != 0 {
 		return errors.New("the schema is read only")
 	}
 
 	r.ensureRoot()
-	pa := strings.Split(path, ".")
-	name := strings.Trim(pa[len(pa)-1], " \n\r\t")
-	if name == "" {
-		return errors.Errorf("the name of the Column is required")
-	}
+
+	name := pa[len(pa)-1]
 
 	col.name = name
 	c := r.root
@@ -643,7 +697,7 @@ func (r *schema) addColumnOrGroup(path string, col *Column) error {
 		}
 
 		if !found {
-			return errors.Errorf("path %s failed on %q", path, pa[i])
+			return fmt.Errorf("path %s failed on %q", pa, pa[i])
 		}
 
 		if c.parent != 0 {
@@ -651,7 +705,7 @@ func (r *schema) addColumnOrGroup(path string, col *Column) error {
 		}
 
 		if c.children == nil && i < len(pa)-1 {
-			return errors.Errorf("path %s is not parent at %q", path, pa[i])
+			return fmt.Errorf("path %s is not parent at %q", pa, pa[i])
 		}
 	}
 
@@ -659,7 +713,7 @@ func (r *schema) addColumnOrGroup(path string, col *Column) error {
 		return errors.New("the children are nil")
 	}
 
-	recursiveFix(col, c.flatName, c.maxR, c.maxD)
+	recursiveFix(col, c.path, c.maxR, c.maxD)
 
 	c.children = append(c.children, col)
 	r.sortIndex()
@@ -668,7 +722,7 @@ func (r *schema) addColumnOrGroup(path string, col *Column) error {
 }
 
 func (r *schema) findDataColumn(path string) (*Column, error) {
-	pa := strings.Split(path, ".")
+	pa := parseColumnPath(path)
 	r.ensureRoot()
 	c := r.root.children
 	var ret *Column
@@ -683,15 +737,15 @@ func (r *schema) findDataColumn(path string) (*Column, error) {
 			}
 		}
 		if !found {
-			return nil, errors.Errorf("path %s failed on %q", path, pa[i])
+			return nil, fmt.Errorf("path %s failed on %q", path, pa[i])
 		}
 		if c == nil && i < len(pa)-1 {
-			return nil, errors.Errorf("path %s is not parent at %q", path, pa[i])
+			return nil, fmt.Errorf("path %s is not parent at %q", path, pa[i])
 		}
 	}
 
 	if ret == nil || ret.data == nil {
-		return nil, errors.Errorf("path %s doesnt end on data", path)
+		return nil, fmt.Errorf("path %s doesnt end on data", path)
 	}
 
 	return ret, nil
@@ -729,7 +783,7 @@ func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, re
 	for i := range c {
 		if c[i].data != nil {
 			if c[i].rep == parquet.FieldRepetitionType_REQUIRED && defLvl == c[i].maxD {
-				return errors.Errorf("the value %q is required", c[i].flatName)
+				return fmt.Errorf("the value %q is required", c[i].path.flatName())
 			}
 			if err := c[i].data.add(nil, defLvl, maxRepLvl, repLvl); err != nil {
 				return err
@@ -784,14 +838,14 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 				}
 			case map[string]interface{}: // Not repeated
 				if c[i].rep == parquet.FieldRepetitionType_REPEATED {
-					return errors.Errorf("repeated group should be array")
+					return fmt.Errorf("repeated group should be array")
 				}
 				if err := r.recursiveAddColumnData(c[i].children, v, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
 			case []map[string]interface{}:
 				if c[i].rep != parquet.FieldRepetitionType_REPEATED {
-					return errors.Errorf("no repeated group should not be array")
+					return fmt.Errorf("no repeated group should not be array")
 				}
 				m := maxRepLvl + 1
 				rL := repLvl
@@ -808,7 +862,7 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 				}
 
 			default:
-				return errors.Errorf("data is not a map or array of map, its a %T", v)
+				return fmt.Errorf("data is not a map or array of map, its a %T", v)
 			}
 		}
 	}
@@ -816,15 +870,15 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 	return nil
 }
 
-func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, name string, idx int, dLevel, rLevel uint16) (int, error) {
+func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, path ColumnPath, idx int, dLevel, rLevel uint16) (int, error) {
 	s := schema[idx]
 
 	if s.Name == "" {
-		return 0, errors.Errorf("name in schema on index %d is empty", idx)
+		return 0, fmt.Errorf("name in schema on index %d is empty", idx)
 	}
 
 	if s.RepetitionType == nil {
-		return 0, errors.Errorf("field RepetitionType is nil in index %d", idx)
+		return 0, fmt.Errorf("field RepetitionType is nil in index %d", idx)
 	}
 
 	if *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
@@ -844,34 +898,31 @@ func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, name string, 
 	}
 	c.rep = *s.RepetitionType
 	c.data = data
-	c.flatName = name + "." + s.Name
+	c.path = append(path, s.Name)
 	c.name = s.Name
-	if name == "" {
-		c.flatName = s.Name
-	}
 	return idx + 1, nil
 }
 
-func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, idx int, dLevel, rLevel uint16) (int, error) {
+func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, path ColumnPath, idx int, dLevel, rLevel uint16) (int, error) {
 	if len(schema) <= idx {
 		return 0, errors.New("schema index out of bound")
 	}
 
 	s := schema[idx]
 	if s.Type != nil {
-		return 0, errors.Errorf("field Type is not nil in index %d", idx)
+		return 0, fmt.Errorf("field Type is not nil in index %d", idx)
 	}
 	if s.NumChildren == nil {
-		return 0, errors.Errorf("the field NumChildren is invalid in index %d", idx)
+		return 0, fmt.Errorf("the field NumChildren is invalid in index %d", idx)
 	}
 
 	if *s.NumChildren <= 0 {
-		return 0, errors.Errorf("the field NumChildren is zero in index %d", idx)
+		return 0, fmt.Errorf("the field NumChildren is zero in index %d", idx)
 	}
 	l := int(*s.NumChildren)
 
 	if len(schema) <= idx+l {
-		return 0, errors.Errorf("not enough element in the schema list in index %d", idx)
+		return 0, fmt.Errorf("not enough element in the schema list in index %d", idx)
 	}
 
 	if s.RepetitionType != nil && *s.RepetitionType != parquet.FieldRepetitionType_REQUIRED {
@@ -885,12 +936,7 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 	c.maxD = dLevel
 	c.maxR = rLevel
 
-	if name == "" {
-		name = s.Name
-	} else {
-		name += "." + s.Name
-	}
-	c.flatName = name
+	c.path = append(path, s.Name)
 	c.name = s.Name
 	c.element = s
 	c.children = make([]*Column, 0, l)
@@ -905,14 +951,14 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, name string, i
 		if schema[idx].Type == nil {
 			// another group
 			child := &Column{}
-			idx, err = child.readGroupSchema(schema, name, idx, dLevel, rLevel)
+			idx, err = child.readGroupSchema(schema, c.path, idx, dLevel, rLevel)
 			if err != nil {
 				return 0, err
 			}
 			c.children = append(c.children, child)
 		} else {
 			child := &Column{}
-			idx, err = child.readColumnSchema(schema, name, idx, dLevel, rLevel)
+			idx, err = child.readColumnSchema(schema, c.path, idx, dLevel, rLevel)
 			if err != nil {
 				return 0, err
 			}
@@ -929,14 +975,14 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	for idx := 0; idx < len(schema); {
 		if schema[idx].Type == nil {
 			c := &Column{}
-			idx, err = c.readGroupSchema(schema, "", idx, 0, 0)
+			idx, err = c.readGroupSchema(schema, ColumnPath{}, idx, 0, 0)
 			if err != nil {
 				return err
 			}
 			r.root.children = append(r.root.children, c)
 		} else {
 			c := &Column{}
-			idx, err = c.readColumnSchema(schema, "", idx, 0, 0)
+			idx, err = c.readColumnSchema(schema, ColumnPath{}, idx, 0, 0)
 			if err != nil {
 				return err
 			}
@@ -979,45 +1025,6 @@ func (r *schema) rowGroupNumRecords() int64 {
 	return r.numRecords
 }
 
-// SchemaCommon contains methods shared by FileReader and FileWriter
-// to retrieve and set information related to the parquet schema and
-// columns that are used by the reader resp. writer.
-type SchemaCommon interface {
-	// Columns return only data columns, not all columns
-	Columns() []*Column
-	// Return a column by its name
-	GetColumnByName(path string) *Column
-
-	// GetSchemaDefinition returns the schema definition.
-	GetSchemaDefinition() *parquetschema.SchemaDefinition
-	SetSchemaDefinition(*parquetschema.SchemaDefinition) error
-
-	// Internal functions
-	rowGroupNumRecords() int64
-	resetData()
-	getSchemaArray() []*parquet.SchemaElement
-}
-
-// SchemaReader is an interface with methods necessary in the FileReader.
-type SchemaReader interface {
-	SchemaCommon
-	setNumRecords(int64)
-	getData() (map[string]interface{}, error)
-	SetSelectedColumns(selected ...string)
-	isSelected(string) bool
-}
-
-// SchemaWriter was an interface with methods necessary in the FileWriter
-// to add groups and columns and to write data. Its use is deprecated.
-type SchemaWriter interface {
-	SchemaCommon
-
-	AddData(m map[string]interface{}) error
-	AddGroup(path string, rep parquet.FieldRepetitionType) error
-	AddColumn(path string, col *Column) error
-	DataSize() int64
-}
-
 func makeSchema(meta *parquet.FileMetaData, validateCRC bool) (*schema, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
@@ -1026,7 +1033,6 @@ func makeSchema(meta *parquet.FileMetaData, validateCRC bool) (*schema, error) {
 		root: &Column{
 			index:    0,
 			name:     meta.Schema[0].Name,
-			flatName: "",
 			data:     nil,
 			children: make([]*Column, 0, len(meta.Schema)-1),
 			rep:      0,

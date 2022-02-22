@@ -6,12 +6,11 @@ package goparquet
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/bits"
-
-	"github.com/pkg/errors"
 )
 
 type decoder interface {

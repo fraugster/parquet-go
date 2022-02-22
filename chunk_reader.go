@@ -2,12 +2,11 @@ package goparquet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
 	"math/bits"
-
-	"github.com/pkg/errors"
 
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -21,7 +20,7 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 		return &byteArrayPlainDecoder{}, nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ)
+			return nil, fmt.Errorf("type %s with nil type len", typ)
 		}
 		return &byteArrayPlainDecoder{length: int(*typ.TypeLength)}, nil
 	case parquet.Type_FLOAT:
@@ -36,7 +35,7 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 		return &int96PlainDecoder{}, nil
 	}
 
-	return nil, errors.Errorf("type %s is not supported for dict value encoder", typ)
+	return nil, fmt.Errorf("type %s is not supported for dict value encoder", typ)
 }
 
 func getBooleanValuesDecoder(pageEncoding parquet.Encoding) (valuesDecoder, error) {
@@ -46,7 +45,7 @@ func getBooleanValuesDecoder(pageEncoding parquet.Encoding) (valuesDecoder, erro
 	case parquet.Encoding_RLE:
 		return &booleanRLEDecoder{}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for boolean", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for boolean", pageEncoding)
 	}
 }
 
@@ -61,7 +60,7 @@ func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []inter
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for binary", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for binary", pageEncoding)
 	}
 }
 
@@ -74,7 +73,7 @@ func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, d
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
+		return nil, fmt.Errorf("unsupported encoding %s for fixed_len_byte_array(%d)", pageEncoding, len)
 	}
 }
 
@@ -87,7 +86,7 @@ func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for int32", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for int32", pageEncoding)
 	}
 }
 
@@ -100,7 +99,7 @@ func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
-		return nil, errors.Errorf("unsupported encoding %s for int64", pageEncoding)
+		return nil, fmt.Errorf("unsupported encoding %s for int64", pageEncoding)
 	}
 }
 
@@ -119,7 +118,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ.Type)
+			return nil, fmt.Errorf("type %s with nil type len", typ.Type)
 		}
 		return getFixedLenByteArrayValuesDecoder(pageEncoding, int(*typ.TypeLength), dictValues)
 	case parquet.Type_FLOAT:
@@ -153,10 +152,10 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	default:
-		return nil, errors.Errorf("unsupported type %s", typ.Type)
+		return nil, fmt.Errorf("unsupported type %s", typ.Type)
 	}
 
-	return nil, errors.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
+	return nil, fmt.Errorf("unsupported encoding %s for %s type", pageEncoding, typ.Type)
 }
 
 func readPageBlock(r io.Reader, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32, validateCRC bool, crc *int32) ([]byte, error) {
@@ -166,7 +165,7 @@ func readPageBlock(r io.Reader, codec parquet.CompressionCodec, compressedSize i
 
 	dataPageBlock, err := io.ReadAll(io.LimitReader(r, int64(compressedSize)))
 	if err != nil {
-		return nil, errors.Wrap(err, "read failed")
+		return nil, fmt.Errorf("read failed: %w", err)
 	}
 
 	if validateCRC && crc != nil {
@@ -234,7 +233,7 @@ func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, c
 				ph: ph,
 			}
 		default:
-			return nil, false, errors.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
+			return nil, false, fmt.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
 		}
 		var dictValue []interface{}
 		if dictPage != nil {
@@ -272,11 +271,11 @@ func skipChunk(r io.Seeker, col *Column, chunk *parquet.ColumnChunk) error {
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return errors.Errorf("missing meta data for Column %c", c)
+		return fmt.Errorf("missing meta data for Column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
+		return fmt.Errorf("wrong type in Column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -300,11 +299,11 @@ func readChunk(ctx context.Context, sch *schema, r io.ReadSeeker, col *Column, c
 	// as we cannot read it from r
 	// see https://issues.apache.org/jira/browse/PARQUET-291
 	if chunk.MetaData == nil {
-		return nil, false, errors.Errorf("missing meta data for Column %c", c)
+		return nil, false, fmt.Errorf("missing meta data for Column %c", c)
 	}
 
 	if typ := *col.Element().Type; chunk.MetaData.Type != typ {
-		return nil, false, errors.Errorf("wrong type in Column chunk metadata, expected %s was %s",
+		return nil, false, fmt.Errorf("wrong type in Column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
 	}
 
@@ -325,7 +324,7 @@ func readChunk(ctx context.Context, sch *schema, r io.ReadSeeker, col *Column, c
 
 	rDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
 		if enc != parquet.Encoding_RLE {
-			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+			return nil, fmt.Errorf("%q is not supported for definition and repetition level", enc)
 		}
 		dec := newHybridDecoder(bits.Len16(col.MaxRepetitionLevel()))
 		dec.buffered = true
@@ -334,7 +333,7 @@ func readChunk(ctx context.Context, sch *schema, r io.ReadSeeker, col *Column, c
 
 	dDecoder := func(enc parquet.Encoding) (levelDecoder, error) {
 		if enc != parquet.Encoding_RLE {
-			return nil, errors.Errorf("%q is not supported for definition and repetition level", enc)
+			return nil, fmt.Errorf("%q is not supported for definition and repetition level", enc)
 		}
 		dec := newHybridDecoder(bits.Len16(col.MaxDefinitionLevel()))
 		dec.buffered = true
@@ -376,7 +375,7 @@ func readRowGroup(ctx context.Context, r io.ReadSeeker, sch *schema, rowGroups *
 			return fmt.Errorf("column index %d is out of bounds", idx)
 		}
 		chunk := rowGroups.Columns[c.Index()]
-		if !sch.isSelected(c.flatName) {
+		if !sch.isSelectedByPath(c.path) {
 			if err := skipChunk(r, c, chunk); err != nil {
 				return err
 			}

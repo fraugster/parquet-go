@@ -2,10 +2,10 @@ package goparquet
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 type int32PlainDecoder struct {
@@ -137,7 +137,7 @@ func (is *int32Store) getValues(v interface{}) ([]interface{}, error) {
 		vals = []interface{}{typed}
 	case []int32:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
-			return nil, errors.Errorf("the value is not repeated but it is an array")
+			return nil, fmt.Errorf("the value is not repeated but it is an array")
 		}
 		vals = make([]interface{}, len(typed))
 		for j := range typed {
@@ -145,7 +145,7 @@ func (is *int32Store) getValues(v interface{}) ([]interface{}, error) {
 			vals[j] = typed[j]
 		}
 	default:
-		return nil, errors.Errorf("unsupported type for storing in int32 column: %T => %+v", v, v)
+		return nil, fmt.Errorf("unsupported type for storing in int32 column: %T => %+v", v, v)
 	}
 
 	return vals, nil

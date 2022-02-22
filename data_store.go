@@ -1,10 +1,11 @@
 package goparquet
 
 import (
+	"errors"
+	"fmt"
 	"math/bits"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 // ColumnStore is the read/write implementation for a column. It buffers a single
@@ -231,7 +232,7 @@ func (cs *ColumnStore) resetData() {
 
 func (cs *ColumnStore) readNextPage() error {
 	if cs.pageIdx >= len(cs.pages) {
-		return errors.Errorf("out of range: requested page index = %d total number of pages = %d", cs.pageIdx, len(cs.pages))
+		return fmt.Errorf("out of range: requested page index = %d total number of pages = %d", cs.pageIdx, len(cs.pages))
 	}
 
 	data, dl, rl, err := cs.pages[cs.pageIdx].readValues(int(cs.pages[cs.pageIdx].numValues()))
@@ -333,7 +334,7 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
-			return nil, errors.Errorf("type %s with nil type len", typ.Type)
+			return nil, fmt.Errorf("type %s with nil type length", typ.Type)
 		}
 
 		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
@@ -352,7 +353,7 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 		store.ColumnParameters = params
 		return newPlainStore(store), nil
 	default:
-		return nil, errors.Errorf("unsupported type: %s", typ.Type)
+		return nil, fmt.Errorf("unsupported type: %s", typ.Type)
 	}
 }
 
@@ -361,7 +362,7 @@ func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnSto
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_RLE:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&booleanStore{ColumnParameters: params}, enc, false), nil
 }
@@ -372,7 +373,7 @@ func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, enc, useDict), nil
 }
@@ -383,7 +384,7 @@ func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_BINARY_PACKED:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, enc, useDict), nil
 }
@@ -394,7 +395,7 @@ func NewInt96Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	store := &int96Store{}
 	store.ColumnParameters = params
@@ -407,7 +408,7 @@ func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, enc, useDict), nil
 }
@@ -418,7 +419,7 @@ func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters
 	switch enc {
 	case parquet.Encoding_PLAIN:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, enc, useDict), nil
 }
@@ -429,7 +430,7 @@ func NewByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnParamet
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	return newStore(&byteArrayStore{ColumnParameters: params}, enc, useDict), nil
 }
@@ -440,14 +441,14 @@ func NewFixedByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnPa
 	switch enc {
 	case parquet.Encoding_PLAIN, parquet.Encoding_DELTA_LENGTH_BYTE_ARRAY, parquet.Encoding_DELTA_BYTE_ARRAY:
 	default:
-		return nil, errors.Errorf("encoding %q is not supported on this type", enc)
+		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
 	if params.TypeLength == nil {
 		return nil, errors.New("no length provided")
 	}
 
 	if *params.TypeLength <= 0 {
-		return nil, errors.Errorf("fix length with len %d is not possible", *params.TypeLength)
+		return nil, fmt.Errorf("fix length with len %d is not possible", *params.TypeLength)
 	}
 
 	return newStore(&byteArrayStore{

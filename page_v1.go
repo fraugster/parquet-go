@@ -3,11 +3,12 @@ package goparquet
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"hash/crc32"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
-	"github.com/pkg/errors"
 )
 
 type dataPageReaderV1 struct {
@@ -37,20 +38,20 @@ func (dp *dataPageReaderV1) readValues(size int) (values []interface{}, dLevel *
 
 	rLevel, _, err = decodePackedArray(dp.rDecoder, size)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "read repetition levels failed")
+		return nil, nil, nil, fmt.Errorf("read repetition levels failed: %w", err)
 	}
 
 	var notNull int
 	dLevel, notNull, err = decodePackedArray(dp.dDecoder, size)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "read definition levels failed")
+		return nil, nil, nil, fmt.Errorf("read definition levels failed: %w", err)
 	}
 
 	val := make([]interface{}, notNull)
 
 	if notNull != 0 {
 		if n, err := dp.valuesDecoder.decodeValues(val); err != nil {
-			return nil, nil, nil, errors.Wrapf(err, "read values from page failed, need %d value read %d", notNull, n)
+			return nil, nil, nil, fmt.Errorf("read values from page failed, need %d value read %d: %w", notNull, n, err)
 		}
 	}
 	dp.position += size
@@ -82,11 +83,11 @@ func (dp *dataPageReaderV1) init(dDecoder, rDecoder getLevelDecoder, values getV
 
 func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) (err error) {
 	if ph.DataPageHeader == nil {
-		return errors.Errorf("null DataPageHeader in %+v", ph)
+		return fmt.Errorf("null DataPageHeader in %+v", ph)
 	}
 
 	if dp.valuesCount = ph.DataPageHeader.NumValues; dp.valuesCount < 0 {
-		return errors.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
+		return fmt.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
 
 	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
@@ -127,7 +128,7 @@ type dataPageWriterV1 struct {
 	enableCRC  bool
 }
 
-func (dp *dataPageWriterV1) init(schema SchemaWriter, col *Column, codec parquet.CompressionCodec) error {
+func (dp *dataPageWriterV1) init(col *Column, codec parquet.CompressionCodec) error {
 	dp.col = col
 	dp.codec = codec
 	return nil
@@ -189,7 +190,7 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 
 	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "compressing data failed with %s method", dp.codec)
+		return 0, 0, fmt.Errorf("compressing data failed with %s method: %w", dp.codec, err)
 	}
 	compSize, unCompSize := len(comp), len(dataBuf.Bytes())
 

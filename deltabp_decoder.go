@@ -1,10 +1,9 @@
 package goparquet
 
 import (
+	"errors"
 	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 // The two following decoder are identical, since there is no generic, I had two option, one use the interfaces
@@ -52,14 +51,14 @@ func (d *deltaBitPackDecoder32) init(r io.Reader) error {
 func (d *deltaBitPackDecoder32) readBlockHeader() error {
 	var err error
 	if d.blockSize, err = readUVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read block size")
+		return fmt.Errorf("failed to read block size: %w", err)
 	}
 	if d.blockSize <= 0 && d.blockSize%128 != 0 {
 		return errors.New("invalid block size")
 	}
 
 	if d.miniBlockCount, err = readUVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read number of mini blocks")
+		return fmt.Errorf("failed to read number of mini blocks: %w", err)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
@@ -68,11 +67,11 @@ func (d *deltaBitPackDecoder32) readBlockHeader() error {
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount == 0 {
-		return errors.Errorf("invalid mini block value count, it can't be zero")
+		return fmt.Errorf("invalid mini block value count, it can't be zero")
 	}
 
 	if d.valuesCount, err = readUVariant32(d.r); err != nil {
-		return errors.Wrapf(err, "failed to read total value count")
+		return fmt.Errorf("failed to read total value count: %w", err)
 	}
 
 	if d.valuesCount < 0 {
@@ -80,7 +79,7 @@ func (d *deltaBitPackDecoder32) readBlockHeader() error {
 	}
 
 	if d.previousValue, err = readVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read first value")
+		return fmt.Errorf("failed to read first value: %w", err)
 	}
 
 	return nil
@@ -90,18 +89,18 @@ func (d *deltaBitPackDecoder32) readMiniBlockHeader() error {
 	var err error
 
 	if d.minDelta, err = readVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read min delta")
+		return fmt.Errorf("failed to read min delta: %w", err)
 	}
 
 	// the mini block bitwidth is always there, even if the value is zero
 	d.miniBlockBitWidth = make([]uint8, d.miniBlockCount)
 	if _, err = io.ReadFull(d.r, d.miniBlockBitWidth); err != nil {
-		return errors.Wrap(err, "not enough data to read all miniblock bit widths")
+		return fmt.Errorf("not enough data to read all miniblock bit widths: %w", err)
 	}
 
 	for i := range d.miniBlockBitWidth {
 		if d.miniBlockBitWidth[i] > 32 {
-			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
+			return fmt.Errorf("invalid miniblock bit width: %d", d.miniBlockBitWidth[i])
 		}
 	}
 
@@ -211,14 +210,14 @@ func (d *deltaBitPackDecoder64) init(r io.Reader) error {
 func (d *deltaBitPackDecoder64) readBlockHeader() error {
 	var err error
 	if d.blockSize, err = readUVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read block size")
+		return fmt.Errorf("failed to read block size: %w", err)
 	}
 	if d.blockSize <= 0 && d.blockSize%128 != 0 {
 		return errors.New("invalid block size")
 	}
 
 	if d.miniBlockCount, err = readUVariant32(d.r); err != nil {
-		return errors.Wrap(err, "failed to read number of mini blocks")
+		return fmt.Errorf("failed to read number of mini blocks: %w", err)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
@@ -227,19 +226,19 @@ func (d *deltaBitPackDecoder64) readBlockHeader() error {
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount == 0 {
-		return errors.Errorf("invalid mini block value count, it can't be zero")
+		return errors.New("invalid mini block value count, it can't be zero")
 	}
 
 	if d.valuesCount, err = readUVariant32(d.r); err != nil {
-		return errors.Wrapf(err, "failed to read total value count")
+		return fmt.Errorf("failed to read total value count: %w", err)
 	}
 
 	if d.valuesCount < 0 {
-		return errors.New("invalid total value count")
+		return fmt.Errorf("invalid total value count %d", d.valuesCount)
 	}
 
 	if d.previousValue, err = readVariant64(d.r); err != nil {
-		return errors.Wrap(err, "failed to read first value")
+		return fmt.Errorf("failed to read first value: %w", err)
 	}
 
 	return nil
@@ -249,18 +248,18 @@ func (d *deltaBitPackDecoder64) readMiniBlockHeader() error {
 	var err error
 
 	if d.minDelta, err = readVariant64(d.r); err != nil {
-		return errors.Wrap(err, "failed to read min delta")
+		return fmt.Errorf("failed to read min delta: %w", err)
 	}
 
 	// the mini block bitwidth is always there, even if the value is zero
 	d.miniBlockBitWidth = make([]uint8, d.miniBlockCount)
 	if _, err = io.ReadFull(d.r, d.miniBlockBitWidth); err != nil {
-		return errors.Wrap(err, "not enough data to read all miniblock bit widths")
+		return fmt.Errorf("not enough data to read all miniblock bit widths: %w", err)
 	}
 
 	for i := range d.miniBlockBitWidth {
 		if d.miniBlockBitWidth[i] > 64 {
-			return errors.Errorf("invalid miniblock bit width : %d", d.miniBlockBitWidth[i])
+			return fmt.Errorf("invalid miniblock bit width: %d", d.miniBlockBitWidth[i])
 		}
 	}
 
