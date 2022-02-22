@@ -37,7 +37,7 @@ unmarshalling.
 
 | Feature                                  | Read | Write | Note |
 | ---                                      | ---- | ---- | --- |
-| Compression                              | Yes  | Yes  | Only Gzip and SNAPPY are supported out of the box, but it is possible to add other compressors, see the `RegisterBlockCompressor` function |
+| Compression                              | Yes  | Yes  | Only GZIP and SNAPPY are supported out of the box, but it is possible to add other compressors, see below. |
 | Dictionary Encoding                      | Yes  | Yes  |
 | Run Length Encoding / Bit-Packing Hybrid | Yes  | Yes  | The reader can read RLE/Bit-pack encoding, but the writer only uses bit-packing |
 | Delta Encoding                           | Yes  | Yes  |
@@ -89,14 +89,26 @@ data types.
 | Converted Type       | Mapped to Go types  | Note |
 | -------------------- | ------------------- | ---- |
 | UTF8                 | string, []byte      |
-| TIME_MILLIS          | int32               | Number of milliseconds since the beginning of the day |
-| TIME_MICROS          | int64               | Number of microseconds since the beginning of the day |
-| TIMESTAMP_MILLIS     | int64               | Number of milliseconds since Unix epoch (Jan 01 1970 00:00:00 UTC) |
-| TIMESTAMP_MICROS     | int64               | Number of milliseconds since Unix epoch (Jan 01 1970 00:00:00 UTC) |
-| {,U}INT_{8,16,32,64} | {,u}int{8,16,32,64} | implementation is loose and will allow any converted type with any int Go type. |
+| TIME\_MILLIS          | int32               | Number of milliseconds since the beginning of the day |
+| TIME\_MICROS          | int64               | Number of microseconds since the beginning of the day |
+| TIMESTAMP\_MILLIS     | int64               | Number of milliseconds since Unix epoch (Jan 01 1970 00:00:00 UTC) |
+| TIMESTAMP\_MICROS     | int64               | Number of milliseconds since Unix epoch (Jan 01 1970 00:00:00 UTC) |
+| {,U}INT\_{8,16,32,64} | {,u}int{8,16,32,64} | implementation is loose and will allow any converted type with any int Go type. |
 | INTERVAL             | [12]byte            |
 
 Please note that converted types are deprecated. Logical types should be used preferably.
+
+## Supported Compression Algorithms
+
+| Compression Algorithm | Supported | Notes |
+| --------------------- | --------- | ----- |
+| GZIP                  | Yes; Out of the box |
+| SNAPPY                | Yes; Out of the box |
+| BROTLI                | Yes; By importing [github.com/akrennmair/parquet-go-brotli](https://github.com/akrennmair/parquet-go-brotli) |
+| LZ4                   | No | LZ4 has been deprecated as of parquet-format 2.9.0. |
+| LZ4\_RAW              | Yes; By importing [github.com/akrennmair/parquet-go-lz4raw](https://github.com/akrennmair/parquet-go-lz4raw) |
+| LZO                   | Yes; By importing [github.com/akrennmair/parquet-go-lzo](https://github.com/akrennmair/parquet-go-lzo) | Uses a cgo wrapper around the original LZO implementation which is licensed as GPLv2+. |
+| ZSTD                  | Yes; By importing [github.com/akrennmair/parquet-go-zstd](https://github.com/akrennmair/parquet-go-zstd) |
 
 ## Schema Definition
 
