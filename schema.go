@@ -41,7 +41,7 @@ type Column struct {
 }
 
 // ColumnPath describes the path through the hierarchy of the schema for a particular column. For a top-level
-// column of the schema, the column path only contains one element, while for nested columns, thep path consists
+// column of the schema, the column path only contains one element, while for nested columns, the path consists
 // of multiple elements.
 type ColumnPath []string
 
@@ -53,9 +53,9 @@ func (c ColumnPath) flatName() string {
 	return strings.Join(c, ".")
 }
 
-// Equal returns true if all path elemnts of this ColumnPath are equal
-// to the corresponding path elements of the ColumnPath provided as parameter,
-// false otherwise.
+// Equal returns true if all path elements of this ColumnPath are equal to the
+// corresponding path elements of the ColumnPath provided as parameter, false
+// otherwise.
 func (c ColumnPath) Equal(d ColumnPath) bool {
 	if len(c) != len(d) {
 		return false
