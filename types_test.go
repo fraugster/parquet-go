@@ -41,8 +41,8 @@ var (
 		},
 		{
 			name: "Int32Delta",
-			enc:  &int32DeltaBPEncoder{deltaBitPackEncoder32: deltaBitPackEncoder32{blockSize: 128, miniBlockCount: 4}},
-			dec:  &int32DeltaBPDecoder{},
+			enc:  &deltaBitPackEncoder[int32, internalInt32]{blockSize: 128, miniBlockCount: 4},
+			dec:  &deltaBitPackDecoder[int32, internalInt32]{},
 			rand: func() interface{} {
 				return int32(rand.Int())
 			},
@@ -57,8 +57,8 @@ var (
 		},
 		{
 			name: "Int64Delta",
-			enc:  &int64DeltaBPEncoder{deltaBitPackEncoder64: deltaBitPackEncoder64{blockSize: 128, miniBlockCount: 4}},
-			dec:  &int64DeltaBPDecoder{},
+			enc:  &deltaBitPackEncoder[int64, internalInt64]{blockSize: 128, miniBlockCount: 4},
+			dec:  &deltaBitPackDecoder[int64, internalInt64]{},
 			rand: func() interface{} {
 				return rand.Int63()
 			},

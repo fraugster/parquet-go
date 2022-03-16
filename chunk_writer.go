@@ -49,41 +49,20 @@ func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, d
 	}
 }
 
-func getInt32ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesEncoder, error) {
+func getIntValuesEncoder[T intType, I internalIntType[T]](pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesEncoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
-		return &numberPlainEncoder[int32, internalInt32]{}, nil
+		return &numberPlainEncoder[T, I]{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int32DeltaBPEncoder{
-			deltaBitPackEncoder32: deltaBitPackEncoder32{
-				blockSize:      128,
-				miniBlockCount: 4,
-			},
+		return &deltaBitPackEncoder[T, I]{
+			blockSize:      128,
+			miniBlockCount: 4,
 		}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictEncoder{dictValues: dictValues}, nil
 	default:
-		return nil, fmt.Errorf("unsupported encoding %s for int32", pageEncoding)
-	}
-}
-
-func getInt64ValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesEncoder, error) {
-	switch pageEncoding {
-	case parquet.Encoding_PLAIN:
-		return &numberPlainEncoder[int64, internalInt64]{}, nil
-	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int64DeltaBPEncoder{
-			deltaBitPackEncoder64: deltaBitPackEncoder64{
-				blockSize:      128,
-				miniBlockCount: 4,
-			},
-		}, nil
-	case parquet.Encoding_RLE_DICTIONARY:
-		return &dictEncoder{
-			dictValues: dictValues,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unsupported encoding %s for int64", pageEncoding)
+		var t T
+		return nil, fmt.Errorf("unsupported encoding %s for %T", pageEncoding, t)
 	}
 }
 
@@ -127,10 +106,10 @@ func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 		}
 
 	case parquet.Type_INT32:
-		return getInt32ValuesEncoder(pageEncoding, typ, dictValues)
+		return getIntValuesEncoder[int32, internalInt32](pageEncoding, typ, dictValues)
 
 	case parquet.Type_INT64:
-		return getInt64ValuesEncoder(pageEncoding, typ, dictValues)
+		return getIntValuesEncoder[int64, internalInt64](pageEncoding, typ, dictValues)
 
 	case parquet.Type_INT96:
 		switch pageEncoding {
