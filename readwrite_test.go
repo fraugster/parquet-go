@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1486,4 +1488,43 @@ func TestWriteThenReadSetSchemaDefinition(t *testing.T) {
 
 	_, err = r.NextRow()
 	require.True(t, errors.Is(err, io.EOF))
+}
+
+func FuzzFileReaderWithFiles(f *testing.F) {
+	filesDir := "files"
+	d, err := os.Open(filesDir)
+	if err != nil {
+		f.Fatalf("couldn't open %s directory: %v", filesDir, err)
+	}
+	defer d.Close()
+
+	files, err := d.Readdirnames(-1)
+	if err != nil {
+		f.Fatalf("reading names failed: %v", err)
+	}
+
+	for _, fn := range files {
+		data, err := ioutil.ReadFile(filepath.Join(filesDir, fn))
+		if err != nil {
+			continue
+		}
+		f.Add(data)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		r, err := NewFileReader(bytes.NewReader(data))
+		if err != nil {
+			t.Skipf("reading file failed: %v", err)
+		}
+
+		for {
+			_, err := r.NextRow()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				t.Skipf("NextRow failed: %v", err)
+			}
+		}
+	})
 }
