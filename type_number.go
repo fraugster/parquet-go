@@ -44,8 +44,10 @@ func (d *numberPlainEncoder[T, I]) encodeValues(values []interface{}) error {
 type numberStore[T numberType, I internalNumberType[T]] struct {
 	impl I
 
-	repTyp   parquet.FieldRepetitionType
-	min, max T
+	repTyp parquet.FieldRepetitionType
+
+	stats     *numberStats[T, I]
+	pageStats *numberStats[T, I]
 
 	*ColumnParameters
 }
@@ -71,31 +73,21 @@ func (f *numberStore[T, I]) repetitionType() parquet.FieldRepetitionType {
 
 func (f *numberStore[T, I]) reset(rep parquet.FieldRepetitionType) {
 	f.repTyp = rep
-	f.min = f.impl.MaxValue()
-	f.max = f.impl.MinValue()
-}
-
-func (f *numberStore[T, I]) maxValue() []byte {
-	if f.max == f.impl.MinValue() {
-		return nil
-	}
-	return f.impl.ToBytes(f.max)
-}
-
-func (f *numberStore[T, I]) minValue() []byte {
-	if f.min == f.impl.MaxValue() {
-		return nil
-	}
-	return f.impl.ToBytes(f.min)
+	f.stats.reset()
+	f.pageStats.reset()
 }
 
 func (f *numberStore[T, I]) setMinMax(j T) {
-	if j < f.min {
-		f.min = j
-	}
-	if j > f.max {
-		f.max = j
-	}
+	f.stats.setMinMax(j)
+	f.pageStats.setMinMax(j)
+}
+
+func (f *numberStore[T, I]) getPageStats() minMaxValues {
+	return f.pageStats
+}
+
+func (f *numberStore[T, I]) getStats() minMaxValues {
+	return f.stats
 }
 
 func (f *numberStore[T, I]) getValues(v interface{}) ([]interface{}, error) {

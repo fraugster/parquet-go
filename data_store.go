@@ -340,14 +340,14 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
 
 	case parquet.Type_FLOAT:
-		return newPlainStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}), nil
+		return newPlainStore(&numberStore[float32, internalFloat32]{ColumnParameters: params, stats: newNumberStats[float32, internalFloat32](), pageStats: newNumberStats[float32, internalFloat32]()}), nil
 	case parquet.Type_DOUBLE:
-		return newPlainStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}), nil
+		return newPlainStore(&numberStore[float64, internalFloat64]{ColumnParameters: params, stats: newNumberStats[float64, internalFloat64](), pageStats: newNumberStats[float64, internalFloat64]()}), nil
 
 	case parquet.Type_INT32:
-		return newPlainStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}), nil
+		return newPlainStore(&numberStore[int32, internalInt32]{ColumnParameters: params, stats: newNumberStats[int32, internalInt32](), pageStats: newNumberStats[int32, internalInt32]()}), nil
 	case parquet.Type_INT64:
-		return newPlainStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}), nil
+		return newPlainStore(&numberStore[int64, internalInt64]{ColumnParameters: params, stats: newNumberStats[int64, internalInt64](), pageStats: newNumberStats[int64, internalInt64]()}), nil
 	case parquet.Type_INT96:
 		store := &int96Store{}
 		store.ColumnParameters = params
@@ -375,7 +375,7 @@ func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, enc, useDict), nil
+	return newStore(&numberStore[int32, internalInt32]{ColumnParameters: params, stats: newNumberStats[int32, internalInt32](), pageStats: newNumberStats[int32, internalInt32]()}, enc, useDict), nil
 }
 
 // NewInt64Store creates a new column store to store int64 values. If useDict is true,
@@ -386,7 +386,7 @@ func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, enc, useDict), nil
+	return newStore(&numberStore[int64, internalInt64]{ColumnParameters: params, stats: newNumberStats[int64, internalInt64](), pageStats: newNumberStats[int64, internalInt64]()}, enc, useDict), nil
 }
 
 // NewInt96Store creates a new column store to store int96 values. If useDict is true,
@@ -410,7 +410,7 @@ func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, enc, useDict), nil
+	return newStore(&numberStore[float32, internalFloat32]{ColumnParameters: params, stats: newNumberStats[float32, internalFloat32](), pageStats: newNumberStats[float32, internalFloat32]()}, enc, useDict), nil
 }
 
 // NewDoubleStore creates a new column store to store double (float64) values. If useDict is true,
@@ -421,7 +421,7 @@ func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, enc, useDict), nil
+	return newStore(&numberStore[float64, internalFloat64]{ColumnParameters: params, stats: newNumberStats[float64, internalFloat64](), pageStats: newNumberStats[float64, internalFloat64]()}, enc, useDict), nil
 }
 
 // NewByteArrayStore creates a new column store to store byte arrays. If useDict is true,
