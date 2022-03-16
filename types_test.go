@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func buildRandArray(count int, fn func() interface{}) []interface{} {
-	ret := make([]interface{}, count)
+func buildRandArray(count int, fn func() any) []any {
+	ret := make([]any, count)
 	for i := range ret {
 		ret[i] = fn()
 	}
@@ -26,7 +26,7 @@ type encodingFixtures struct {
 	name string
 	enc  valuesEncoder
 	dec  valuesDecoder
-	rand func() interface{}
+	rand func() any
 }
 
 var (
@@ -35,7 +35,7 @@ var (
 			name: "Int32Plain",
 			enc:  &numberPlainEncoder[int32, internalInt32]{},
 			dec:  &numberPlainDecoder[int32, internalInt32]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return int32(rand.Int())
 			},
 		},
@@ -43,7 +43,7 @@ var (
 			name: "Int32Delta",
 			enc:  &deltaBitPackEncoder[int32, internalInt32]{blockSize: 128, miniBlockCount: 4},
 			dec:  &deltaBitPackDecoder[int32, internalInt32]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return int32(rand.Int())
 			},
 		},
@@ -51,7 +51,7 @@ var (
 			name: "Int64Plain",
 			enc:  &numberPlainEncoder[int64, internalInt64]{},
 			dec:  &numberPlainDecoder[int64, internalInt64]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Int63()
 			},
 		},
@@ -59,7 +59,7 @@ var (
 			name: "Int64Delta",
 			enc:  &deltaBitPackEncoder[int64, internalInt64]{blockSize: 128, miniBlockCount: 4},
 			dec:  &deltaBitPackDecoder[int64, internalInt64]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Int63()
 			},
 		},
@@ -67,7 +67,7 @@ var (
 			name: "Int96Plain",
 			enc:  &int96PlainEncoder{},
 			dec:  &int96PlainDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				var data [12]byte
 				for i := 0; i < 12; i++ {
 					data[i] = byte(rand.Intn(256))
@@ -80,7 +80,7 @@ var (
 			name: "DoublePlain",
 			enc:  &numberPlainEncoder[float64, internalFloat64]{},
 			dec:  &numberPlainDecoder[float64, internalFloat64]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Float64()
 			},
 		},
@@ -88,7 +88,7 @@ var (
 			name: "FloatPlain",
 			enc:  &numberPlainEncoder[float32, internalFloat32]{},
 			dec:  &numberPlainDecoder[float32, internalFloat32]{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Float32()
 			},
 		},
@@ -96,7 +96,7 @@ var (
 			name: "BooleanRLE",
 			enc:  &booleanRLEEncoder{},
 			dec:  &booleanRLEDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Int()%2 == 0
 			},
 		},
@@ -104,7 +104,7 @@ var (
 			name: "BooleanPlain",
 			enc:  &booleanPlainEncoder{},
 			dec:  &booleanPlainDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				return rand.Int()%2 == 0
 			},
 		},
@@ -135,7 +135,7 @@ var (
 			name: "ByteArrayFixedLen",
 			enc:  &byteArrayPlainEncoder{length: 3},
 			dec:  &byteArrayPlainDecoder{length: 3},
-			rand: func() interface{} {
+			rand: func() any {
 				return []byte{
 					byte(rand.Intn(256)),
 					byte(rand.Intn(256)),
@@ -147,7 +147,7 @@ var (
 			name: "ByteArrayPlain",
 			enc:  &byteArrayPlainEncoder{},
 			dec:  &byteArrayPlainDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				l := rand.Intn(10) + 1 // no zero
 				ret := make([]byte, l)
 				for i := range ret {
@@ -160,7 +160,7 @@ var (
 			name: "ByteArrayDeltaLen",
 			enc:  &byteArrayDeltaLengthEncoder{},
 			dec:  &byteArrayDeltaLengthDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				l := rand.Intn(10) + 1 // no zero
 				ret := make([]byte, l)
 				for i := range ret {
@@ -173,7 +173,7 @@ var (
 			name: "ByteArrayDelta",
 			enc:  &byteArrayDeltaEncoder{},
 			dec:  &byteArrayDeltaDecoder{},
-			rand: func() interface{} {
+			rand: func() any {
 				l := rand.Intn(10) + 1 // no zero
 				ret := make([]byte, l)
 				for i := range ret {
@@ -199,11 +199,11 @@ func TestTypes(t *testing.T) {
 			require.NoError(t, data.enc.encodeValues(arr1))
 			require.NoError(t, data.enc.encodeValues(arr2))
 			require.NoError(t, data.enc.Close())
-			var v []interface{}
+			var v []any
 			if d, ok := data.enc.(dictValuesEncoder); ok {
 				v = d.getValues()
 			}
-			ret := make([]interface{}, bufRead)
+			ret := make([]any, bufRead)
 			r := bytes.NewReader(w.Bytes())
 			if d, ok := data.dec.(dictValuesDecoder); ok {
 				d.setValues(v)
@@ -222,9 +222,9 @@ func TestTypes(t *testing.T) {
 	}
 }
 
-func convertToInterface(arr interface{}) []interface{} {
+func convertToInterface(arr any) []any {
 	v := reflect.ValueOf(arr)
-	ret := make([]interface{}, v.Len())
+	ret := make([]any, v.Len())
 
 	for i := 0; i < v.Len(); i++ {
 		ret[i] = v.Index(i).Interface()
@@ -233,7 +233,7 @@ func convertToInterface(arr interface{}) []interface{} {
 	return ret
 }
 
-func getOne(arr interface{}) interface{} {
+func getOne(arr any) any {
 	v := reflect.ValueOf(arr)
 	if v.Len() < 1 {
 		panic("no item in the array")
@@ -245,7 +245,7 @@ func getOne(arr interface{}) interface{} {
 type storeFixtures struct {
 	name  string
 	store *ColumnStore
-	rand  func(int) interface{}
+	rand  func(int) any
 }
 
 var (
@@ -253,7 +253,7 @@ var (
 		{
 			name:  "Int32Store",
 			store: mustColumnStore(NewInt32Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				ret := make([]int32, n)
 				for i := range ret {
 					ret[i] = rand.Int31()
@@ -264,7 +264,7 @@ var (
 		{
 			name:  "Int64Store",
 			store: mustColumnStore(NewInt64Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				ret := make([]int64, n)
 				for i := range ret {
 					ret[i] = rand.Int63()
@@ -275,7 +275,7 @@ var (
 		{
 			name:  "Float32Store",
 			store: mustColumnStore(NewFloatStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				ret := make([]float32, n)
 				for i := range ret {
 					ret[i] = rand.Float32()
@@ -286,7 +286,7 @@ var (
 		{
 			name:  "Float64Store",
 			store: mustColumnStore(NewDoubleStore(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				ret := make([]float64, n)
 				for i := range ret {
 					ret[i] = rand.Float64()
@@ -297,7 +297,7 @@ var (
 		{
 			name:  "Int96Store",
 			store: mustColumnStore(NewInt96Store(parquet.Encoding_PLAIN, false, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				var data = make([][12]byte, n)
 				for c := 0; c < n; c++ {
 					for i := 0; i < 12; i++ {
@@ -310,7 +310,7 @@ var (
 		{
 			name:  "BooleanStore",
 			store: mustColumnStore(NewBooleanStore(parquet.Encoding_PLAIN, &ColumnParameters{})),
-			rand: func(n int) interface{} {
+			rand: func(n int) any {
 				ret := make([]bool, n)
 				for i := range ret {
 					ret[i] = rand.Int()%2 == 0
@@ -371,7 +371,7 @@ func TestStores(t *testing.T) {
 			err = st.add(getOne(data2), 3, 3, 10)
 			require.NoError(t, err)
 			// No reset
-			dArr := []interface{}{getOne(data), getOne(data2)}
+			dArr := []any{getOne(data), getOne(data2)}
 			assert.Equal(t, dArr, st.values.getValues())
 			// Field is Required, so def level should be exact
 			assert.Equal(t, []int32{3, 3}, st.dLevels.toArray())

@@ -7,17 +7,17 @@ import (
 )
 
 func TestObjectUnmarshalling(t *testing.T) {
-	obj := NewUnmarshallObject(map[string]interface{}{
+	obj := NewUnmarshallObject(map[string]any{
 		"foo":  int64(23),
 		"bar":  int32(42),
 		"baz":  true,
 		"name": []byte("John Doe"),
-		"my_group": map[string]interface{}{
+		"my_group": map[string]any{
 			"foo1": float32(23.5),
 			"bar1": float64(9000.5),
 		},
-		"id_list": map[string]interface{}{
-			"list": []map[string]interface{}{
+		"id_list": map[string]any{
+			"list": []map[string]any{
 				{
 					"element": int64(1),
 				},
@@ -35,8 +35,8 @@ func TestObjectUnmarshalling(t *testing.T) {
 				},
 			},
 		},
-		"data_map": map[string]interface{}{
-			"key_value": []map[string]interface{}{
+		"data_map": map[string]any{
+			"key_value": []map[string]any{
 				{
 					"key":   []byte("data0"),
 					"value": int32(0),
@@ -59,11 +59,11 @@ func TestObjectUnmarshalling(t *testing.T) {
 				},
 			},
 		},
-		"nested_data_map": map[string]interface{}{
-			"key_value": []map[string]interface{}{
+		"nested_data_map": map[string]any{
+			"key_value": []map[string]any{
 				{
 					"key": int64(23),
-					"value": map[string]interface{}{
+					"value": map[string]any{
 						"foo": int32(42),
 					},
 				},
@@ -139,25 +139,25 @@ func TestObjectUnmarshalling(t *testing.T) {
 }
 
 func TestObjectUnmarshallingErrors(t *testing.T) {
-	obj := NewUnmarshallObject(map[string]interface{}{
+	obj := NewUnmarshallObject(map[string]any{
 		"foo":          int64(23),
 		"bar":          int32(42),
-		"invalid_list": map[string]interface{}{},
-		"invalid_list_2": map[string]interface{}{
-			"list": map[string]interface{}{"foo": int32(0)},
+		"invalid_list": map[string]any{},
+		"invalid_list_2": map[string]any{
+			"list": map[string]any{"foo": int32(0)},
 		},
-		"invalid_list_element": map[string]interface{}{
-			"list": []map[string]interface{}{
+		"invalid_list_element": map[string]any{
+			"list": []map[string]any{
 				{"foo": int32(0)},
 			},
 		},
-		"invalid_map": map[string]interface{}{},
-		"invalid_map_2": map[string]interface{}{
-			"key_value": map[string]interface{}{"foo": int32(0)},
+		"invalid_map": map[string]any{},
+		"invalid_map_2": map[string]any{
+			"key_value": map[string]any{"foo": int32(0)},
 		},
 
-		"data_map_no_keyvalues": map[string]interface{}{
-			"key_value": []map[string]interface{}{
+		"data_map_no_keyvalues": map[string]any{
+			"key_value": []map[string]any{
 				{},
 			},
 		},
@@ -236,10 +236,10 @@ func TestObjectUnmarshallingErrors(t *testing.T) {
 }
 
 func TestObjectUnmarshallingList(t *testing.T) {
-	testData := map[string]map[string]interface{}{
+	testData := map[string]map[string]any{
 		"new-style-list": {
-			"emails": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"emails": map[string]any{
+				"list": []map[string]any{
 					{
 						"element": []byte("foo@example.com"),
 					},
@@ -250,8 +250,8 @@ func TestObjectUnmarshallingList(t *testing.T) {
 			},
 		},
 		"athena-compat": {
-			"emails": map[string]interface{}{
-				"bag": []map[string]interface{}{
+			"emails": map[string]any{
+				"bag": []map[string]any{
 					{
 						"array_element": []byte("foo@example.com"),
 					},

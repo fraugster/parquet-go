@@ -19,7 +19,7 @@ import (
 	"github.com/fraugster/parquet-go/parquetschema"
 )
 
-var printLog = func(string, ...interface{}) {}
+var printLog = func(string, ...any) {}
 
 func main() {
 	inputFile := flag.String("input", "", "CSV file input")
@@ -122,7 +122,7 @@ func writeParquetData(of io.Writer, header []string, types map[string]string, re
 	pqWriter := goparquet.NewFileWriter(of, writerOptions...)
 
 	for recordIndex, record := range records {
-		data := make(map[string]interface{})
+		data := make(map[string]any)
 
 		if len(record) < len(header) {
 			return fmt.Errorf("input record %d only contains %d fields instead of the expected %d", recordIndex+1, len(record), len(header))
@@ -149,7 +149,7 @@ func writeParquetData(of io.Writer, header []string, types map[string]string, re
 	return nil
 }
 
-type fieldHandler func(string) (interface{}, error)
+type fieldHandler func(string) (any, error)
 
 func deriveSchema(header []string, types map[string]string) (schema *parquetschema.SchemaDefinition, fieldHandlers []fieldHandler, err error) {
 	schema = &parquetschema.SchemaDefinition{
@@ -185,7 +185,7 @@ func deriveSchema(header []string, types map[string]string) (schema *parquetsche
 	return schema, fieldHandlers, nil
 }
 
-func createColumn(field, typ string) (col *parquetschema.ColumnDefinition, fieldHandler func(string) (interface{}, error), rr error) {
+func createColumn(field, typ string) (col *parquetschema.ColumnDefinition, fieldHandler func(string) (any, error), rr error) {
 	col = &parquetschema.ColumnDefinition{
 		SchemaElement: &parquet.SchemaElement{},
 	}
@@ -364,16 +364,16 @@ func isValidType(t string) bool {
 	return validTypes[t]
 }
 
-func byteArrayHandler(s string) (interface{}, error) {
+func byteArrayHandler(s string) (any, error) {
 	return []byte(s), nil
 }
 
-func booleanHandler(s string) (interface{}, error) {
+func booleanHandler(s string) (any, error) {
 	return strconv.ParseBool(s)
 }
 
-func uintHandler(bitSize int) func(string) (interface{}, error) {
-	return func(s string) (interface{}, error) {
+func uintHandler(bitSize int) func(string) (any, error) {
+	return func(s string) (any, error) {
 		i, err := strconv.ParseUint(s, 10, bitSize)
 		if err != nil {
 			return nil, err
@@ -389,8 +389,8 @@ func uintHandler(bitSize int) func(string) (interface{}, error) {
 	}
 }
 
-func intHandler(bitSize int) func(string) (interface{}, error) {
-	return func(s string) (interface{}, error) {
+func intHandler(bitSize int) func(string) (any, error) {
+	return func(s string) (any, error) {
 		i, err := strconv.ParseInt(s, 10, bitSize)
 		if err != nil {
 			return nil, err
@@ -406,19 +406,19 @@ func intHandler(bitSize int) func(string) (interface{}, error) {
 	}
 }
 
-func floatHandler(s string) (interface{}, error) {
+func floatHandler(s string) (any, error) {
 	f, err := strconv.ParseFloat(s, 32)
 	return float32(f), err
 }
 
-func doubleHandler(s string) (interface{}, error) {
+func doubleHandler(s string) (any, error) {
 	f, err := strconv.ParseFloat(s, 64)
 	return f, err
 }
 
-func jsonHandler(s string) (interface{}, error) {
+func jsonHandler(s string) (any, error) {
 	data := []byte(s)
-	var obj interface{}
+	var obj any
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, err
 	}
@@ -426,7 +426,7 @@ func jsonHandler(s string) (interface{}, error) {
 }
 
 func optionalHandler(next fieldHandler) fieldHandler {
-	return func(s string) (interface{}, error) {
+	return func(s string) (any, error) {
 		if s == "" {
 			return nil, nil
 		}

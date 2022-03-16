@@ -14,7 +14,7 @@ func FuzzBooleanPlain(data []byte) int {
 	if err != nil {
 		return -1
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return 0
@@ -44,7 +44,7 @@ func FuzzBooleanRLE(data []byte) int {
 	if err != nil {
 		return -1
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return 0
@@ -79,7 +79,7 @@ func FuzzInt32DeltaBP(data []byte) int {
 	if err != nil {
 		return -1
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return 0
@@ -114,7 +114,7 @@ func FuzzInt32Plain(data []byte) int {
 	if err != nil {
 		panic("unexpected error in init")
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return 0
@@ -144,7 +144,7 @@ func FuzzFloatPlain(data []byte) int {
 	if err != nil {
 		panic("unexpected error in init")
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return -1
@@ -174,7 +174,7 @@ func FuzzDoublePlain(data []byte) int {
 	if err != nil {
 		panic("unexpected error in init")
 	}
-	dst1 := make([]interface{}, maxSize)
+	dst1 := make([]any, maxSize)
 	_, err = d.decodeValues(dst1)
 	if err != nil {
 		return -1

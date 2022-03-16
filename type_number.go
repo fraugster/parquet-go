@@ -18,7 +18,7 @@ func (f *numberPlainDecoder[T, I]) init(r io.Reader) error {
 	return nil
 }
 
-func (f *numberPlainDecoder[T, I]) decodeValues(dst []interface{}) (int, error) {
+func (f *numberPlainDecoder[T, I]) decodeValues(dst []any) (int, error) {
 	return f.impl.DecodeBinaryValues(f.r, dst)
 }
 
@@ -37,7 +37,7 @@ func (d *numberPlainEncoder[T, I]) init(w io.Writer) error {
 	return nil
 }
 
-func (d *numberPlainEncoder[T, I]) encodeValues(values []interface{}) error {
+func (d *numberPlainEncoder[T, I]) encodeValues(values []any) error {
 	return d.impl.EncodeBinaryValues(d.w, values)
 }
 
@@ -59,7 +59,7 @@ func (f *numberStore[T, I]) params() *ColumnParameters {
 	return f.ColumnParameters
 }
 
-func (f *numberStore[T, I]) sizeOf(v interface{}) int {
+func (f *numberStore[T, I]) sizeOf(v any) int {
 	return f.impl.Sizeof()
 }
 
@@ -90,19 +90,19 @@ func (f *numberStore[T, I]) getStats() minMaxValues {
 	return f.stats
 }
 
-func (f *numberStore[T, I]) getValues(v interface{}) ([]interface{}, error) {
+func (f *numberStore[T, I]) getValues(v any) ([]any, error) {
 	var t T
 
-	var vals []interface{}
+	var vals []any
 	switch typed := v.(type) {
 	case T:
 		f.setMinMax(typed)
-		vals = []interface{}{typed}
+		vals = []any{typed}
 	case []T:
 		if f.repTyp != parquet.FieldRepetitionType_REPEATED {
 			return nil, fmt.Errorf("the value is not repeated but it is an array")
 		}
-		vals = make([]interface{}, len(typed))
+		vals = make([]any, len(typed))
 		for j := range typed {
 			f.setMinMax(typed[j])
 			vals[j] = typed[j]
@@ -114,7 +114,7 @@ func (f *numberStore[T, I]) getValues(v interface{}) ([]interface{}, error) {
 	return vals, nil
 }
 
-func (*numberStore[T, I]) append(arrayIn interface{}, value interface{}) interface{} {
+func (*numberStore[T, I]) append(arrayIn any, value any) any {
 	if arrayIn == nil {
 		arrayIn = make([]T, 0, 1)
 	}

@@ -42,7 +42,7 @@ func TestRepeatedBinaryWithNil(t *testing.T) {
 	var buf bytes.Buffer
 	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
 
-	err = fw.AddData(map[string]interface{}{
+	err = fw.AddData(map[string]any{
 		"foo": [][]byte{
 			[]byte("hello"),
 			nil,

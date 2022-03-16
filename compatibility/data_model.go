@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -43,8 +44,8 @@ type sampleData struct {
 
 // The json library converts all numbers to float64. this is not good, I need to translate them to
 // proper type
-func (m sampleData) toMap() map[string]interface{} {
-	ret := map[string]interface{}{
+func (m sampleData) toMap() map[string]any {
+	ret := map[string]any{
 		"id":        []byte(m.ID),
 		"index":     m.Index,
 		"guid":      []byte(m.GUID),
@@ -53,7 +54,7 @@ func (m sampleData) toMap() map[string]interface{} {
 		"picture":   []byte(m.Picture),
 		"age":       m.Age,
 		"eye_color": []byte(m.EyeColor),
-		"name": map[string]interface{}{
+		"name": map[string]any{
 			"first": []byte(m.Name.First),
 			"last":  []byte(m.Name.Last),
 		},
@@ -78,9 +79,9 @@ func (m sampleData) toMap() map[string]interface{} {
 
 	ret["tags"] = tags
 
-	var friends []map[string]interface{}
+	var friends []map[string]any
 	for i := range m.Friends {
-		friends = append(friends, map[string]interface{}{
+		friends = append(friends, map[string]any{
 			"id":   m.Friends[i].ID,
 			"name": []byte(m.Friends[i].Name),
 		})

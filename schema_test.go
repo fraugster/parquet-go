@@ -14,7 +14,7 @@ import (
 
 var sizeFixture = []struct {
 	Col      *ColumnStore
-	Generate func(n int) ([]interface{}, int64)
+	Generate func(n int) ([]any, int64)
 }{
 	{
 		Col: func() *ColumnStore {
@@ -24,8 +24,8 @@ var sizeFixture = []struct {
 			}
 			return n
 		}(),
-		Generate: func(n int) ([]interface{}, int64) {
-			ret := make([]interface{}, 0, n)
+		Generate: func(n int) ([]any, int64) {
+			ret := make([]any, 0, n)
 			var size int64
 			for i := 0; i < n; i++ {
 				ret = append(ret, rand.Int31())
@@ -44,8 +44,8 @@ var sizeFixture = []struct {
 			}
 			return n
 		}(),
-		Generate: func(n int) ([]interface{}, int64) {
-			ret := make([]interface{}, 0, n)
+		Generate: func(n int) ([]any, int64) {
+			ret := make([]any, 0, n)
 			var size int64
 			for i := 0; i < n; i++ {
 				ret = append(ret, rand.Int63())
@@ -64,8 +64,8 @@ var sizeFixture = []struct {
 			}
 			return n
 		}(),
-		Generate: func(n int) ([]interface{}, int64) {
-			ret := make([]interface{}, 0, n)
+		Generate: func(n int) ([]any, int64) {
+			ret := make([]any, 0, n)
 			var size int64
 			for i := 0; i < n; i++ {
 				s := rand.Int63n(32)
@@ -123,7 +123,7 @@ func TestSchemaCopy(t *testing.T) {
 	writer := NewFileWriter(buf, WithSchemaDefinition(def))
 
 	for i := 0; i < 3; i++ {
-		var d interface{}
+		var d any
 		switch {
 		case i%3 == 0:
 			d = true
@@ -132,7 +132,7 @@ func TestSchemaCopy(t *testing.T) {
 		case i%3 == 2:
 			d = nil
 		}
-		require.NoError(t, writer.AddData(map[string]interface{}{
+		require.NoError(t, writer.AddData(map[string]any{
 			"is_fraud": d,
 		}))
 	}

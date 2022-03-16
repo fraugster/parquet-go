@@ -15,7 +15,7 @@ type booleanPlainDecoder struct {
 // copy the left overs from the previous call. instead of returning an empty subset of the old slice,
 // it delete the slice (by returning nil) so there is no memory leak because of the underlying array
 // the return value is the new left over and the number of read message
-func copyLeftOvers(dst []interface{}, src []bool) ([]bool, int) {
+func copyLeftOvers(dst []any, src []bool) ([]bool, int) {
 	size := len(dst)
 	var clean bool
 	if len(src) <= size {
@@ -40,7 +40,7 @@ func (b *booleanPlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (b *booleanPlainDecoder) decodeValues(dst []interface{}) (int, error) {
+func (b *booleanPlainDecoder) decodeValues(dst []any) (int, error) {
 	var start int
 	if len(b.left) > 0 {
 		// there is a leftover from the last run
@@ -85,7 +85,7 @@ func (b *booleanPlainEncoder) init(w io.Writer) error {
 	return nil
 }
 
-func (b *booleanPlainEncoder) encodeValues(values []interface{}) error {
+func (b *booleanPlainEncoder) encodeValues(values []any) error {
 	for i := range values {
 		var v int32
 		if values[i].(bool) {
@@ -106,7 +106,7 @@ func (b *booleanRLEDecoder) init(r io.Reader) error {
 	return b.decoder.initSize(r)
 }
 
-func (b *booleanRLEDecoder) decodeValues(dst []interface{}) (int, error) {
+func (b *booleanRLEDecoder) decodeValues(dst []any) (int, error) {
 	total := len(dst)
 	for i := 0; i < total; i++ {
 		n, err := b.decoder.next()
@@ -132,7 +132,7 @@ func (b *booleanRLEEncoder) init(w io.Writer) error {
 	return b.encoder.initSize(w)
 }
 
-func (b *booleanRLEEncoder) encodeValues(values []interface{}) error {
+func (b *booleanRLEEncoder) encodeValues(values []any) error {
 	buf := make([]int32, len(values))
 	for i := range values {
 		if values[i].(bool) {
@@ -157,7 +157,7 @@ func (b *booleanStore) params() *ColumnParameters {
 	return b.ColumnParameters
 }
 
-func (b *booleanStore) sizeOf(v interface{}) int {
+func (b *booleanStore) sizeOf(v any) int {
 	// Cheating here. boolean size is one bit, but the size is in byte. so zero to make sure
 	// we never use dictionary on this.
 	return 0
@@ -183,16 +183,16 @@ func (b *booleanStore) getPageStats() minMaxValues {
 	return &nilStats{}
 }
 
-func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {
-	var vals []interface{}
+func (b *booleanStore) getValues(v any) ([]any, error) {
+	var vals []any
 	switch typed := v.(type) {
 	case bool:
-		vals = []interface{}{typed}
+		vals = []any{typed}
 	case []bool:
 		if b.repTyp != parquet.FieldRepetitionType_REPEATED {
 			return nil, fmt.Errorf("the value is not repeated but it is an array")
 		}
-		vals = make([]interface{}, len(typed))
+		vals = make([]any, len(typed))
 		for j := range typed {
 			vals[j] = typed[j]
 		}
@@ -203,7 +203,7 @@ func (b *booleanStore) getValues(v interface{}) ([]interface{}, error) {
 	return vals, nil
 }
 
-func (b *booleanStore) append(arrayIn interface{}, value interface{}) interface{} {
+func (b *booleanStore) append(arrayIn any, value any) any {
 	if arrayIn == nil {
 		arrayIn = make([]bool, 0, 1)
 	}

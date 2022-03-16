@@ -12,7 +12,7 @@ type pageReader interface {
 	init(dDecoder, rDecoder getLevelDecoder, values getValueDecoderFn) error
 	read(r io.Reader, ph *parquet.PageHeader, codec parquet.CompressionCodec, validateCRC bool) error
 
-	readValues(size int) (values []interface{}, dLevel *packedArray, rLevel *packedArray, err error)
+	readValues(size int) (values []any, dLevel *packedArray, rLevel *packedArray, err error)
 
 	numValues() int32
 }
@@ -24,23 +24,23 @@ type pageWriter interface {
 	write(ctx context.Context, w io.Writer) (int, int, error)
 }
 
-type newDataPageFunc func(useDict bool, dictValues []interface{}, page *dataPage, enableCRC bool) pageWriter
+type newDataPageFunc func(useDict bool, dictValues []any, page *dataPage, enableCRC bool) pageWriter
 
 type valuesDecoder interface {
 	init(io.Reader) error
 	// the error io.EOF with the less value is acceptable, any other error is not
-	decodeValues([]interface{}) (int, error)
+	decodeValues([]any) (int, error)
 }
 
 type dictValuesDecoder interface {
 	valuesDecoder
 
-	setValues([]interface{})
+	setValues([]any)
 }
 
 type valuesEncoder interface {
 	init(io.Writer) error
-	encodeValues([]interface{}) error
+	encodeValues([]any) error
 
 	io.Closer
 }
@@ -48,7 +48,7 @@ type valuesEncoder interface {
 type dictValuesEncoder interface {
 	valuesEncoder
 
-	getValues() []interface{}
+	getValues() []any
 }
 
 // parquetColumn is to convert a store to a parquet.SchemaElement
@@ -72,10 +72,10 @@ type typedColumnStore interface {
 	getPageStats() minMaxValues
 
 	// Should extract the value, turn it into an array and check for min and max on all values in this
-	getValues(v interface{}) ([]interface{}, error)
-	sizeOf(v interface{}) int
+	getValues(v any) ([]any, error)
+	sizeOf(v any) int
 	// the tricky append. this is a way of creating new "typed" array. the first interface is nil or an []T (T is the type,
 	// not the interface) and value is from that type. the result should be always []T (array of that type)
 	// exactly like the builtin append
-	append(arrayIn interface{}, value interface{}) interface{}
+	append(arrayIn any, value any) any
 }

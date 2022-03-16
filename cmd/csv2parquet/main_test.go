@@ -54,8 +54,8 @@ func TestParseTypeHints(t *testing.T) {
 func TestTypeHandlers(t *testing.T) {
 	tests := map[string]struct {
 		Input          string
-		Func           func(string) (interface{}, error)
-		ExpectedOutput interface{}
+		Func           func(string) (any, error)
+		ExpectedOutput any
 		ExpectErr      bool
 	}{
 		"byte-array":        {"hello", byteArrayHandler, []byte("hello"), false},
@@ -246,7 +246,7 @@ func TestWriteParquetData(t *testing.T) {
 		Records        [][]string
 		ExpectErr      bool
 		ExpectedSchema string
-		ExpectedRows   []map[string]interface{}
+		ExpectedRows   []map[string]any
 	}{
 		"simple": {
 			Header: []string{"person", "age", "is_vampire"},
@@ -260,7 +260,7 @@ func TestWriteParquetData(t *testing.T) {
 				{"Stu", "30", "false"},
 			},
 			ExpectedSchema: "message msg {\n  optional binary person (STRING);\n  optional int32 age (INT(16, true));\n  optional boolean is_vampire;\n}\n",
-			ExpectedRows: []map[string]interface{}{
+			ExpectedRows: []map[string]any{
 				{"person": []byte("Viago"), "age": int32(379), "is_vampire": true},
 				{"person": []byte("Vladislav"), "age": int32(862), "is_vampire": true},
 				{"person": []byte("Deacon"), "age": int32(183), "is_vampire": true},
@@ -300,7 +300,7 @@ func TestWriteParquetData(t *testing.T) {
 				{"", "hello world"},
 			},
 			ExpectedSchema: "message msg {\n  optional int64 foo (INT(64, true));\n  optional binary bar (STRING);\n}\n",
-			ExpectedRows: []map[string]interface{}{
+			ExpectedRows: []map[string]any{
 				{"bar": []byte("hello world")},
 			},
 		},
@@ -334,7 +334,7 @@ func TestWriteParquetData(t *testing.T) {
 
 			require.Equal(t, tt.ExpectedSchema, pqReader.GetSchemaDefinition().String())
 
-			rows := []map[string]interface{}{}
+			rows := []map[string]any{}
 
 			for i := int64(0); i < pqReader.NumRows(); i++ {
 				data, err := pqReader.NextRow()

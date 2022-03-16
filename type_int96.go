@@ -18,7 +18,7 @@ func (i *int96PlainDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (i *int96PlainDecoder) decodeValues(dst []interface{}) (int, error) {
+func (i *int96PlainDecoder) decodeValues(dst []any) (int, error) {
 	idx := 0
 	for range dst {
 		var data [12]byte
@@ -55,7 +55,7 @@ func (i *int96PlainEncoder) init(w io.Writer) error {
 	return nil
 }
 
-func (i *int96PlainEncoder) encodeValues(values []interface{}) error {
+func (i *int96PlainEncoder) encodeValues(values []any) error {
 	data := make([]byte, len(values)*12)
 	for j := range values {
 		i96 := values[j].([12]byte)
@@ -69,7 +69,7 @@ type int96Store struct {
 	byteArrayStore
 }
 
-func (*int96Store) sizeOf(v interface{}) int {
+func (*int96Store) sizeOf(v any) int {
 	return 12
 }
 
@@ -81,19 +81,19 @@ func (is *int96Store) repetitionType() parquet.FieldRepetitionType {
 	return is.repTyp
 }
 
-func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
-	var vals []interface{}
+func (is *int96Store) getValues(v any) ([]any, error) {
+	var vals []any
 	switch typed := v.(type) {
 	case [12]byte:
 		if err := is.setMinMax(typed[:]); err != nil {
 			return nil, err
 		}
-		vals = []interface{}{typed}
+		vals = []any{typed}
 	case [][12]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
 			return nil, errors.New("the value is not repeated but it is an array")
 		}
-		vals = make([]interface{}, len(typed))
+		vals = make([]any, len(typed))
 		for j := range typed {
 			if err := is.setMinMax(typed[j][:]); err != nil {
 				return nil, err
@@ -107,7 +107,7 @@ func (is *int96Store) getValues(v interface{}) ([]interface{}, error) {
 	return vals, nil
 }
 
-func (*int96Store) append(arrayIn interface{}, value interface{}) interface{} {
+func (*int96Store) append(arrayIn any, value any) any {
 	if arrayIn == nil {
 		arrayIn = make([][12]byte, 0, 1)
 	}

@@ -17,7 +17,7 @@ import (
 // The function has to return any type that can be used as a map key. In particular, the
 // result can not be a slice. The default implementation used the fnv hash function as
 // implemented in Go's standard library.
-var DefaultHashFunc func([]byte) interface{}
+var DefaultHashFunc func([]byte) any
 
 func init() {
 	DefaultHashFunc = fnvHashFunc
@@ -285,7 +285,7 @@ func prefix(b1, b2 []byte) int {
 	return l
 }
 
-func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
+func encodeValue(w io.Writer, enc valuesEncoder, all []any) error {
 	if err := enc.init(w); err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func encodeLevelsV2(w io.Writer, max uint16, values *packedArray) error {
 	return nil
 }
 
-func mapKey(a interface{}) interface{} {
+func mapKey(a any) any {
 	switch v := a.(type) {
 	case int, int32, int64, string, bool:
 		return a
@@ -348,7 +348,7 @@ func mapKey(a interface{}) interface{} {
 	}
 }
 
-func fnvHashFunc(in []byte) interface{} {
+func fnvHashFunc(in []byte) any {
 	hash := fnv.New64()
 	if err := writeFull(hash, in); err != nil {
 		panic(err)

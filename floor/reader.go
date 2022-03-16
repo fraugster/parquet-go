@@ -45,7 +45,7 @@ type Reader struct {
 	r *goparquet.FileReader
 	f io.Closer
 
-	data map[string]interface{}
+	data map[string]any
 	err  error
 	eof  bool
 }
@@ -81,7 +81,7 @@ func (r *Reader) Next() bool {
 // structure of obj doesn't fit the data. obj needs to be
 // a pointer to an object, or alternatively implement the
 // Unmarshaller interface.
-func (r *Reader) Scan(obj interface{}) error {
+func (r *Reader) Scan(obj any) error {
 	if r.data == nil {
 		return errors.New("the Next function needs to be called before Scan can be called")
 	}
@@ -94,7 +94,7 @@ func (r *Reader) Scan(obj interface{}) error {
 }
 
 type reflectUnmarshaller struct {
-	obj       interface{}
+	obj       any
 	schemaDef *parquetschema.SchemaDefinition
 }
 

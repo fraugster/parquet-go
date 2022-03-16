@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func writeReadOne(t *testing.T, o interface{}, schema string) interface{} {
+func writeReadOne(t *testing.T, o any, schema string) any {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
@@ -565,7 +565,7 @@ func TestWriteRead(t *testing.T) {
 	})
 }
 
-func writeReadOneWithAutoSchema(t *testing.T, o interface{}) interface{} {
+func writeReadOneWithAutoSchema(t *testing.T, o any) any {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
@@ -767,7 +767,7 @@ func TestWriteReadWithAutoSchema(t *testing.T) {
 func TestReflectMarshallerPanicIssue13(t *testing.T) {
 	_ = os.Mkdir("files", 0755)
 
-	write := func(filename string, obj interface{}) {
+	write := func(filename string, obj any) {
 		schemaDef, err := parquetschema.ParseSchemaDefinition(`message test { required int32 foo; }`)
 		require.NoError(t, err)
 		fw, err := NewFileWriter(filename,

@@ -173,7 +173,7 @@ func (d *deltaBitPackDecoder[T, I]) next() (T, error) {
 	return ret, nil
 }
 
-func (d *deltaBitPackDecoder[T, I]) decodeValues(dst []interface{}) (int, error) {
+func (d *deltaBitPackDecoder[T, I]) decodeValues(dst []any) (int, error) {
 	for i := range dst {
 		u, err := d.next()
 		if err != nil {

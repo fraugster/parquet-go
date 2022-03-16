@@ -36,8 +36,8 @@ type internalType[T numberType] interface {
 	MinValue() T
 	ParquetType() parquet.Type
 	ToBytes(v T) []byte
-	EncodeBinaryValues(w io.Writer, values []interface{}) error
-	DecodeBinaryValues(r io.Reader, dst []interface{}) (int, error)
+	EncodeBinaryValues(w io.Writer, values []any) error
+	DecodeBinaryValues(r io.Reader, dst []any) (int, error)
 	Sizeof() int
 }
 
@@ -61,7 +61,7 @@ func (f internalFloat32) ToBytes(v float32) []byte {
 	return ret
 }
 
-func (f internalFloat32) EncodeBinaryValues(w io.Writer, values []interface{}) error {
+func (f internalFloat32) EncodeBinaryValues(w io.Writer, values []any) error {
 	data := make([]uint32, len(values))
 	for i := range values {
 		data[i] = math.Float32bits(values[i].(float32))
@@ -70,7 +70,7 @@ func (f internalFloat32) EncodeBinaryValues(w io.Writer, values []interface{}) e
 	return binary.Write(w, binary.LittleEndian, data)
 }
 
-func (f internalFloat32) DecodeBinaryValues(r io.Reader, dst []interface{}) (int, error) {
+func (f internalFloat32) DecodeBinaryValues(r io.Reader, dst []any) (int, error) {
 	var data uint32
 	for i := range dst {
 		if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
@@ -105,7 +105,7 @@ func (f internalFloat64) ToBytes(v float64) []byte {
 	return ret
 }
 
-func (f internalFloat64) EncodeBinaryValues(w io.Writer, values []interface{}) error {
+func (f internalFloat64) EncodeBinaryValues(w io.Writer, values []any) error {
 	data := make([]uint64, len(values))
 	for i := range values {
 		data[i] = math.Float64bits(values[i].(float64))
@@ -114,7 +114,7 @@ func (f internalFloat64) EncodeBinaryValues(w io.Writer, values []interface{}) e
 	return binary.Write(w, binary.LittleEndian, data)
 }
 
-func (f internalFloat64) DecodeBinaryValues(r io.Reader, dst []interface{}) (int, error) {
+func (f internalFloat64) DecodeBinaryValues(r io.Reader, dst []any) (int, error) {
 	var data uint64
 	for i := range dst {
 		if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
@@ -149,7 +149,7 @@ func (i internalInt32) ToBytes(v int32) []byte {
 	return ret
 }
 
-func (i internalInt32) EncodeBinaryValues(w io.Writer, values []interface{}) error {
+func (i internalInt32) EncodeBinaryValues(w io.Writer, values []any) error {
 	d := make([]int32, len(values))
 	for j := range values {
 		d[j] = values[j].(int32)
@@ -157,7 +157,7 @@ func (i internalInt32) EncodeBinaryValues(w io.Writer, values []interface{}) err
 	return binary.Write(w, binary.LittleEndian, d)
 }
 
-func (i internalInt32) DecodeBinaryValues(r io.Reader, dst []interface{}) (int, error) {
+func (i internalInt32) DecodeBinaryValues(r io.Reader, dst []any) (int, error) {
 	var d int32
 	for idx := range dst {
 		if err := binary.Read(r, binary.LittleEndian, &d); err != nil {
@@ -227,7 +227,7 @@ func (i internalInt64) ToBytes(v int64) []byte {
 	return ret
 }
 
-func (i internalInt64) EncodeBinaryValues(w io.Writer, values []interface{}) error {
+func (i internalInt64) EncodeBinaryValues(w io.Writer, values []any) error {
 	d := make([]int64, len(values))
 	for j := range values {
 		d[j] = values[j].(int64)
@@ -235,7 +235,7 @@ func (i internalInt64) EncodeBinaryValues(w io.Writer, values []interface{}) err
 	return binary.Write(w, binary.LittleEndian, d)
 }
 
-func (i internalInt64) DecodeBinaryValues(r io.Reader, dst []interface{}) (int, error) {
+func (i internalInt64) DecodeBinaryValues(r io.Reader, dst []any) (int, error) {
 	var d int64
 	for idx := range dst {
 		if err := binary.Read(r, binary.LittleEndian, &d); err != nil {

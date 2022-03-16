@@ -142,7 +142,7 @@ func (d *deltaBitPackEncoder[T, I]) Close() error {
 	return d.write()
 }
 
-func (d *deltaBitPackEncoder[T, I]) encodeValues(values []interface{}) error {
+func (d *deltaBitPackEncoder[T, I]) encodeValues(values []any) error {
 	for i := range values {
 		if err := d.addValue(values[i].(T)); err != nil {
 			return err

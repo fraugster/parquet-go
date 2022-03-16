@@ -44,17 +44,17 @@ func TestObjectMarshalling(t *testing.T) {
 		group.AddField("i").SetInt64(int64(i))
 	}
 
-	expectedData := map[string]interface{}{
+	expectedData := map[string]any{
 		"foo":  int64(23),
 		"bar":  int32(42),
 		"baz":  true,
 		"name": []byte("John Doe"),
-		"my_group": map[string]interface{}{
+		"my_group": map[string]any{
 			"foo1": float32(23.5),
 			"bar1": float64(9000.5),
 		},
-		"id_list": map[string]interface{}{
-			"list": []map[string]interface{}{
+		"id_list": map[string]any{
+			"list": []map[string]any{
 				{
 					"element": int64(1),
 				},
@@ -72,8 +72,8 @@ func TestObjectMarshalling(t *testing.T) {
 				},
 			},
 		},
-		"data_map": map[string]interface{}{
-			"key_value": []map[string]interface{}{
+		"data_map": map[string]any{
+			"key_value": []map[string]any{
 				{
 					"key":   []byte("data0"),
 					"value": int32(0),
@@ -96,30 +96,30 @@ func TestObjectMarshalling(t *testing.T) {
 				},
 			},
 		},
-		"nested_data_map": map[string]interface{}{
-			"key_value": []map[string]interface{}{
+		"nested_data_map": map[string]any{
+			"key_value": []map[string]any{
 				{
 					"key": int64(23),
-					"value": map[string]interface{}{
+					"value": map[string]any{
 						"foo": int32(42),
 					},
 				},
 			},
 		},
-		"group_list": map[string]interface{}{
-			"list": []map[string]interface{}{
+		"group_list": map[string]any{
+			"list": []map[string]any{
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"i": int64(0),
 					},
 				},
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"i": int64(1),
 					},
 				},
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"i": int64(2),
 					},
 				},
@@ -147,9 +147,9 @@ func TestObjectMarshallingWithSchema(t *testing.T) {
 	emailList.Add().SetByteArray([]byte("foo@example.com"))
 	emailList.Add().SetByteArray([]byte("bar@example.com"))
 
-	expectedData := map[string]interface{}{
-		"emails": map[string]interface{}{
-			"list": []map[string]interface{}{
+	expectedData := map[string]any{
+		"emails": map[string]any{
+			"list": []map[string]any{
 				{
 					"element": []byte("foo@example.com"),
 				},
@@ -180,9 +180,9 @@ func TestObjectMarshallingWithAthenaCompatibleSchema(t *testing.T) {
 	emailList.Add().SetByteArray([]byte("foo@example.com"))
 	emailList.Add().SetByteArray([]byte("bar@example.com"))
 
-	expectedData := map[string]interface{}{
-		"emails": map[string]interface{}{
-			"bag": []map[string]interface{}{
+	expectedData := map[string]any{
+		"emails": map[string]any{
+			"bag": []map[string]any{
 				{
 					"array_element": []byte("foo@example.com"),
 				},

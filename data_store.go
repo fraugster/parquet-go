@@ -40,7 +40,7 @@ type ColumnStore struct {
 }
 
 type dataPage struct {
-	values     []interface{}
+	values     []any
 	rL         *packedArray
 	dL         *packedArray
 	numValues  int64
@@ -90,7 +90,7 @@ func (cs *ColumnStore) appendRDLevel(rl, dl uint16) {
 // Add One row, if the value is null, call Add() , if the value is repeated, call all value in array
 // the second argument s the definition level
 // if there is a data the the result should be true, if there is only null (or empty array), the the result should be false
-func (cs *ColumnStore) add(v interface{}, dL uint16, maxRL, rL uint16) error {
+func (cs *ColumnStore) add(v any, dL uint16, maxRL, rL uint16) error {
 	// if the current column is repeated, we should increase the maxRL here
 	if cs.repTyp == parquet.FieldRepetitionType_REPEATED {
 		maxRL++
@@ -206,7 +206,7 @@ func (cs *ColumnStore) getRDLevelAt(pos int) (int32, int32, bool) {
 	return rl, dl, false
 }
 
-func (cs *ColumnStore) getNext() (v interface{}, err error) {
+func (cs *ColumnStore) getNext() (v any, err error) {
 	v, err = cs.values.getNextValue()
 	if err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ func (cs *ColumnStore) readNextPage() error {
 	return nil
 }
 
-func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
+func (cs *ColumnStore) get(maxD, maxR int32) (any, int32, error) {
 	if cs.skipped {
 		return nil, 0, nil
 	}

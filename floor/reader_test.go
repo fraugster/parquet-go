@@ -448,7 +448,7 @@ func TestReadWriteSpecialTypes(t *testing.T) {
 	require.NoError(t, hlReader.Close())
 }
 
-func elem(data interface{}) interfaces.UnmarshalElement {
+func elem(data any) interfaces.UnmarshalElement {
 	return interfaces.NewUnmarshallElement(data)
 }
 
@@ -462,7 +462,7 @@ func TestReflectUnmarshaller(t *testing.T) {
 
 	um := &reflectUnmarshaller{obj: obj1, schemaDef: sd}
 
-	data := interfaces.NewUnmarshallObject(map[string]interface{}{"foo": int64(42)})
+	data := interfaces.NewUnmarshallObject(map[string]any{"foo": int64(42)})
 
 	err = um.UnmarshalParquet(data)
 	require.EqualError(t, err, "you need to provide an object of type *struct { Foo int64 } to unmarshal into")
@@ -491,7 +491,7 @@ func TestUnmarshallerFieldNameStructTag(t *testing.T) {
 
 	um := &reflectUnmarshaller{obj: &obj1, schemaDef: sd}
 
-	data := interfaces.NewUnmarshallObject(map[string]interface{}{"bar": int64(42)})
+	data := interfaces.NewUnmarshallObject(map[string]any{"bar": int64(42)})
 
 	err = um.UnmarshalParquet(data)
 	require.NoError(t, err)

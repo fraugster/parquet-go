@@ -44,7 +44,7 @@ func (b *byteArrayPlainDecoder) next() ([]byte, error) {
 	return buf, nil
 }
 
-func (b *byteArrayPlainDecoder) decodeValues(dst []interface{}) (int, error) {
+func (b *byteArrayPlainDecoder) decodeValues(dst []any) (int, error) {
 	var err error
 	for i := range dst {
 		if dst[i], err = b.next(); err != nil {
@@ -81,7 +81,7 @@ func (b *byteArrayPlainEncoder) writeBytes(data []byte) error {
 	return writeFull(b.w, data)
 }
 
-func (b *byteArrayPlainEncoder) encodeValues(values []interface{}) error {
+func (b *byteArrayPlainEncoder) encodeValues(values []any) error {
 	for i := range values {
 		if err := b.writeBytes(values[i].([]byte)); err != nil {
 			return err
@@ -127,7 +127,7 @@ func (b *byteArrayDeltaLengthDecoder) next() ([]byte, error) {
 	return value, nil
 }
 
-func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) (int, error) {
+func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []any) (int, error) {
 	total := len(dst)
 	for i := 0; i < total; i++ {
 		v, err := b.next()
@@ -143,7 +143,7 @@ func (b *byteArrayDeltaLengthDecoder) decodeValues(dst []interface{}) (int, erro
 type byteArrayDeltaLengthEncoder struct {
 	w    io.Writer
 	buf  *bytes.Buffer
-	lens []interface{}
+	lens []any
 }
 
 func (b *byteArrayDeltaLengthEncoder) init(w io.Writer) error {
@@ -157,10 +157,10 @@ func (b *byteArrayDeltaLengthEncoder) writeOne(data []byte) error {
 	return writeFull(b.buf, data)
 }
 
-func (b *byteArrayDeltaLengthEncoder) encodeValues(values []interface{}) error {
+func (b *byteArrayDeltaLengthEncoder) encodeValues(values []any) error {
 	if b.lens == nil {
 		// this is just for the first time, maybe we need to copy and increase the cap in the next calls?
-		b.lens = make([]interface{}, 0, len(values))
+		b.lens = make([]any, 0, len(values))
 	}
 	for i := range values {
 		if err := b.writeOne(values[i].([]byte)); err != nil {
@@ -212,7 +212,7 @@ func (d *byteArrayDeltaDecoder) init(r io.Reader) error {
 	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) (int, error) {
+func (d *byteArrayDeltaDecoder) decodeValues(dst []any) (int, error) {
 	total := len(dst)
 	for i := 0; i < total; i++ {
 		suffix, err := d.suffixDecoder.next()
@@ -240,7 +240,7 @@ func (d *byteArrayDeltaDecoder) decodeValues(dst []interface{}) (int, error) {
 type byteArrayDeltaEncoder struct {
 	w io.Writer
 
-	prefixLens    []interface{}
+	prefixLens    []any
 	previousValue []byte
 
 	values *byteArrayDeltaLengthEncoder
@@ -254,10 +254,10 @@ func (b *byteArrayDeltaEncoder) init(w io.Writer) error {
 	return b.values.init(w)
 }
 
-func (b *byteArrayDeltaEncoder) encodeValues(values []interface{}) error {
+func (b *byteArrayDeltaEncoder) encodeValues(values []any) error {
 	if b.prefixLens == nil {
-		b.prefixLens = make([]interface{}, 0, len(values))
-		b.values.lens = make([]interface{}, 0, len(values))
+		b.prefixLens = make([]any, 0, len(values))
+		b.values.lens = make([]any, 0, len(values))
 	}
 
 	for i := range values {
@@ -310,7 +310,7 @@ func (is *byteArrayStore) params() *ColumnParameters {
 	return is.ColumnParameters
 }
 
-func (is *byteArrayStore) sizeOf(v interface{}) int {
+func (is *byteArrayStore) sizeOf(v any) int {
 	return len(v.([]byte))
 }
 
@@ -347,16 +347,16 @@ func (is *byteArrayStore) setMinMax(j []byte) error {
 	return nil
 }
 
-func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
-	var vals []interface{}
+func (is *byteArrayStore) getValues(v any) ([]any, error) {
+	var vals []any
 	switch typed := v.(type) {
 	case []byte:
-		vals = []interface{}{typed}
+		vals = []any{typed}
 	case [][]byte:
 		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
 			return nil, fmt.Errorf("the value is not repeated but it is an array")
 		}
-		vals = make([]interface{}, len(typed))
+		vals = make([]any, len(typed))
 		for j := range typed {
 			vals[j] = typed[j]
 		}
@@ -367,7 +367,7 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 	return vals, nil
 }
 
-func (*byteArrayStore) append(arrayIn interface{}, value interface{}) interface{} {
+func (*byteArrayStore) append(arrayIn any, value any) any {
 	if arrayIn == nil {
 		arrayIn = make([][]byte, 0, 1)
 	}

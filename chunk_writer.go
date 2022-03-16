@@ -21,7 +21,7 @@ func getBooleanValuesEncoder(pageEncoding parquet.Encoding) (valuesEncoder, erro
 	}
 }
 
-func getByteArrayValuesEncoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesEncoder, error) {
+func getByteArrayValuesEncoder(pageEncoding parquet.Encoding, dictValues []any) (valuesEncoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &byteArrayPlainEncoder{}, nil
@@ -36,7 +36,7 @@ func getByteArrayValuesEncoder(pageEncoding parquet.Encoding, dictValues []inter
 	}
 }
 
-func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, dictValues []interface{}) (valuesEncoder, error) {
+func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, dictValues []any) (valuesEncoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &byteArrayPlainEncoder{length: len}, nil
@@ -49,7 +49,7 @@ func getFixedLenByteArrayValuesEncoder(pageEncoding parquet.Encoding, len int, d
 	}
 }
 
-func getIntValuesEncoder[T intType, I internalIntType[T]](pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesEncoder, error) {
+func getIntValuesEncoder[T intType, I internalIntType[T]](pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []any) (valuesEncoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &numberPlainEncoder[T, I]{}, nil
@@ -66,7 +66,7 @@ func getIntValuesEncoder[T intType, I internalIntType[T]](pageEncoding parquet.E
 	}
 }
 
-func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesEncoder, error) {
+func getValuesEncoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []any) (valuesEncoder, error) {
 	// Change the deprecated value
 	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
 		pageEncoding = parquet.Encoding_RLE_DICTIONARY
@@ -172,8 +172,8 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 		return nil, err
 	}
 
-	dictValues := []interface{}{}
-	indices := map[interface{}]int32{}
+	dictValues := []any{}
+	indices := map[any]int32{}
 
 	for _, page := range col.data.dataPages {
 		for _, v := range page.values {

@@ -10,7 +10,7 @@ import (
 
 func TestGenerateSchema(t *testing.T) {
 	tests := map[string]struct {
-		Input          interface{}
+		Input          any
 		ExpectErr      bool
 		ExpectedOutput string
 	}{
@@ -134,7 +134,7 @@ func TestGenerateSchema(t *testing.T) {
 		},
 		"interface": {
 			Input: (*struct {
-				Foo interface{}
+				Foo any
 			})(nil),
 			ExpectErr: true,
 		},

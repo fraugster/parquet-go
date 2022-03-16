@@ -211,11 +211,11 @@ func (c *Column) getDataSize() int64 {
 	return dataSize
 }
 
-func (c *Column) getNextData() (map[string]interface{}, int32, error) {
+func (c *Column) getNextData() (map[string]any, int32, error) {
 	if c.children == nil {
 		return nil, 0, errors.New("bug: call getNextData on non group node")
 	}
-	ret := make(map[string]interface{})
+	ret := make(map[string]any)
 	notNil := 0
 	var maxD int32
 	for i := range c.children {
@@ -228,7 +228,7 @@ func (c *Column) getNextData() (map[string]interface{}, int32, error) {
 		}
 
 		// https://golang.org/doc/faq#nil_error
-		if m, ok := data.(map[string]interface{}); ok && m == nil {
+		if m, ok := data.(map[string]any); ok && m == nil {
 			data = nil
 		}
 
@@ -275,7 +275,7 @@ func (c *Column) getFirstRDLevel() (int32, int32, bool) {
 	return -1, -1, false
 }
 
-func (c *Column) getData() (interface{}, int32, error) {
+func (c *Column) getData() (any, int32, error) {
 	if c.children != nil {
 		data, maxD, err := c.getNextData()
 		if err != nil {
@@ -286,7 +286,7 @@ func (c *Column) getData() (interface{}, int32, error) {
 			return data, maxD, nil
 		}
 
-		ret := []map[string]interface{}{data}
+		ret := []map[string]any{data}
 		for {
 			rl, _, last := c.getFirstRDLevel()
 			if last || rl < int32(c.maxR) || rl == 0 {
@@ -751,7 +751,7 @@ func (r *schema) findDataColumn(path string) (*Column, error) {
 	return ret, nil
 }
 
-func (r *schema) AddData(m map[string]interface{}) error {
+func (r *schema) AddData(m map[string]any) error {
 	r.readOnly = 1
 	r.ensureRoot()
 	err := r.recursiveAddColumnData(r.root.children, m, 0, 0, 0)
@@ -767,16 +767,16 @@ func (r *schema) AddData(m map[string]interface{}) error {
 	return nil
 }
 
-func (r *schema) getData() (map[string]interface{}, error) {
+func (r *schema) getData() (map[string]any, error) {
 	d, _, err := r.root.getData()
 	if err != nil {
 		return nil, err
 	}
-	if d.(map[string]interface{}) == nil {
-		d = make(map[string]interface{}) // just non nil root doc
+	if d.(map[string]any) == nil {
+		d = make(map[string]any) // just non nil root doc
 	}
 
-	return d.(map[string]interface{}), nil
+	return d.(map[string]any), nil
 }
 
 func (r *schema) recursiveAddColumnNil(c []*Column, defLvl, maxRepLvl uint16, repLvl uint16) error {
@@ -814,8 +814,8 @@ func (r *schema) recursiveFlushPages(c []*Column) error {
 	return nil
 }
 
-func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint16, maxRepLvl uint16, repLvl uint16) error {
-	var data = m.(map[string]interface{})
+func (r *schema) recursiveAddColumnData(c []*Column, m any, defLvl uint16, maxRepLvl uint16, repLvl uint16) error {
+	var data = m.(map[string]any)
 	for i := range c {
 		d := data[c[i].name]
 		if c[i].data != nil {
@@ -836,14 +836,14 @@ func (r *schema) recursiveAddColumnData(c []*Column, m interface{}, defLvl uint1
 				if err := r.recursiveAddColumnNil(c[i].children, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
-			case map[string]interface{}: // Not repeated
+			case map[string]any:
 				if c[i].rep == parquet.FieldRepetitionType_REPEATED {
 					return fmt.Errorf("repeated group should be array")
 				}
 				if err := r.recursiveAddColumnData(c[i].children, v, l, maxRepLvl, repLvl); err != nil {
 					return err
 				}
-			case []map[string]interface{}:
+			case []map[string]any:
 				if c[i].rep != parquet.FieldRepetitionType_REPEATED {
 					return fmt.Errorf("no repeated group should not be array")
 				}
