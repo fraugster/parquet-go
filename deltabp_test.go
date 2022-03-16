@@ -2,6 +2,8 @@ package goparquet
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -49,4 +51,47 @@ func TestDelta(t *testing.T) {
 		}
 		assert.Equal(t, toR, to1)
 	}
+}
+
+func FuzzDelta(f *testing.F) {
+	e := deltaBitPackEncoder[int32, internalInt32]{
+		blockSize:      128,
+		miniBlockCount: 4,
+	}
+
+	buf := bytes.Buffer{}
+
+	e.init(&buf)
+
+	for i := 0; i < 20; i += 2 {
+		e.addValue(int32(i))
+	}
+
+	if err := e.flush(); err != nil {
+		f.Fatalf("flush failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		d := deltaBitPackDecoder[int32, internalInt32]{}
+
+		if err := d.init(bytes.NewReader(data)); err != nil {
+			t.Skip()
+		}
+
+		for {
+			_, err := d.next()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				t.Skip()
+			}
+		}
+	})
 }

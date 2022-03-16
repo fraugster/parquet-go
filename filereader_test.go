@@ -245,3 +245,54 @@ func TestIssue60(t *testing.T) {
 
 	t.Logf("row = %#v", row)
 }
+
+func FuzzFileReader(f *testing.F) {
+	sd, err := parquetschema.ParseSchemaDefinition(`message test {
+		required group population (LIST){
+			repeated group list {
+				optional int64 element;
+			}
+		}
+	}`)
+	if err != nil {
+		f.Fatalf("parsing schema definition failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
+
+	err = fw.AddData(map[string]any{
+		"population": map[string]any{
+			"list": []map[string]any{
+				{"element": int64(23)},
+				{"element": nil},
+				{"element": int64(42)},
+			},
+		},
+	})
+	if err != nil {
+		f.Fatalf("AddData failed: %v", err)
+	}
+
+	if err := fw.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		r, err := NewFileReader(bytes.NewReader(data))
+		if err != nil {
+			t.Skip()
+		}
+
+		rows := r.NumRows()
+		for i := int64(0); i < rows; i++ {
+			_, err := r.NextRow()
+			if err != nil {
+				t.Skip()
+			}
+		}
+
+	})
+}

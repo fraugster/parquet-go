@@ -3,6 +3,7 @@ package goparquet
 import (
 	"bytes"
 	"math"
+	"math/bits"
 	"math/rand"
 	"testing"
 
@@ -75,4 +76,50 @@ func TestOnlyOne(t *testing.T) {
 	require.NoError(t, dec.initSize(bytes.NewReader(buf.Bytes())))
 	require.NoError(t, decodeInt32(dec, read))
 	require.Equal(t, data.toArray(), read)
+}
+
+func FuzzHybrid4(f *testing.F) {
+	bitWidth := 4
+	e := newHybridEncoder(bitWidth)
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encode([]int32{13, 2, 5, 7, 0, 9, 14, 14}); err != nil {
+		f.Fatalf("encode failed: %v", err)
+	}
+
+	if err := e.flush(); err != nil {
+		f.Fatalf("flush failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		l := len(data)
+
+		d := newHybridDecoder(bitWidth)
+		if err := d.init(bytes.NewReader(data)); err != nil {
+			t.Skip()
+		}
+
+		maxCount := l / bitWidth
+		for i := 0; i < maxCount; i++ {
+			v, err := d.next()
+			if err != nil {
+				t.Skip()
+			}
+			if bits.LeadingZeros32(uint32(v)) < 32-bitWidth {
+				t.Fatalf("decoded value %d is too large for width %d", v, bitWidth)
+			}
+		}
+
+	})
 }

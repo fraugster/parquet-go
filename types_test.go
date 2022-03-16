@@ -3,6 +3,7 @@ package goparquet
 import (
 	"bytes"
 	"io"
+	"math"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -397,4 +398,212 @@ func TestStores(t *testing.T) {
 			assert.Equal(t, []int32{0, 3, 0}, st.rLevels.toArray())
 		})
 	}
+}
+
+func FuzzBooleanPlain(f *testing.F) {
+	e := booleanPlainEncoder{}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{true, false, true, true, false}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) * 8
+		d := booleanPlainDecoder{}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Skip()
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
+}
+
+func FuzzBooleanRLE(f *testing.F) {
+	e := booleanRLEEncoder{}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{true, false, true, true, false}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) * 8
+		d := booleanRLEDecoder{}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Skip()
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
+}
+
+func FuzzInt32Plain(f *testing.F) {
+	e := numberPlainEncoder[int32, internalInt32]{}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{int32(23), int32(1000000), int32(-42), int32(math.MinInt32), int32(0)}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) / 4
+		d := numberPlainDecoder[int32, internalInt32]{}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
+}
+func FuzzInt32DeltaBP(f *testing.F) {
+	e := deltaBitPackEncoder[int32, internalInt32]{
+		blockSize:      128,
+		miniBlockCount: 4,
+	}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{int32(23), int32(1000000), int32(-42), int32(math.MinInt32), int32(0)}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) / 4
+		d := deltaBitPackDecoder[int32, internalInt32]{
+			blockSize:      128,
+			miniBlockCount: 4,
+		}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Skip()
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
+}
+
+func FuzzFloatPlain(f *testing.F) {
+	e := numberPlainEncoder[float32, internalFloat32]{}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{float32(23.42), float32(100.1111111), float32(-math.MaxFloat32), float32(math.NaN()), float32(0.0)}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) / 4
+		d := numberPlainDecoder[float32, internalFloat32]{}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
+}
+
+func FuzzDoublePlain(f *testing.F) {
+	e := numberPlainEncoder[float64, internalFloat64]{}
+
+	var buf bytes.Buffer
+
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
+
+	if err := e.encodeValues([]interface{}{float64(23.42), float64(100.1111111), float64(-math.MaxFloat64), float64(math.NaN()), float64(0.0)}); err != nil {
+		f.Fatalf("encodeValues failed: %v", err)
+	}
+
+	if err := e.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		maxSize := len(data) / 8
+		d := numberPlainDecoder[float64, internalFloat64]{}
+		err := d.init(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+		dst1 := make([]any, maxSize)
+		_, err = d.decodeValues(dst1)
+		if err != nil {
+			t.Skip()
+		}
+	})
 }
