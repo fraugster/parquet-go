@@ -33,8 +33,8 @@ var (
 	encFixtures = []encodingFixtures{
 		{
 			name: "Int32Plain",
-			enc:  &int32PlainEncoder{},
-			dec:  &int32PlainDecoder{},
+			enc:  &numberPlainEncoder[int32, internalInt32]{},
+			dec:  &numberPlainDecoder[int32, internalInt32]{},
 			rand: func() interface{} {
 				return int32(rand.Int())
 			},
@@ -49,8 +49,8 @@ var (
 		},
 		{
 			name: "Int64Plain",
-			enc:  &int64PlainEncoder{},
-			dec:  &int64PlainDecoder{},
+			enc:  &numberPlainEncoder[int64, internalInt64]{},
+			dec:  &numberPlainDecoder[int64, internalInt64]{},
 			rand: func() interface{} {
 				return rand.Int63()
 			},
@@ -78,16 +78,16 @@ var (
 		},
 		{
 			name: "DoublePlain",
-			enc:  &doublePlainEncoder{},
-			dec:  &doublePlainDecoder{},
+			enc:  &numberPlainEncoder[float64, internalFloat64]{},
+			dec:  &numberPlainDecoder[float64, internalFloat64]{},
 			rand: func() interface{} {
 				return rand.Float64()
 			},
 		},
 		{
 			name: "FloatPlain",
-			enc:  &floatPlainEncoder{},
-			dec:  &floatPlainDecoder{},
+			enc:  &numberPlainEncoder[float32, internalFloat32]{},
+			dec:  &numberPlainDecoder[float32, internalFloat32]{},
 			rand: func() interface{} {
 				return rand.Float32()
 			},

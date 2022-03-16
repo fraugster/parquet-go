@@ -1,56 +1,10 @@
 package goparquet
 
 import (
-	"encoding/binary"
 	"fmt"
-	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
 )
-
-type int32PlainDecoder struct {
-	r io.Reader
-}
-
-func (i *int32PlainDecoder) init(r io.Reader) error {
-	i.r = r
-
-	return nil
-}
-
-func (i *int32PlainDecoder) decodeValues(dst []interface{}) (int, error) {
-	var d int32
-	for idx := range dst {
-		if err := binary.Read(i.r, binary.LittleEndian, &d); err != nil {
-			return idx, err
-		}
-		dst[idx] = d
-	}
-
-	return len(dst), nil
-}
-
-type int32PlainEncoder struct {
-	w io.Writer
-}
-
-func (i *int32PlainEncoder) Close() error {
-	return nil
-}
-
-func (i *int32PlainEncoder) init(w io.Writer) error {
-	i.w = w
-
-	return nil
-}
-
-func (i *int32PlainEncoder) encodeValues(values []interface{}) error {
-	d := make([]int32, len(values))
-	for j := range values {
-		d[j] = values[j].(int32)
-	}
-	return binary.Write(i.w, binary.LittleEndian, d)
-}
 
 type int32DeltaBPDecoder struct {
 	deltaBitPackDecoder32
