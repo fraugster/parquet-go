@@ -300,7 +300,7 @@ func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
 // provided a file as io.Writer when creating the FileWriter, you still need
 // to Close that file handle separately.
 func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
-	if len(fw.rowGroups) > 0 || fw.schemaWriter.rowGroupNumRecords() > 0 {
+	if fw.schemaWriter.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
 		}
