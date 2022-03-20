@@ -199,11 +199,11 @@ func (i internalInt32) PackDeltas(deltas []int32, miniBlockValueCount int) (bitW
 	return
 }
 
-func (f internalInt32) Sizeof() int {
+func (i internalInt32) Sizeof() int {
 	return 4
 }
 
-func (f internalInt32) GetUnpacker(bw int) func([]byte) [8]int32 {
+func (i internalInt32) GetUnpacker(bw int) func([]byte) [8]int32 {
 	return unpack8Int32FuncByWidth[bw]
 }
 
@@ -277,10 +277,10 @@ func (i internalInt64) PackDeltas(deltas []int64, miniBlockValueCount int) (bitW
 	return
 }
 
-func (f internalInt64) Sizeof() int {
+func (i internalInt64) Sizeof() int {
 	return 8
 }
 
-func (f internalInt64) GetUnpacker(bw int) func([]byte) [8]int64 {
+func (i internalInt64) GetUnpacker(bw int) func([]byte) [8]int64 {
 	return unpack8Int64FuncByWidth[bw]
 }

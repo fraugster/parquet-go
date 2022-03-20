@@ -148,26 +148,6 @@ func decodePackedArray(d levelDecoder, count int) (*packedArray, int, error) {
 	return ret, nn, nil
 }
 
-func readUVarint[T intType, I internalIntType[T]](r io.Reader) (v T, err error) {
-	var impl I
-
-	b, ok := r.(io.ByteReader)
-	if !ok {
-		b = &byteReader{Reader: r}
-	}
-
-	i, err := binary.ReadUvarint(b)
-	if err != nil {
-		return 0, err
-	}
-
-	if i > uint64(impl.MaxValue()) {
-		return 0, fmt.Errorf("%T out of range", v)
-	}
-
-	return T(i), nil
-}
-
 func readVarint[T intType, I internalIntType[T]](r io.Reader) (v T, err error) {
 	var impl I
 
@@ -206,24 +186,6 @@ func readUVariant32(r io.Reader) (int32, error) {
 	return int32(i), nil
 }
 
-func readVariant32(r io.Reader) (int32, error) {
-	b, ok := r.(io.ByteReader)
-	if !ok {
-		b = &byteReader{Reader: r}
-	}
-
-	i, err := binary.ReadVarint(b)
-	if err != nil {
-		return 0, err
-	}
-
-	if i > math.MaxInt32 || i < math.MinInt32 {
-		return 0, errors.New("int32 out of range")
-	}
-
-	return int32(i), nil
-}
-
 func writeVariant(w io.Writer, in int64) error {
 	buf := make([]byte, 12)
 	n := binary.PutVarint(buf, in)
@@ -236,15 +198,6 @@ func writeUVariant(w io.Writer, in uint64) error {
 	n := binary.PutUvarint(buf, in)
 
 	return writeFull(w, buf[:n])
-}
-
-func readVariant64(r io.Reader) (int64, error) {
-	b, ok := r.(io.ByteReader)
-	if !ok {
-		b = &byteReader{Reader: r}
-	}
-
-	return binary.ReadVarint(b)
 }
 
 type constDecoder int32

@@ -61,10 +61,14 @@ func FuzzDelta(f *testing.F) {
 
 	buf := bytes.Buffer{}
 
-	e.init(&buf)
+	if err := e.init(&buf); err != nil {
+		f.Fatalf("init failed: %v", err)
+	}
 
 	for i := 0; i < 20; i += 2 {
-		e.addValue(int32(i))
+		if err := e.addValue(int32(i)); err != nil {
+			f.Fatalf("addValue failed: %v", err)
+		}
 	}
 
 	if err := e.flush(); err != nil {
