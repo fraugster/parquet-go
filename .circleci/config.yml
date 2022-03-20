@@ -9,7 +9,7 @@ orbs:
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.18
+      - image: circleci/golang:1.18.0
     environment:
       PARQUET_COMPATIBILITY_REPO_ROOT: /tmp/parquet-compatibility  
       PARQUET_TESTING_ROOT: /tmp/parquet-testing
