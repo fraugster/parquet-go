@@ -694,26 +694,6 @@ func TestWriteTimeData(t *testing.T) {
 	}
 }
 
-func TestWriteNoRecords(t *testing.T) {
-	_ = os.Mkdir("files", 0755)
-
-	wf, err := os.OpenFile("files/test10.parquet", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	require.NoError(t, err, "creating file failed")
-
-	sd, err := parquetschema.ParseSchemaDefinition(`
-		message txn_errors {
-			required binary the_id (STRING);
-			optional binary error (STRING);
-		}
-	`)
-	require.NoError(t, err)
-
-	w := NewFileWriter(wf, WithSchemaDefinition(sd), WithCompressionCodec(parquet.CompressionCodec_GZIP))
-
-	require.Error(t, w.Close())
-	require.NoError(t, wf.Close())
-}
-
 func TestReadWriteMultiLevel(t *testing.T) {
 	sc := `message txn {
   optional group cluster (LIST) {

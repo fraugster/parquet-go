@@ -3,7 +3,6 @@ package goparquet
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"io"
 
 	"github.com/fraugster/parquet-go/parquet"
@@ -231,7 +230,7 @@ func (fw *FileWriter) FlushRowGroup(opts ...FlushRowGroupOption) error {
 func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
 	// Write the entire row group
 	if fw.schemaWriter.rowGroupNumRecords() == 0 {
-		return errors.New("nothing to write")
+		return nil
 	}
 
 	if fw.w.Pos() == 0 {
@@ -301,7 +300,7 @@ func (fw *FileWriter) Close(opts ...FlushRowGroupOption) error {
 // provided a file as io.Writer when creating the FileWriter, you still need
 // to Close that file handle separately.
 func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGroupOption) error {
-	if len(fw.rowGroups) == 0 || fw.schemaWriter.rowGroupNumRecords() > 0 {
+	if fw.schemaWriter.rowGroupNumRecords() > 0 {
 		if err := fw.FlushRowGroup(opts...); err != nil {
 			return err
 		}
