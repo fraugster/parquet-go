@@ -5,12 +5,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
-	"math/bits"
 )
 
-type deltaBitPackEncoder32 struct {
-	deltas   []int32
+type deltaBitPackEncoder[T intType, I internalIntType[T]] struct {
+	impl I
+
+	deltas   []T
 	bitWidth []uint8
 	packed   [][]byte
 	w        io.Writer
@@ -24,16 +24,16 @@ type deltaBitPackEncoder32 struct {
 	valuesCount int
 	buffer      *bytes.Buffer
 
-	firstValue    int32 // the first value to write
-	minDelta      int32
-	previousValue int32
+	firstValue    T // the first value to write
+	minDelta      T
+	previousValue T
 }
 
-func (d *deltaBitPackEncoder32) init(w io.Writer) error {
+func (d *deltaBitPackEncoder[T, I]) init(w io.Writer) error {
 	d.w = w
 
 	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return fmt.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
+		return fmt.Errorf("invalid block size, it should be multiply of 128, it is %d", d.blockSize)
 	}
 
 	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
@@ -42,20 +42,20 @@ func (d *deltaBitPackEncoder32) init(w io.Writer) error {
 
 	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
 	if d.miniBlockValueCount%8 != 0 {
-		return fmt.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
+		return fmt.Errorf("invalid mini block count, the mini block value count should be multiply of 8, it is %d", d.miniBlockCount)
 	}
 
 	d.firstValue = 0
 	d.valuesCount = 0
-	d.minDelta = math.MaxInt32
-	d.deltas = make([]int32, 0, d.blockSize)
+	d.minDelta = d.impl.MaxValue()
+	d.deltas = make([]T, 0, d.blockSize)
 	d.previousValue = 0
 	d.buffer = &bytes.Buffer{}
 	d.bitWidth = make([]uint8, 0, d.miniBlockCount)
 	return nil
 }
 
-func (d *deltaBitPackEncoder32) flush() error {
+func (d *deltaBitPackEncoder[T, I]) flush() error {
 	// Technically, based on the spec after this step all values are positive, but NO, it's not. the problem is when
 	// the min delta is small enough (lets say MinInt) and one of deltas are MaxInt, the the result of MaxInt-MinInt is
 	// -1, get the idea, there is a lot of numbers here because of overflow can produce negative value
@@ -67,33 +67,7 @@ func (d *deltaBitPackEncoder32) flush() error {
 		return err
 	}
 
-	d.bitWidth = d.bitWidth[:0] //reset the bitWidth buffer
-	d.packed = d.packed[:0]
-	for i := 0; i < len(d.deltas); i += d.miniBlockValueCount {
-		end := i + d.miniBlockValueCount
-		if end >= len(d.deltas) {
-			end = len(d.deltas)
-		}
-		// The cast to uint32 here, is the key. or the max not works at all
-		max := uint32(d.deltas[i])
-		buf := make([][8]int32, d.miniBlockValueCount/8)
-		for j := i; j < end; j++ {
-			if max < uint32(d.deltas[j]) {
-				max = uint32(d.deltas[j])
-			}
-			t := j - i
-			buf[t/8][t%8] = d.deltas[j]
-		}
-		bw := bits.Len32(max)
-		d.bitWidth = append(d.bitWidth, uint8(bw))
-
-		data := make([]byte, 0, bw*len(buf))
-		packer := pack8Int32FuncByWidth[bw]
-		for j := range buf {
-			data = append(data, packer(buf[j])...)
-		}
-		d.packed = append(d.packed, data)
-	}
+	d.bitWidth, d.packed = d.impl.PackDeltas(d.deltas, d.miniBlockValueCount)
 
 	for len(d.bitWidth) < d.miniBlockCount {
 		d.bitWidth = append(d.bitWidth, 0)
@@ -108,13 +82,14 @@ func (d *deltaBitPackEncoder32) flush() error {
 			return err
 		}
 	}
-	d.minDelta = math.MaxInt32
+
+	d.minDelta = d.impl.MaxValue()
 	d.deltas = d.deltas[:0]
 
 	return nil
 }
 
-func (d *deltaBitPackEncoder32) addInt32(i int32) error {
+func (d *deltaBitPackEncoder[T, I]) addValue(i T) error {
 	d.valuesCount++
 	if d.valuesCount == 1 {
 		d.firstValue = i
@@ -137,7 +112,7 @@ func (d *deltaBitPackEncoder32) addInt32(i int32) error {
 	return nil
 }
 
-func (d *deltaBitPackEncoder32) write() error {
+func (d *deltaBitPackEncoder[T, I]) write() error {
 	if d.valuesCount == 1 || len(d.deltas) > 0 {
 		if err := d.flush(); err != nil {
 			return err
@@ -163,165 +138,16 @@ func (d *deltaBitPackEncoder32) write() error {
 	return writeFull(d.w, d.buffer.Bytes())
 }
 
-func (d *deltaBitPackEncoder32) Close() error {
+func (d *deltaBitPackEncoder[T, I]) Close() error {
 	return d.write()
 }
 
-type deltaBitPackEncoder64 struct {
-	// this value should be there before the init
-	blockSize      int // Must be multiple of 128
-	miniBlockCount int // blockSize % miniBlockCount should be 0
-
-	//
-	miniBlockValueCount int
-
-	w io.Writer
-
-	firstValue    int64 // the first value to write
-	valuesCount   int
-	minDelta      int64
-	deltas        []int64
-	previousValue int64
-
-	buffer   *bytes.Buffer
-	bitWidth []uint8
-	packed   [][]byte
-}
-
-func (d *deltaBitPackEncoder64) init(w io.Writer) error {
-	d.w = w
-
-	if d.blockSize%128 != 0 || d.blockSize <= 0 {
-		return fmt.Errorf("invalid block size, it should be multiple of 128, it is %d", d.blockSize)
-	}
-
-	if d.miniBlockCount <= 0 || d.blockSize%d.miniBlockCount != 0 {
-		return fmt.Errorf("invalid mini block count, it is %d", d.miniBlockCount)
-	}
-
-	d.miniBlockValueCount = d.blockSize / d.miniBlockCount
-	if d.miniBlockValueCount%8 != 0 {
-		return fmt.Errorf("invalid mini block count, the mini block value count should be multiple of 8, it is %d", d.miniBlockCount)
-	}
-
-	d.firstValue = 0
-	d.valuesCount = 0
-	d.minDelta = math.MaxInt32
-	d.deltas = make([]int64, 0, d.blockSize)
-	d.previousValue = 0
-	d.buffer = &bytes.Buffer{}
-	d.bitWidth = make([]uint8, 0, d.miniBlockCount)
-	return nil
-}
-
-func (d *deltaBitPackEncoder64) flush() error {
-	// Technically, based on the spec after this step all values are positive, but NO, it's not. the problem is when
-	// the min delta is small enough (lets say MinInt) and one of deltas are MaxInt, the the result of MaxInt-MinInt is
-	// -1, get the idea, there is a lot of numbers here because of overflow can produce negative value
-	for i := range d.deltas {
-		d.deltas[i] -= d.minDelta
-	}
-
-	if err := writeVariant(d.buffer, d.minDelta); err != nil {
-		return err
-	}
-
-	d.bitWidth = d.bitWidth[:0] //reset the bitWidth buffer
-	d.packed = d.packed[:0]
-	for i := 0; i < len(d.deltas); i += d.miniBlockValueCount {
-		end := i + d.miniBlockValueCount
-		if end >= len(d.deltas) {
-			end = len(d.deltas)
-		}
-		// The cast to uint64 here, is the key. or the max not works at all
-		max := uint64(d.deltas[i])
-		buf := make([][8]int64, d.miniBlockValueCount/8)
-		for j := i; j < end; j++ {
-			if max < uint64(d.deltas[j]) {
-				max = uint64(d.deltas[j])
-			}
-			t := j - i
-			buf[t/8][t%8] = d.deltas[j]
-		}
-		bw := bits.Len64(max)
-		d.bitWidth = append(d.bitWidth, uint8(bw))
-
-		data := make([]byte, 0, bw*len(buf))
-		packer := pack8Int64FuncByWidth[bw]
-		for j := range buf {
-			data = append(data, packer(buf[j])...)
-		}
-		d.packed = append(d.packed, data)
-	}
-
-	for len(d.bitWidth) < d.miniBlockCount {
-		d.bitWidth = append(d.bitWidth, 0)
-	}
-
-	if err := binary.Write(d.buffer, binary.LittleEndian, d.bitWidth); err != nil {
-		return err
-	}
-
-	for i := range d.packed {
-		if err := writeFull(d.buffer, d.packed[i]); err != nil {
-			return err
-		}
-	}
-	d.minDelta = math.MaxInt32
-	d.deltas = d.deltas[:0]
-
-	return nil
-}
-
-func (d *deltaBitPackEncoder64) addInt64(i int64) error {
-	d.valuesCount++
-	if d.valuesCount == 1 {
-		d.firstValue = i
-		d.previousValue = i
-		return nil
-	}
-
-	delta := i - d.previousValue
-	d.previousValue = i
-	d.deltas = append(d.deltas, delta)
-	if delta < d.minDelta {
-		d.minDelta = delta
-	}
-
-	if len(d.deltas) == d.blockSize {
-		// flush
-		return d.flush()
-	}
-
-	return nil
-}
-
-func (d *deltaBitPackEncoder64) write() error {
-	if d.valuesCount == 1 || len(d.deltas) > 0 {
-		if err := d.flush(); err != nil {
+func (d *deltaBitPackEncoder[T, I]) encodeValues(values []any) error {
+	for i := range values {
+		if err := d.addValue(values[i].(T)); err != nil {
 			return err
 		}
 	}
 
-	if err := writeUVariant(d.w, uint64(d.blockSize)); err != nil {
-		return err
-	}
-
-	if err := writeUVariant(d.w, uint64(d.miniBlockCount)); err != nil {
-		return err
-	}
-
-	if err := writeUVariant(d.w, uint64(d.valuesCount)); err != nil {
-		return err
-	}
-
-	if err := writeVariant(d.w, d.firstValue); err != nil {
-		return err
-	}
-
-	return writeFull(d.w, d.buffer.Bytes())
-}
-
-func (d *deltaBitPackEncoder64) Close() error {
-	return d.write()
+	return nil
 }

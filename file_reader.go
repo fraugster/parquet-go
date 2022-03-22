@@ -227,12 +227,12 @@ func (f *FileReader) RowGroupNumRowsWithContext(ctx context.Context) (int64, err
 }
 
 // NextRow reads the next row from the parquet file. If required, it will load the next row group.
-func (f *FileReader) NextRow() (map[string]interface{}, error) {
+func (f *FileReader) NextRow() (map[string]any, error) {
 	return f.NextRowWithContext(f.ctx)
 }
 
 // NextRowWithContext reads the next row from the parquet file. If required, it will load the next row group.
-func (f *FileReader) NextRowWithContext(ctx context.Context) (map[string]interface{}, error) {
+func (f *FileReader) NextRowWithContext(ctx context.Context) (map[string]any, error) {
 	if err := f.advanceIfNeeded(ctx); err != nil {
 		return nil, err
 	}

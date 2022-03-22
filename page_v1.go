@@ -27,7 +27,7 @@ func (dp *dataPageReaderV1) numValues() int32 {
 	return dp.valuesCount
 }
 
-func (dp *dataPageReaderV1) readValues(size int) (values []interface{}, dLevel *packedArray, rLevel *packedArray, err error) {
+func (dp *dataPageReaderV1) readValues(size int) (values []any, dLevel *packedArray, rLevel *packedArray, err error) {
 	if rem := int(dp.valuesCount) - dp.position; rem < size {
 		size = rem
 	}
@@ -47,7 +47,7 @@ func (dp *dataPageReaderV1) readValues(size int) (values []interface{}, dLevel *
 		return nil, nil, nil, fmt.Errorf("read definition levels failed: %w", err)
 	}
 
-	val := make([]interface{}, notNull)
+	val := make([]any, notNull)
 
 	if notNull != 0 {
 		if n, err := dp.valuesDecoder.decodeValues(val); err != nil {
@@ -119,7 +119,7 @@ func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parq
 }
 
 type dataPageWriterV1 struct {
-	dictValues []interface{}
+	dictValues []any
 	col        *Column
 	codec      parquet.CompressionCodec
 	page       *dataPage
@@ -208,7 +208,7 @@ func (dp *dataPageWriterV1) write(ctx context.Context, w io.Writer) (int, int, e
 	return compSize, unCompSize, writeFull(w, comp)
 }
 
-func newDataPageV1Writer(useDict bool, dictValues []interface{}, page *dataPage, enableCRC bool) pageWriter {
+func newDataPageV1Writer(useDict bool, dictValues []any, page *dataPage, enableCRC bool) pageWriter {
 	return &dataPageWriterV1{
 		dictionary: useDict,
 		dictValues: dictValues,

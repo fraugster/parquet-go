@@ -51,7 +51,7 @@ type Writer struct {
 // Write adds a new object to be written to the parquet file. If
 // obj implements the floor.Marshaller object, then obj.(Marshaller).Marshal
 // will be called to determine the data, otherwise reflection will be used.
-func (w *Writer) Write(obj interface{}) error {
+func (w *Writer) Write(obj any) error {
 	m, ok := obj.(interfaces.Marshaller)
 	if !ok {
 		m = &reflectMarshaller{obj: obj, schemaDef: w.schemaDef}
@@ -70,7 +70,7 @@ func (w *Writer) Write(obj interface{}) error {
 }
 
 type reflectMarshaller struct {
-	obj       interface{}
+	obj       any
 	schemaDef *parquetschema.SchemaDefinition
 }
 

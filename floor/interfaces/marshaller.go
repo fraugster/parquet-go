@@ -13,7 +13,7 @@ type Marshaller interface {
 type MarshalObject interface {
 	AddField(field string) MarshalElement
 
-	GetData() map[string]interface{}
+	GetData() map[string]any
 }
 
 // MarshalElement describes the interface to set the value of an element in a Marshaller
@@ -51,11 +51,11 @@ type MarshalMapElement interface {
 }
 
 type object struct {
-	data   map[string]interface{}
+	data   map[string]any
 	schema *parquetschema.SchemaDefinition
 }
 
-func (o *object) GetData() map[string]interface{} {
+func (o *object) GetData() map[string]any {
 	return o.data
 }
 
@@ -64,7 +64,7 @@ func (o *object) AddField(field string) MarshalElement {
 }
 
 type element struct {
-	data   map[string]interface{}
+	data   map[string]any
 	f      string
 	schema *parquetschema.SchemaDefinition
 }
@@ -109,21 +109,21 @@ func (e *element) List() MarshalList {
 }
 
 func (e *element) Map() MarshalMap {
-	data := map[string]interface{}{"key_value": []map[string]interface{}{}}
+	data := map[string]any{"key_value": []map[string]any{}}
 	e.data[e.f] = data
 	return &marshMap{data: data, schema: e.schema}
 }
 
 func (e *element) Group() MarshalObject {
-	obj := map[string]interface{}{}
+	obj := map[string]any{}
 	e.data[e.f] = obj
 	return &object{data: obj}
 }
 
 type list struct {
-	parentData  map[string]interface{}
+	parentData  map[string]any
 	parentField string
-	data        map[string]interface{}
+	data        map[string]any
 	schema      *parquetschema.SchemaDefinition
 	listName    string
 	elemName    string
@@ -131,7 +131,7 @@ type list struct {
 
 func (l *list) Add() MarshalElement {
 	if l.data == nil {
-		l.data = map[string]interface{}{l.listName: []map[string]interface{}{}}
+		l.data = map[string]any{l.listName: []map[string]any{}}
 		// we need to delay adding map to parent data field until Add() is called first time, otherwise
 		// this code will fail on an empty m.Foobar:
 		//
@@ -141,28 +141,28 @@ func (l *list) Add() MarshalElement {
 		// 	}
 		l.parentData[l.parentField] = l.data
 	}
-	listData := l.data[l.listName].([]map[string]interface{})
-	elemData := map[string]interface{}{}
+	listData := l.data[l.listName].([]map[string]any)
+	elemData := map[string]any{}
 	l.data[l.listName] = append(listData, elemData)
 	e := &element{data: elemData, f: l.elemName, schema: l.schema}
 	return e
 }
 
 type marshMap struct {
-	data   map[string]interface{}
+	data   map[string]any
 	schema *parquetschema.SchemaDefinition
 }
 
 func (l *marshMap) Add() MarshalMapElement {
-	kvData := l.data["key_value"].([]map[string]interface{})
-	elemData := map[string]interface{}{}
+	kvData := l.data["key_value"].([]map[string]any)
+	elemData := map[string]any{}
 	l.data["key_value"] = append(kvData, elemData)
 	me := &mapElement{data: elemData, schema: l.schema.SubSchema("key_value")}
 	return me
 }
 
 type mapElement struct {
-	data   map[string]interface{}
+	data   map[string]any
 	schema *parquetschema.SchemaDefinition
 }
 
@@ -175,9 +175,9 @@ func (m *mapElement) Value() MarshalElement {
 }
 
 // NewMarshallObject creates a new marshaller object
-func NewMarshallObject(data map[string]interface{}) MarshalObject {
+func NewMarshallObject(data map[string]any) MarshalObject {
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	return &object{
 		data: data,
@@ -185,9 +185,9 @@ func NewMarshallObject(data map[string]interface{}) MarshalObject {
 }
 
 // NewMarshallObjectWithSchema creates a new marshaller object with a particular schema.
-func NewMarshallObjectWithSchema(data map[string]interface{}, schemaDef *parquetschema.SchemaDefinition) MarshalObject {
+func NewMarshallObjectWithSchema(data map[string]any, schemaDef *parquetschema.SchemaDefinition) MarshalObject {
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	return &object{
 		data:   data,
@@ -196,9 +196,9 @@ func NewMarshallObjectWithSchema(data map[string]interface{}, schemaDef *parquet
 }
 
 // NewMarshalElement creates new marshall element object
-func NewMarshalElement(data map[string]interface{}, name string) MarshalElement {
+func NewMarshalElement(data map[string]any, name string) MarshalElement {
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	return &element{
 		data: data,

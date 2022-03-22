@@ -8,13 +8,13 @@ import (
 )
 
 type dictDecoder struct {
-	uniqueValues []interface{}
+	uniqueValues []any
 
 	keys decoder
 }
 
 // just for tests
-func (d *dictDecoder) setValues(v []interface{}) {
+func (d *dictDecoder) setValues(v []any) {
 	d.uniqueValues = v
 }
 
@@ -37,7 +37,7 @@ func (d *dictDecoder) init(r io.Reader) error {
 	return errors.New("bit width zero with non-empty dictionary")
 }
 
-func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
+func (d *dictDecoder) decodeValues(dst []any) (int, error) {
 	if d.keys == nil {
 		return 0, errors.New("no value is inside dictionary")
 	}
@@ -60,20 +60,20 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 }
 
 type dictStore struct {
-	valueList        []interface{}
-	uniqueValues     map[interface{}]struct{}
+	valueList        []any
+	uniqueValues     map[any]struct{}
 	uniqueValuesSize int64
 	allValuesSize    int64
 	readPos          int
 	nullCount        int32
 }
 
-func (d *dictStore) getValues() []interface{} {
+func (d *dictStore) getValues() []any {
 	return d.valueList
 }
 
 func (d *dictStore) init() {
-	d.uniqueValues = make(map[interface{}]struct{})
+	d.uniqueValues = make(map[any]struct{})
 	d.valueList = nil
 	d.reset()
 }
@@ -85,7 +85,7 @@ func (d *dictStore) reset() {
 	d.allValuesSize = 0
 }
 
-func (d *dictStore) addValue(v interface{}, size int) {
+func (d *dictStore) addValue(v any, size int) {
 	if v == nil {
 		d.nullCount++
 		return
@@ -99,7 +99,7 @@ func (d *dictStore) addValue(v interface{}, size int) {
 	d.valueList = append(d.valueList, v)
 }
 
-func (d *dictStore) getNextValue() (interface{}, error) {
+func (d *dictStore) getNextValue() (any, error) {
 	if d.readPos >= len(d.valueList) {
 		return nil, errors.New("out of range")
 	}
@@ -125,8 +125,8 @@ func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 
 type dictEncoder struct {
 	w          io.Writer
-	dictValues []interface{}
-	indexMap   map[interface{}]int32
+	dictValues []any
+	indexMap   map[any]int32
 	indices    []int32
 }
 
@@ -152,7 +152,7 @@ func (d *dictEncoder) Close() error {
 func (d *dictEncoder) init(w io.Writer) error {
 	d.w = w
 
-	d.indexMap = make(map[interface{}]int32)
+	d.indexMap = make(map[any]int32)
 	for idx, v := range d.dictValues {
 		d.indexMap[mapKey(v)] = int32(idx)
 	}
@@ -160,7 +160,7 @@ func (d *dictEncoder) init(w io.Writer) error {
 	return nil
 }
 
-func (d *dictEncoder) encodeValues(values []interface{}) error {
+func (d *dictEncoder) encodeValues(values []any) error {
 	for _, v := range values {
 		if idx, ok := d.indexMap[mapKey(v)]; ok {
 			d.indices = append(d.indices, idx)
@@ -172,6 +172,6 @@ func (d *dictEncoder) encodeValues(values []interface{}) error {
 }
 
 // just for tests
-func (d *dictEncoder) getValues() []interface{} {
+func (d *dictEncoder) getValues() []any {
 	return d.dictValues
 }

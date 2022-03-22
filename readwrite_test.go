@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -54,7 +56,7 @@ func TestWriteThenReadFile(t *testing.T) {
 				require.NoError(t, w.FlushRowGroup(), "%d. AddData failed", idx)
 			}
 
-			data := map[string]interface{}{"foo": int64(idx), "bar": []byte("value" + fmt.Sprint(idx))}
+			data := map[string]any{"foo": int64(idx), "bar": []byte("value" + fmt.Sprint(idx))}
 			if idx%20 != 0 {
 				data["baz"] = int32(idx % 16)
 			}
@@ -156,7 +158,7 @@ func TestWriteThenReadFileRepeated(t *testing.T) {
 
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_REPEATED)))
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"foo": []int64{1}},
 		{"foo": []int64{1, 2, 3, 1}},
 		{},
@@ -203,7 +205,7 @@ func TestWriteThenReadFileOptional(t *testing.T) {
 
 	require.NoError(t, w.AddColumn("foo", NewDataColumn(fooStore, parquet.FieldRepetitionType_OPTIONAL)))
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"foo": []byte("1")},
 		{"foo": []byte("2")},
 		{},
@@ -267,9 +269,9 @@ func TestWriteThenReadFileNested(t *testing.T) {
 	require.NoError(t, w.AddColumnByPath(ColumnPath{"baz", "foo"}, NewDataColumn(fooStore, parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, w.AddColumnByPath(ColumnPath{"baz", "bar"}, NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"baz": []map[string]interface{}{
+			"baz": []map[string]any{
 				{"foo": int64(10)},
 			},
 		},
@@ -317,9 +319,9 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 	require.NoError(t, w.AddColumn("foo.bla", NewDataColumn(blaStore, parquet.FieldRepetitionType_REQUIRED)))
 	require.NoError(t, w.AddColumn("foo.bar", NewDataColumn(barStore, parquet.FieldRepetitionType_OPTIONAL)))
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"foo": []map[string]interface{}{
+			"foo": []map[string]any{
 				{
 					"bla": int64(23),
 					"bar": []byte("foobar"),
@@ -327,7 +329,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 			},
 		},
 		{
-			"foo": []map[string]interface{}{
+			"foo": []map[string]any{
 				{
 					"bla": int64(24),
 					"bar": []byte("hello"),
@@ -335,7 +337,7 @@ func TestWriteThenReadFileNested2(t *testing.T) {
 			},
 		},
 		{
-			"foo": []map[string]interface{}{
+			"foo": []map[string]any{
 				{
 					"bla": int64(25),
 				},
@@ -418,15 +420,15 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		}
 		optional int32 quux (DECIMAL(3, 5));
 	}` */
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
 			"foo": int64(500),
 		},
 		{
 			"foo": int64(23),
 			"bar": []byte("hello!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(23)},
 				},
 			},
@@ -435,8 +437,8 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		{
 			"foo": int64(42),
 			"bar": []byte("world!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(1)},
 					{"element": int32(1)},
 					{"element": int32(2)},
@@ -448,8 +450,8 @@ func TestWriteThenReadFileMap(t *testing.T) {
 		{
 			"foo": int64(1000),
 			"bar": []byte("bye!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(2)},
 					{"element": int32(3)},
 					{"element": int32(5)},
@@ -497,9 +499,9 @@ func TestWriteThenReadFileNested3(t *testing.T) {
 	require.NoError(t, w.AddGroup("baz", parquet.FieldRepetitionType_OPTIONAL))
 	require.NoError(t, w.AddColumn("baz.value", NewDataColumn(valueStore, parquet.FieldRepetitionType_REQUIRED)))
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"baz": map[string]interface{}{
+			"baz": map[string]any{
 				"value": int64(9001),
 			},
 		},
@@ -563,7 +565,7 @@ func TestWriteEmptyDict(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		d, err := r.schemaReader.getData()
 		require.NoError(t, err)
-		require.Equal(t, map[string]interface{}{}, d)
+		require.Equal(t, map[string]any{}, d)
 	}
 }
 
@@ -594,7 +596,7 @@ func TestWriteTimeData(t *testing.T) {
 	}
 
 	for _, tt := range testData {
-		require.NoError(t, w.AddData(map[string]interface{}{
+		require.NoError(t, w.AddData(map[string]any{
 			"ts_nanos":  tt.UnixNano(),
 			"ts_micros": tt.UnixNano() / 1000,
 			"ts_millis": tt.UnixNano() / 1000000,
@@ -718,14 +720,14 @@ func TestReadWriteMultiLevel(t *testing.T) {
 	require.NoError(t, err)
 	w := NewFileWriter(buf, WithSchemaDefinition(sd))
 
-	require.NoError(t, w.AddData(map[string]interface{}{}))
+	require.NoError(t, w.AddData(map[string]any{}))
 	require.NoError(t, w.Close())
 	buf2 := bytes.NewReader(buf.Bytes())
 	r, err := NewFileReader(buf2)
 	require.NoError(t, err)
 	data, err := r.NextRow()
 	require.NoError(t, err)
-	require.Equal(t, map[string]interface{}{}, data)
+	require.Equal(t, map[string]any{}, data)
 
 	_, err = r.NextRow()
 	require.Equal(t, io.EOF, err)
@@ -755,16 +757,16 @@ func TestWriteFileWithMarshallerThenReadWithUnmarshaller(t *testing.T) {
 
 	require.NoError(t, err, "creating new file writer failed")
 
-	testData := map[string]interface{}{
-		"baz": map[string]interface{}{
-			"list": []map[string]interface{}{
+	testData := map[string]any{
+		"baz": map[string]any{
+			"list": []map[string]any{
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"quux": int64(23),
 					},
 				},
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"quux": int64(42),
 					},
 				},
@@ -806,9 +808,9 @@ func TestWriteWithFlushGroupMetaDataThenRead(t *testing.T) {
 
 	require.NoError(t, err, "creating new file writer failed")
 
-	testData := map[string]interface{}{
+	testData := map[string]any{
 		"foo": int64(23),
-		"x": map[string]interface{}{
+		"x": map[string]any{
 			"bar": int64(42),
 		},
 	}
@@ -888,7 +890,7 @@ func TestReadWriteColumeEncodings(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, w.AddColumn("f", NewDataColumn(s, parquet.FieldRepetitionType_REQUIRED)))
 
-	testData := map[string]interface{}{
+	testData := map[string]any{
 		"a": true,
 		"b": false,
 		"c": []byte("hello"),
@@ -933,15 +935,15 @@ func TestWriteThenReadFileUnsetOptional(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, err)
 	w := NewFileWriter(&buf, WithSchemaDefinition(sd))
-	testData := map[string]interface{}{
-		"a": map[string]interface{}{
-			"list": []map[string]interface{}{
+	testData := map[string]any{
+		"a": map[string]any{
+			"list": []map[string]any{
 				{},
 				{
-					"element": map[string]interface{}{},
+					"element": map[string]any{},
 				},
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"b": int64(2),
 					},
 				},
@@ -985,7 +987,7 @@ func TestReadWriteFixedLenByteArrayEncodings(t *testing.T) {
 
 			require.NoError(t, wr.AddColumn("value", NewDataColumn(store, parquet.FieldRepetitionType_REQUIRED)))
 
-			inputRow := map[string]interface{}{"value": tt.input}
+			inputRow := map[string]any{"value": tt.input}
 
 			require.NoError(t, wr.AddData(inputRow))
 
@@ -1030,7 +1032,7 @@ func TestReadWriteByteArrayEncodings(t *testing.T) {
 
 			require.NoError(t, wr.AddColumn("value", NewDataColumn(store, parquet.FieldRepetitionType_REQUIRED)))
 
-			inputRow := map[string]interface{}{"value": tt.input}
+			inputRow := map[string]any{"value": tt.input}
 
 			require.NoError(t, wr.AddData(inputRow))
 
@@ -1075,7 +1077,7 @@ func TestReadWriteInt64Encodings(t *testing.T) {
 			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
 			require.NoError(t, wr.AddColumn("number", col))
 
-			inputRow := map[string]interface{}{
+			inputRow := map[string]any{
 				"number": tt.input,
 			}
 
@@ -1123,7 +1125,7 @@ func TestReadWriteInt32Encodings(t *testing.T) {
 			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
 			require.NoError(t, wr.AddColumn("number", col))
 
-			inputRow := map[string]interface{}{
+			inputRow := map[string]any{
 				"number": tt.input,
 			}
 
@@ -1170,7 +1172,7 @@ func TestReadWriteInt96Encodings(t *testing.T) {
 			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
 			require.NoError(t, wr.AddColumn("ts", col))
 
-			inputRow := map[string]interface{}{
+			inputRow := map[string]any{
 				"ts": tt.input,
 			}
 
@@ -1217,7 +1219,7 @@ func TestReadWriteFloatEncodings(t *testing.T) {
 			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
 			require.NoError(t, wr.AddColumn("number", col))
 
-			inputRow := map[string]interface{}{
+			inputRow := map[string]any{
 				"number": tt.input,
 			}
 
@@ -1264,7 +1266,7 @@ func TestReadWriteDoubleEncodings(t *testing.T) {
 			col := NewDataColumn(bas, parquet.FieldRepetitionType_REQUIRED)
 			require.NoError(t, wr.AddColumn("number", col))
 
-			inputRow := map[string]interface{}{
+			inputRow := map[string]any{
 				"number": tt.input,
 			}
 
@@ -1324,11 +1326,11 @@ func TestWriteThenReadMultiplePages(t *testing.T) {
 
 			const numRows = 75
 
-			records := []map[string]interface{}{}
+			records := []map[string]any{}
 
 			for i := 0; i < numRows; i++ {
 				tsStr := time.Now().Add(time.Duration(1+rand.Int63n(300)) * time.Second).Format(time.RFC3339)
-				rec := map[string]interface{}{"ts_str": []byte(tsStr)}
+				rec := map[string]any{"ts_str": []byte(tsStr)}
 				records = append(records, rec)
 				require.NoError(t, fw.AddData(rec))
 			}
@@ -1365,7 +1367,7 @@ func TestReadWriteDoubleNaN(t *testing.T) {
 	data := []float64{42.23, math.NaN(), math.NaN(), 23.42, math.Inf(1), math.Inf(-1), 1.111}
 
 	for _, f := range data {
-		require.NoError(t, wr.AddData(map[string]interface{}{
+		require.NoError(t, wr.AddData(map[string]any{
 			"value": f,
 		}))
 	}
@@ -1405,7 +1407,7 @@ func TestReadWriteFloatNaN(t *testing.T) {
 	data := []float32{42.23, float32(math.NaN()), float32(math.NaN()), 23.42, float32(math.Inf(1)), float32(math.Inf(-1)), 1.111}
 
 	for _, f := range data {
-		require.NoError(t, wr.AddData(map[string]interface{}{
+		require.NoError(t, wr.AddData(map[string]any{
 			"value": f,
 		}))
 	}
@@ -1441,7 +1443,7 @@ func TestWriteThenReadSetSchemaDefinition(t *testing.T) {
 
 	require.NoError(t, wr.SetSchemaDefinition(sd))
 
-	require.NoError(t, wr.AddData(map[string]interface{}{"foo": int64(23)}))
+	require.NoError(t, wr.AddData(map[string]any{"foo": int64(23)}))
 
 	require.NoError(t, wr.Close())
 
@@ -1462,8 +1464,47 @@ func TestWriteThenReadSetSchemaDefinition(t *testing.T) {
 
 	row, err := r.NextRow()
 	require.NoError(t, err)
-	require.Equal(t, map[string]interface{}{"foo": int64(23)}, row)
+	require.Equal(t, map[string]any{"foo": int64(23)}, row)
 
 	_, err = r.NextRow()
 	require.True(t, errors.Is(err, io.EOF))
+}
+
+func FuzzFileReaderWithFiles(f *testing.F) {
+	filesDir := "files"
+	d, err := os.Open(filesDir)
+	if err != nil {
+		f.Fatalf("couldn't open %s directory: %v", filesDir, err)
+	}
+	defer d.Close()
+
+	files, err := d.Readdirnames(-1)
+	if err != nil {
+		f.Fatalf("reading names failed: %v", err)
+	}
+
+	for _, fn := range files {
+		data, err := ioutil.ReadFile(filepath.Join(filesDir, fn))
+		if err != nil {
+			continue
+		}
+		f.Add(data)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		r, err := NewFileReader(bytes.NewReader(data))
+		if err != nil {
+			t.Skipf("reading file failed: %v", err)
+		}
+
+		for {
+			_, err := r.NextRow()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				t.Skipf("NextRow failed: %v", err)
+			}
+		}
+	})
 }

@@ -273,7 +273,7 @@ func (fw *FileWriter) FlushRowGroupWithContext(ctx context.Context, opts ...Flus
 
 // AddData adds a new record to the current row group and flushes it if auto-flush is enabled and the size
 // is equal to or greater than the configured maximum row group size.
-func (fw *FileWriter) AddData(m map[string]interface{}) error {
+func (fw *FileWriter) AddData(m map[string]any) error {
 	if err := fw.schemaWriter.AddData(m); err != nil {
 		return err
 	}

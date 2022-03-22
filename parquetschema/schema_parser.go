@@ -292,7 +292,7 @@ func (p *schemaParser) recover(errp *error) {
 	}
 }
 
-func (p *schemaParser) errorf(msg string, args ...interface{}) {
+func (p *schemaParser) errorf(msg string, args ...any) {
 	msg = fmt.Sprintf("line %d: %s", p.token.line, msg)
 	panic(fmt.Errorf(msg, args...))
 }

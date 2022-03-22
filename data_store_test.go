@@ -11,7 +11,7 @@ import (
 )
 
 func newIntStore() *ColumnStore {
-	d := newStore(&int32Store{ColumnParameters: &ColumnParameters{}, stats: newInt32Stats(), pageStats: newInt32Stats()}, parquet.Encoding_PLAIN, false)
+	d := newStore(&numberStore[int32, internalInt32]{ColumnParameters: &ColumnParameters{}, stats: newNumberStats[int32, internalInt32](), pageStats: newNumberStats[int32, internalInt32]()}, parquet.Encoding_PLAIN, false)
 	return d
 }
 
@@ -20,7 +20,7 @@ func TestOneColumn(t *testing.T) {
 	require.NoError(t, row.AddColumn("DocID", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"DocID": int32(10)},
 		{"DocID": int32(20)},
 	}
@@ -32,7 +32,7 @@ func TestOneColumn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(0), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(20)}, d.data.values.getValues())
 	assert.Equal(t, []int32{0, 0}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels.toArray())
 
@@ -50,7 +50,7 @@ func TestOneColumnOptional(t *testing.T) {
 	require.NoError(t, row.AddColumn("DocID", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"DocID": int32(10)},
 		{},
 	}
@@ -62,7 +62,7 @@ func TestOneColumnOptional(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10)}, d.data.values.getValues())
 	assert.Equal(t, []int32{1, 0}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels.toArray())
 
@@ -78,7 +78,7 @@ func TestOneColumnRepeated(t *testing.T) {
 	require.NoError(t, row.AddColumn("DocID", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"DocID": []int32{10, 20}},
 		{},
 	}
@@ -90,7 +90,7 @@ func TestOneColumnRepeated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(20)}, d.data.values.getValues())
 	assert.Equal(t, []int32{1, 1, 0}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 1, 0}, d.data.rLevels.toArray())
 
@@ -111,11 +111,11 @@ func TestComplexPart1(t *testing.T) {
 
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"Name": []map[string]interface{}{
+			"Name": []map[string]any{
 				{
-					"Language": []map[string]interface{}{
+					"Language": []map[string]any{
 						{
 							"Code":    int32(1),
 							"Country": int32(100),
@@ -130,7 +130,7 @@ func TestComplexPart1(t *testing.T) {
 					"URL": int32(11),
 				},
 				{
-					"Language": []map[string]interface{}{
+					"Language": []map[string]any{
 						{
 							"Code":    int32(3),
 							"Country": int32(101),
@@ -149,7 +149,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(1), int32(2), int32(3)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(1), int32(2), int32(3)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.data.rLevels.toArray())
 
@@ -157,7 +157,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(3), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(100), int32(101)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(100), int32(101)}, d.data.values.getValues())
 	assert.Equal(t, []int32{3, 2, 1, 3}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 2, 1, 1}, d.data.rLevels.toArray())
 
@@ -165,7 +165,7 @@ func TestComplexPart1(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(11)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(11)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 1}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 1, 1}, d.data.rLevels.toArray())
 
@@ -183,14 +183,14 @@ func TestComplexPart2(t *testing.T) {
 	require.NoError(t, row.AddColumnByPath(ColumnPath{"Links", "Forward"}, NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"Links": map[string]interface{}{
+			"Links": map[string]any{
 				"Forward": []int32{20, 40, 60},
 			},
 		},
 		{
-			"Links": map[string]interface{}{
+			"Links": map[string]any{
 				"Backward": []int32{10, 30},
 				"Forward":  []int32{80},
 			},
@@ -205,7 +205,7 @@ func TestComplexPart2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(20), int32(40), int32(60), int32(80)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 2, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels.toArray())
 
@@ -213,7 +213,7 @@ func TestComplexPart2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(30)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(30)}, d.data.values.getValues())
 	assert.Equal(t, []int32{1, 2, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 0, 1}, d.data.rLevels.toArray())
 
@@ -238,15 +238,15 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, row.AddColumn("Name.URL", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_OPTIONAL)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
 			"DocId": int32(10),
-			"Links": map[string]interface{}{
+			"Links": map[string]any{
 				"Forward": []int32{20, 40, 60},
 			},
-			"Name": []map[string]interface{}{
+			"Name": []map[string]any{
 				{
-					"Language": []map[string]interface{}{
+					"Language": []map[string]any{
 						{
 							"Code":    int32(1),
 							"Country": int32(100),
@@ -261,7 +261,7 @@ func TestComplex(t *testing.T) {
 					"URL": int32(11),
 				},
 				{
-					"Language": []map[string]interface{}{
+					"Language": []map[string]any{
 						{
 							"Code":    int32(3),
 							"Country": int32(101),
@@ -272,11 +272,11 @@ func TestComplex(t *testing.T) {
 		},
 		{
 			"DocId": int32(20),
-			"Links": map[string]interface{}{
+			"Links": map[string]any{
 				"Backward": []int32{10, 30},
 				"Forward":  []int32{80},
 			},
-			"Name": []map[string]interface{}{
+			"Name": []map[string]any{
 				{
 					"URL": int32(12),
 				},
@@ -292,7 +292,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(0), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(0), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(20)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(20)}, d.data.values.getValues())
 	assert.Equal(t, []int32{0, 0}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 0}, d.data.rLevels.toArray())
 
@@ -300,7 +300,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(11), int32(12)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(11), int32(12)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 1, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels.toArray())
 
@@ -308,7 +308,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(20), int32(40), int32(60), int32(80)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(20), int32(40), int32(60), int32(80)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 2, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 1, 1, 0}, d.data.rLevels.toArray())
 
@@ -316,7 +316,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(10), int32(30)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(10), int32(30)}, d.data.values.getValues())
 	assert.Equal(t, []int32{1, 2, 2}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 0, 1}, d.data.rLevels.toArray())
 
@@ -324,7 +324,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(3), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(100), int32(101)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(100), int32(101)}, d.data.values.getValues())
 	assert.Equal(t, []int32{3, 2, 1, 3, 1}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.data.rLevels.toArray())
 
@@ -332,7 +332,7 @@ func TestComplex(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(2), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(2), d.MaxRepetitionLevel())
-	assert.Equal(t, []interface{}{int32(1), int32(2), int32(3)}, d.data.values.getValues())
+	assert.Equal(t, []any{int32(1), int32(2), int32(3)}, d.data.values.getValues())
 	assert.Equal(t, []int32{2, 2, 1, 2, 1}, d.data.dLevels.toArray())
 	assert.Equal(t, []int32{0, 2, 1, 1, 0}, d.data.rLevels.toArray())
 
@@ -350,15 +350,15 @@ func TestTwitterBlog(t *testing.T) {
 	require.NoError(t, row.AddColumn("level1.level2", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REPEATED)))
 	row.resetData()
 
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"level1": []map[string]interface{}{
+			"level1": []map[string]any{
 				{"level2": []int32{1, 2, 3}},
 				{"level2": []int32{4, 5, 6, 7}},
 			},
 		},
 		{
-			"level1": []map[string]interface{}{
+			"level1": []map[string]any{
 				{"level2": []int32{8}},
 				{"level2": []int32{9, 10}},
 			},
@@ -371,7 +371,7 @@ func TestTwitterBlog(t *testing.T) {
 
 	d, err := row.findDataColumn("level1.level2")
 	require.NoError(t, err)
-	var expected []interface{}
+	var expected []any
 	for i := 1; i < 11; i++ {
 		expected = append(expected, int32(i))
 	}
@@ -399,9 +399,9 @@ func TestEmptyParent(t *testing.T) {
 	row := &schema{}
 	require.NoError(t, row.AddColumn("baz", list))
 	row.resetData()
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{
-			"baz": map[string]interface{}{},
+			"baz": map[string]any{},
 		},
 	}
 
@@ -412,7 +412,7 @@ func TestEmptyParent(t *testing.T) {
 	col, err := row.findDataColumn("baz.list.element")
 	require.NoError(t, err)
 
-	assert.Equal(t, []interface{}(nil), col.data.values.getValues())
+	assert.Equal(t, []any(nil), col.data.values.getValues())
 
 	assert.Equal(t, uint16(2), col.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), col.MaxRepetitionLevel())
@@ -443,16 +443,16 @@ func TestZeroRL(t *testing.T) {
 	require.NoError(t, row.AddColumn("baz.list.element.quux", NewDataColumn(newIntStore(), parquet.FieldRepetitionType_REQUIRED)))
 	row.resetData()
 
-	data := map[string]interface{}{
-		"baz": map[string]interface{}{
-			"list": []map[string]interface{}{
+	data := map[string]any{
+		"baz": map[string]any{
+			"list": []map[string]any{
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"quux": int32(23),
 					},
 				},
 				{
-					"element": map[string]interface{}{
+					"element": map[string]any{
 						"quux": int32(42),
 					},
 				},
@@ -464,7 +464,7 @@ func TestZeroRL(t *testing.T) {
 
 	d, err := row.findDataColumn("baz.list.element.quux")
 	require.NoError(t, err)
-	var expected = []interface{}{int32(23), int32(42)}
+	var expected = []any{int32(23), int32(42)}
 	assert.Equal(t, expected, d.data.values.getValues())
 	assert.Equal(t, uint16(1), d.MaxDefinitionLevel())
 	assert.Equal(t, uint16(1), d.MaxRepetitionLevel())

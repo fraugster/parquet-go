@@ -67,11 +67,11 @@ func getColumnList(colDefs []*parquetschema.ColumnDefinition, prefix string) []s
 	return cols
 }
 
-func printPrimitive(w io.Writer, ident, name string, v interface{}) {
+func printPrimitive(w io.Writer, ident, name string, v any) {
 	_, _ = fmt.Fprintln(w, ident+name+" = "+fmt.Sprint(v))
 }
 
-func printData(w io.Writer, m map[string]interface{}, ident string, columnOrder map[string]int) {
+func printData(w io.Writer, m map[string]any, ident string, columnOrder map[string]int) {
 	cols := []string{}
 
 	for colName := range m {
@@ -84,10 +84,10 @@ func printData(w io.Writer, m map[string]interface{}, ident string, columnOrder 
 
 	for _, colName := range cols {
 		switch t := m[colName].(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			_, _ = fmt.Fprintln(w, ident+colName+":")
 			printData(w, t, ident+".", columnOrder)
-		case []map[string]interface{}:
+		case []map[string]any:
 			for j := range t {
 				_, _ = fmt.Fprintln(w, ident+colName+":")
 				printData(w, t[j], ident+".", columnOrder)
@@ -98,7 +98,7 @@ func printData(w io.Writer, m map[string]interface{}, ident string, columnOrder 
 			for j := range t {
 				_, _ = fmt.Fprintln(w, ident+colName+" = "+string(t[j]))
 			}
-		case []interface{}:
+		case []any:
 			for j := range t {
 				_, _ = fmt.Fprintln(w, ident+colName+" = "+fmt.Sprint(t[j]))
 			}

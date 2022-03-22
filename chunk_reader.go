@@ -24,13 +24,13 @@ func getDictValuesDecoder(typ *parquet.SchemaElement) (valuesDecoder, error) {
 		}
 		return &byteArrayPlainDecoder{length: int(*typ.TypeLength)}, nil
 	case parquet.Type_FLOAT:
-		return &floatPlainDecoder{}, nil
+		return &numberPlainDecoder[float32, internalFloat32]{}, nil
 	case parquet.Type_DOUBLE:
-		return &doublePlainDecoder{}, nil
+		return &numberPlainDecoder[float64, internalFloat64]{}, nil
 	case parquet.Type_INT32:
-		return &int32PlainDecoder{}, nil
+		return &numberPlainDecoder[int32, internalInt32]{}, nil
 	case parquet.Type_INT64:
-		return &int64PlainDecoder{}, nil
+		return &numberPlainDecoder[int64, internalInt64]{}, nil
 	case parquet.Type_INT96:
 		return &int96PlainDecoder{}, nil
 	}
@@ -49,7 +49,7 @@ func getBooleanValuesDecoder(pageEncoding parquet.Encoding) (valuesDecoder, erro
 	}
 }
 
-func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []interface{}) (valuesDecoder, error) {
+func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []any) (valuesDecoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &byteArrayPlainDecoder{}, nil
@@ -64,7 +64,7 @@ func getByteArrayValuesDecoder(pageEncoding parquet.Encoding, dictValues []inter
 	}
 }
 
-func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, dictValues []interface{}) (valuesDecoder, error) {
+func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, dictValues []any) (valuesDecoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
 		return &byteArrayPlainDecoder{length: len}, nil
@@ -77,12 +77,12 @@ func getFixedLenByteArrayValuesDecoder(pageEncoding parquet.Encoding, len int, d
 	}
 }
 
-func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
+func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []any) (valuesDecoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
-		return &int32PlainDecoder{}, nil
+		return &numberPlainDecoder[int32, internalInt32]{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int32DeltaBPDecoder{}, nil
+		return &deltaBitPackDecoder[int32, internalInt32]{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
@@ -90,12 +90,12 @@ func getInt32ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	}
 }
 
-func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
+func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []any) (valuesDecoder, error) {
 	switch pageEncoding {
 	case parquet.Encoding_PLAIN:
-		return &int64PlainDecoder{}, nil
+		return &numberPlainDecoder[int64, internalInt64]{}, nil
 	case parquet.Encoding_DELTA_BINARY_PACKED:
-		return &int64DeltaBPDecoder{}, nil
+		return &deltaBitPackDecoder[int64, internalInt64]{}, nil
 	case parquet.Encoding_RLE_DICTIONARY:
 		return &dictDecoder{uniqueValues: dictValues}, nil
 	default:
@@ -103,7 +103,7 @@ func getInt64ValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaEle
 	}
 }
 
-func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []interface{}) (valuesDecoder, error) {
+func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement, dictValues []any) (valuesDecoder, error) {
 	// Change the deprecated value
 	if pageEncoding == parquet.Encoding_PLAIN_DICTIONARY {
 		pageEncoding = parquet.Encoding_RLE_DICTIONARY
@@ -124,7 +124,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	case parquet.Type_FLOAT:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			return &floatPlainDecoder{}, nil
+			return &numberPlainDecoder[float32, internalFloat32]{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
 			return &dictDecoder{uniqueValues: dictValues}, nil
 		}
@@ -132,7 +132,7 @@ func getValuesDecoder(pageEncoding parquet.Encoding, typ *parquet.SchemaElement,
 	case parquet.Type_DOUBLE:
 		switch pageEncoding {
 		case parquet.Encoding_PLAIN:
-			return &doublePlainDecoder{}, nil
+			return &numberPlainDecoder[float64, internalFloat64]{}, nil
 		case parquet.Encoding_RLE_DICTIONARY:
 			return &dictDecoder{uniqueValues: dictValues}, nil
 		}
@@ -235,7 +235,7 @@ func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, c
 		default:
 			return nil, false, fmt.Errorf("DATA_PAGE or DATA_PAGE_V2 type supported, but was %s", ph.Type)
 		}
-		var dictValue []interface{}
+		var dictValue []any
 		if dictPage != nil {
 			dictValue = dictPage.values
 		}
@@ -255,8 +255,8 @@ func readPages(ctx context.Context, sch *schema, r *offsetReader, col *Column, c
 	return pages, dictPage != nil, nil
 }
 
-func clone(in []interface{}) []interface{} {
-	out := make([]interface{}, len(in))
+func clone(in []any) []any {
+	out := make([]any, len(in))
 	copy(out, in)
 	return out
 }

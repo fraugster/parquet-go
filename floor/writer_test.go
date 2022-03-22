@@ -16,80 +16,80 @@ import (
 
 func TestDecodeStruct(t *testing.T) {
 	testData := []struct {
-		Input          interface{}
-		ExpectedOutput map[string]interface{}
+		Input          any
+		ExpectedOutput map[string]any
 		ExpectErr      bool
 		Schema         string
 	}{
 		{
 			Input:          struct{ Foo int16 }{Foo: 42},
-			ExpectedOutput: map[string]interface{}{"foo": int32(42)},
+			ExpectedOutput: map[string]any{"foo": int32(42)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int }{Foo: 43},
-			ExpectedOutput: map[string]interface{}{"foo": int32(43)},
+			ExpectedOutput: map[string]any{"foo": int32(43)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int8 }{Foo: 44},
-			ExpectedOutput: map[string]interface{}{"foo": int32(44)},
+			ExpectedOutput: map[string]any{"foo": int32(44)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo int32 }{Foo: 100000},
-			ExpectedOutput: map[string]interface{}{"foo": int32(100000)},
+			ExpectedOutput: map[string]any{"foo": int32(100000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo uint64 }{Foo: 1125899906842624},
-			ExpectedOutput: map[string]interface{}{"foo": int64(1125899906842624)},
+			ExpectedOutput: map[string]any{"foo": int64(1125899906842624)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 foo; }`,
 		},
 		{
 			Input:          struct{ Foo uint }{Foo: 200000},
-			ExpectedOutput: map[string]interface{}{"foo": int32(200000)},
+			ExpectedOutput: map[string]any{"foo": int32(200000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo float32 }{Foo: 42.5},
-			ExpectedOutput: map[string]interface{}{"foo": float32(42.5)},
+			ExpectedOutput: map[string]any{"foo": float32(42.5)},
 			ExpectErr:      false,
 			Schema:         `message test { required float foo; }`,
 		},
 		{
 			Input:          struct{ Foo float64 }{Foo: 23.5},
-			ExpectedOutput: map[string]interface{}{"foo": float64(23.5)},
+			ExpectedOutput: map[string]any{"foo": float64(23.5)},
 			ExpectErr:      false,
 			Schema:         `message test { required double foo; }`,
 		},
 		{
 			Input:          struct{ Foo byte }{Foo: 1},
-			ExpectedOutput: map[string]interface{}{"foo": int32(1)},
+			ExpectedOutput: map[string]any{"foo": int32(1)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 foo; }`,
 		},
 		{
 			Input:          struct{ Foo string }{Foo: "bar"},
-			ExpectedOutput: map[string]interface{}{"foo": []byte("bar")},
+			ExpectedOutput: map[string]any{"foo": []byte("bar")},
 			ExpectErr:      false,
 			Schema:         `message test { required binary foo (STRING); }`,
 		},
 		{
 			Input:          struct{ Foo *string }{Foo: new(string)},
-			ExpectedOutput: map[string]interface{}{"foo": []byte("")},
+			ExpectedOutput: map[string]any{"foo": []byte("")},
 			ExpectErr:      false,
 			Schema:         `message test { optional binary foo (STRING); }`,
 		},
 		{
 			Input:          struct{ Foo *string }{},
-			ExpectedOutput: map[string]interface{}{},
+			ExpectedOutput: map[string]any{},
 			ExpectErr:      false,
 			Schema:         `message test { optional binary foo (STRING); }`,
 		},
@@ -108,7 +108,7 @@ func TestDecodeStruct(t *testing.T) {
 				Baz  uint32
 				Blub bool
 			}{},
-			ExpectedOutput: map[string]interface{}{"foo": map[string]interface{}{"bar": int64(0)}, "baz": int64(0), "blub": false},
+			ExpectedOutput: map[string]any{"foo": map[string]any{"bar": int64(0)}, "baz": int64(0), "blub": false},
 			ExpectErr:      false,
 			Schema:         `message test { required group foo { required int64 bar; } required int64 baz; optional boolean quux; required boolean blub; }`,
 		},
@@ -118,9 +118,9 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: []bool{false, true, false},
 			},
-			ExpectedOutput: map[string]interface{}{
-				"foo": map[string]interface{}{
-					"list": []map[string]interface{}{
+			ExpectedOutput: map[string]any{
+				"foo": map[string]any{
+					"list": []map[string]any{
 						{"element": false},
 						{"element": true},
 						{"element": false},
@@ -142,9 +142,9 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Foo: [5]uint16{1, 1, 2, 3, 5},
 			},
-			ExpectedOutput: map[string]interface{}{
-				"foo": map[string]interface{}{
-					"list": []map[string]interface{}{
+			ExpectedOutput: map[string]any{
+				"foo": map[string]any{
+					"list": []map[string]any{
 						{"element": int32(1)},
 						{"element": int32(1)},
 						{"element": int32(2)},
@@ -170,9 +170,9 @@ func TestDecodeStruct(t *testing.T) {
 					"hello": int64(23),
 				},
 			},
-			ExpectedOutput: map[string]interface{}{
-				"foo": map[string]interface{}{
-					"key_value": []map[string]interface{}{
+			ExpectedOutput: map[string]any{
+				"foo": map[string]any{
+					"key_value": []map[string]any{
 						{"key": []byte("hello"), "value": int64(23)},
 					},
 				},
@@ -191,7 +191,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: struct {
 				C chan int
 			}{},
-			ExpectedOutput: map[string]interface{}{},
+			ExpectedOutput: map[string]any{},
 			ExpectErr:      false,
 			Schema:         `message foo { }`,
 		},
@@ -202,7 +202,7 @@ func TestDecodeStruct(t *testing.T) {
 					Bar int
 				}
 			}{},
-			ExpectedOutput: map[string]interface{}{"foo": map[string]interface{}{"bar": int64(0)}},
+			ExpectedOutput: map[string]any{"foo": map[string]any{"bar": int64(0)}},
 			ExpectErr:      false,
 			Schema:         `message foo { required group foo { optional int64 bar; } }`,
 		},
@@ -218,7 +218,7 @@ func TestDecodeStruct(t *testing.T) {
 			Input: &struct {
 				Bla int
 			}{Bla: 616},
-			ExpectedOutput: map[string]interface{}{"bla": int32(616)},
+			ExpectedOutput: map[string]any{"bla": int32(616)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 bla; }`,
 		},
@@ -236,7 +236,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Date: time.Date(1970, 1, 10, 0, 0, 0, 0, time.UTC),
 			},
-			ExpectedOutput: map[string]interface{}{"date": int32(9)},
+			ExpectedOutput: map[string]any{"date": int32(9)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 date (DATE); }`,
 		},
@@ -246,7 +246,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Date: time.Date(1970, 1, 12, 23, 59, 59, 0, time.UTC),
 			},
-			ExpectedOutput: map[string]interface{}{"date": int32(11)},
+			ExpectedOutput: map[string]any{"date": int32(11)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 date (DATE); }`,
 		},
@@ -256,7 +256,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				TS: time.Date(1970, 1, 1, 0, 0, 23, 0, time.UTC),
 			},
-			ExpectedOutput: map[string]interface{}{"ts": int64(23000)},
+			ExpectedOutput: map[string]any{"ts": int64(23000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 ts (TIMESTAMP(MILLIS, false)); }`,
 		},
@@ -266,7 +266,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				TS: time.Date(1970, 1, 1, 0, 0, 24, 0, time.UTC),
 			},
-			ExpectedOutput: map[string]interface{}{"ts": int64(24000000)},
+			ExpectedOutput: map[string]any{"ts": int64(24000000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 ts (TIMESTAMP(MICROS, false)); }`,
 		},
@@ -276,7 +276,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				TS: time.Date(1970, 1, 1, 0, 0, 25, 2000, time.UTC),
 			},
-			ExpectedOutput: map[string]interface{}{"ts": int64(25000002000)},
+			ExpectedOutput: map[string]any{"ts": int64(25000002000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 ts (TIMESTAMP(NANOS, false)); }`,
 		},
@@ -286,7 +286,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				Lunch: MustTime(NewTime(12, 30, 0, 0)),
 			},
-			ExpectedOutput: map[string]interface{}{"lunch": int32(45000000)},
+			ExpectedOutput: map[string]any{"lunch": int32(45000000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int32 lunch (TIME(MILLIS, false)); }`,
 		},
@@ -296,7 +296,7 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				BeddyByes: MustTime(NewTime(20, 15, 30, 0)),
 			},
-			ExpectedOutput: map[string]interface{}{"beddybyes": int64(72930000000)},
+			ExpectedOutput: map[string]any{"beddybyes": int64(72930000000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 beddybyes (TIME(MICROS, false)); }`,
 		},
@@ -306,22 +306,22 @@ func TestDecodeStruct(t *testing.T) {
 			}{
 				WakeyWakey: MustTime(NewTime(7, 5, 59, 0)),
 			},
-			ExpectedOutput: map[string]interface{}{"wakeywakey": int64(25559000000000)},
+			ExpectedOutput: map[string]any{"wakeywakey": int64(25559000000000)},
 			ExpectErr:      false,
 			Schema:         `message test { required int64 wakeywakey (TIME(NANOS, false)); }`,
 		},
 		{
 			Input: struct {
 				Foo   string
-				Times []interface{}
+				Times []any
 			}{
 				Foo:   "bar",
-				Times: []interface{}{"2021-10-29T20:06:47.960577000Z", 1635542684, 1635542811912, 1635542811912010, 1635542854925031000},
+				Times: []any{"2021-10-29T20:06:47.960577000Z", 1635542684, 1635542811912, 1635542811912010, 1635542854925031000},
 			},
-			ExpectedOutput: map[string]interface{}{
+			ExpectedOutput: map[string]any{
 				"foo": []byte("bar"),
-				"times": map[string]interface{}{
-					"list": []map[string]interface{}{
+				"times": map[string]any{
+					"list": []map[string]any{
 						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 20, 06, 47, 960577000, time.UTC))},
 						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 24, 44, 0, time.UTC))},
 						{"element": goparquet.TimeToInt96(time.Date(2021, 10, 29, 21, 26, 51, 912000000, time.UTC))},
@@ -341,17 +341,17 @@ func TestDecodeStruct(t *testing.T) {
 			}`,
 		},
 		{
-			Input:          map[string]interface{}{"foo": "bar"},
-			ExpectedOutput: map[string]interface{}{"foo": []byte("bar")},
+			Input:          map[string]any{"foo": "bar"},
+			ExpectedOutput: map[string]any{"foo": []byte("bar")},
 			ExpectErr:      false,
 			Schema:         `message test { optional binary foo (STRING); }`,
 		},
 		{
-			Input: map[string]interface{}{"foo": "bar", "data": map[string]interface{}{"foo": "bar"}},
-			ExpectedOutput: map[string]interface{}{
+			Input: map[string]any{"foo": "bar", "data": map[string]any{"foo": "bar"}},
+			ExpectedOutput: map[string]any{
 				"foo": []byte("bar"),
-				"data": map[string]interface{}{
-					"key_value": []map[string]interface{}{
+				"data": map[string]any{
+					"key_value": []map[string]any{
 						{"key": []byte("foo"), "value": []byte("bar")},
 					},
 				}},
@@ -441,12 +441,12 @@ func TestWriteFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(len(data)), n)
 
-	expectedData := []map[string]interface{}{
+	expectedData := []map[string]any{
 		{
 			"foo": int64(23),
 			"bar": []byte("hello!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(23)},
 				},
 			},
@@ -454,8 +454,8 @@ func TestWriteFile(t *testing.T) {
 		{
 			"foo": int64(42),
 			"bar": []byte("world!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(1)},
 					{"element": int32(1)},
 					{"element": int32(2)},
@@ -474,8 +474,8 @@ func TestWriteFile(t *testing.T) {
 		{
 			"foo": int64(1000),
 			"bar": []byte("bye!"),
-			"baz": map[string]interface{}{
-				"list": []map[string]interface{}{
+			"baz": map[string]any{
+				"list": []map[string]any{
 					{"element": int32(2)},
 					{"element": int32(3)},
 					{"element": int32(5)},

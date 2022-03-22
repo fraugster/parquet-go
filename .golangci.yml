@@ -25,25 +25,21 @@ linters-settings:
       - wrapperFunc
 
 linters:
-  enable-all: true
-  disable:
-    - lll
-    - scopelint
-    - gochecknoglobals
-    - goconst
-    - gocyclo
-    - funlen
-    - godox
-    - wsl 
-    - unparam
-    - dupl
-    - gocritic
-    - gocognit
-    - gochecknoinits
-    - testpackage
-    - nestif
-    - gomnd
-    - godot
+  disable-all: true
+  enable:
+    - deadcode
+    - errcheck
+#    - gosimple
+    - govet
+    - ineffassign
+#    - structcheck
+    - typecheck
+#    - unused
+    - varcheck
+    - gofmt
+    - gosec
+#    - revive
+
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   deadline: 5m

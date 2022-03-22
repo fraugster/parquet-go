@@ -45,7 +45,7 @@ func main() {
 	}
 
 	for _, input := range inputData {
-		if err := fw.AddData(map[string]interface{}{
+		if err := fw.AddData(map[string]any{
 			"id":         int64(input.ID),
 			"city":       []byte(input.City),
 			"population": int64(input.Pop),

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Switched number encoding and decoding (int32, int64, float32, float64) to Go 1.18 generics.
+
 ## [v0.10.0] - 2022-02-18
 
 - Updated to parquet-format 2.9.0.

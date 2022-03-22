@@ -27,14 +27,14 @@ func buildTestStream(t *testing.T) []byte {
 	buf := &bytes.Buffer{}
 	pw := NewFileWriter(buf, WithSchemaDefinition(schema))
 	for i := 0; i < 10000; i++ {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"a": rand.Int63(),
 			"b": rand.Int63(),
-			"x": map[string]interface{}{
+			"x": map[string]any{
 				"c": rand.Int63(),
 				"d": rand.Int63(),
 			},
-			"y": map[string]interface{}{
+			"y": map[string]any{
 				"e": rand.Int63(),
 			},
 		}
@@ -79,7 +79,7 @@ func TestByteReaderSelectedInner(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 1, len(x))
 		y, ok := data["y"]
@@ -100,7 +100,7 @@ func TestByteReaderSelectedInnerByColumnPath(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 1, len(x))
 		y, ok := data["y"]
@@ -123,7 +123,7 @@ func TestByteReaderSelectedInnerFull(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 2, len(x))
 		y, ok := data["y"]
@@ -146,7 +146,7 @@ func TestByteReaderSelectedInnerFullByColumnPath(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 2, len(x))
 		y, ok := data["y"]
@@ -169,7 +169,7 @@ func TestByteReaderSelectedInnerFullSetSelectedColumns(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 2, len(x))
 		y, ok := data["y"]
@@ -192,7 +192,7 @@ func TestByteReaderSelectedInnerFullSetSelectedColumnsByPath(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, 2, len(data))
-		x, ok := data["x"].(map[string]interface{})
+		x, ok := data["x"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, 2, len(x))
 		y, ok := data["y"]
@@ -214,9 +214,9 @@ func TestIssue60(t *testing.T) {
 	var buf bytes.Buffer
 	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
 
-	err = fw.AddData(map[string]interface{}{
-		"population": map[string]interface{}{
-			"list": []map[string]interface{}{
+	err = fw.AddData(map[string]any{
+		"population": map[string]any{
+			"list": []map[string]any{
 				{"element": int64(23)},
 				{"element": nil},
 				{"element": int64(42)},
@@ -233,9 +233,9 @@ func TestIssue60(t *testing.T) {
 	row, err := r.NextRow()
 	require.NoError(t, err)
 
-	require.Equal(t, map[string]interface{}{
-		"population": map[string]interface{}{
-			"list": []map[string]interface{}{
+	require.Equal(t, map[string]any{
+		"population": map[string]any{
+			"list": []map[string]any{
 				{"element": int64(23)},
 				{},
 				{"element": int64(42)},
@@ -244,4 +244,55 @@ func TestIssue60(t *testing.T) {
 	}, row)
 
 	t.Logf("row = %#v", row)
+}
+
+func FuzzFileReader(f *testing.F) {
+	sd, err := parquetschema.ParseSchemaDefinition(`message test {
+		required group population (LIST){
+			repeated group list {
+				optional int64 element;
+			}
+		}
+	}`)
+	if err != nil {
+		f.Fatalf("parsing schema definition failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
+
+	err = fw.AddData(map[string]any{
+		"population": map[string]any{
+			"list": []map[string]any{
+				{"element": int64(23)},
+				{"element": nil},
+				{"element": int64(42)},
+			},
+		},
+	})
+	if err != nil {
+		f.Fatalf("AddData failed: %v", err)
+	}
+
+	if err := fw.Close(); err != nil {
+		f.Fatalf("Close failed: %v", err)
+	}
+
+	f.Add(buf.Bytes())
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		r, err := NewFileReader(bytes.NewReader(data))
+		if err != nil {
+			t.Skip()
+		}
+
+		rows := r.NumRows()
+		for i := int64(0); i < rows; i++ {
+			_, err := r.NextRow()
+			if err != nil {
+				t.Skip()
+			}
+		}
+
+	})
 }

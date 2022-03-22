@@ -95,7 +95,7 @@ func (p *Type) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *Type) Scan(value interface{}) error {
+func (p *Type) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -257,7 +257,7 @@ func (p *ConvertedType) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *ConvertedType) Scan(value interface{}) error {
+func (p *ConvertedType) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -321,7 +321,7 @@ func (p *FieldRepetitionType) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *FieldRepetitionType) Scan(value interface{}) error {
+func (p *FieldRepetitionType) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -417,7 +417,7 @@ func (p *Encoding) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *Encoding) Scan(value interface{}) error {
+func (p *Encoding) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -512,7 +512,7 @@ func (p *CompressionCodec) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *CompressionCodec) Scan(value interface{}) error {
+func (p *CompressionCodec) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -580,7 +580,7 @@ func (p *PageType) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *PageType) Scan(value interface{}) error {
+func (p *PageType) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")
@@ -645,7 +645,7 @@ func (p *BoundaryOrder) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (p *BoundaryOrder) Scan(value interface{}) error {
+func (p *BoundaryOrder) Scan(value any) error {
 	v, ok := value.(int64)
 	if !ok {
 		return errors.New("Scan value is not int64")

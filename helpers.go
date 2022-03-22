@@ -17,7 +17,7 @@ import (
 // The function has to return any type that can be used as a map key. In particular, the
 // result can not be a slice. The default implementation used the fnv hash function as
 // implemented in Go's standard library.
-var DefaultHashFunc func([]byte) interface{}
+var DefaultHashFunc func([]byte) any
 
 func init() {
 	DefaultHashFunc = fnvHashFunc
@@ -148,6 +148,26 @@ func decodePackedArray(d levelDecoder, count int) (*packedArray, int, error) {
 	return ret, nn, nil
 }
 
+func readVarint[T intType, I internalIntType[T]](r io.Reader) (v T, err error) {
+	var impl I
+
+	b, ok := r.(io.ByteReader)
+	if !ok {
+		b = &byteReader{Reader: r}
+	}
+
+	i, err := binary.ReadVarint(b)
+	if err != nil {
+		return 0, err
+	}
+
+	if i > int64(impl.MaxValue()) || i < int64(impl.MinValue()) {
+		return 0, fmt.Errorf("%T out of range", v)
+	}
+
+	return T(i), nil
+}
+
 func readUVariant32(r io.Reader) (int32, error) {
 	b, ok := r.(io.ByteReader)
 	if !ok {
@@ -166,24 +186,6 @@ func readUVariant32(r io.Reader) (int32, error) {
 	return int32(i), nil
 }
 
-func readVariant32(r io.Reader) (int32, error) {
-	b, ok := r.(io.ByteReader)
-	if !ok {
-		b = &byteReader{Reader: r}
-	}
-
-	i, err := binary.ReadVarint(b)
-	if err != nil {
-		return 0, err
-	}
-
-	if i > math.MaxInt32 || i < math.MinInt32 {
-		return 0, errors.New("int32 out of range")
-	}
-
-	return int32(i), nil
-}
-
 func writeVariant(w io.Writer, in int64) error {
 	buf := make([]byte, 12)
 	n := binary.PutVarint(buf, in)
@@ -196,15 +198,6 @@ func writeUVariant(w io.Writer, in uint64) error {
 	n := binary.PutUvarint(buf, in)
 
 	return writeFull(w, buf[:n])
-}
-
-func readVariant64(r io.Reader) (int64, error) {
-	b, ok := r.(io.ByteReader)
-	if !ok {
-		b = &byteReader{Reader: r}
-	}
-
-	return binary.ReadVarint(b)
 }
 
 type constDecoder int32
@@ -245,7 +238,7 @@ func prefix(b1, b2 []byte) int {
 	return l
 }
 
-func encodeValue(w io.Writer, enc valuesEncoder, all []interface{}) error {
+func encodeValue(w io.Writer, enc valuesEncoder, all []any) error {
 	if err := enc.init(w); err != nil {
 		return err
 	}
@@ -291,7 +284,7 @@ func encodeLevelsV2(w io.Writer, max uint16, values *packedArray) error {
 	return nil
 }
 
-func mapKey(a interface{}) interface{} {
+func mapKey(a any) any {
 	switch v := a.(type) {
 	case int, int32, int64, string, bool:
 		return a
@@ -308,7 +301,7 @@ func mapKey(a interface{}) interface{} {
 	}
 }
 
-func fnvHashFunc(in []byte) interface{} {
+func fnvHashFunc(in []byte) any {
 	hash := fnv.New64()
 	if err := writeFull(hash, in); err != nil {
 		panic(err)

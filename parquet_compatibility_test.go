@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func toCustomerMap(t *testing.T, data []string) map[string]interface{} {
+func toCustomerMap(t *testing.T, data []string) map[string]any {
 	require.Len(t, data, 8)
-	res := make(map[string]interface{})
+	res := make(map[string]any)
 	var err error
 	cKey, err := strconv.ParseInt(data[0], 10, 0)
 	if err == nil {

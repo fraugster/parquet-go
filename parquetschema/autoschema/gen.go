@@ -14,7 +14,7 @@ import (
 // GenerateSchema auto-generates a schema definition for a provided object's type
 // using reflection. The generated schema is meant to be compatible with
 // github.com/fraugster/parquet-go/floor's reflection-based marshalling/unmarshalling.
-func GenerateSchema(obj interface{}) (*parquetschema.SchemaDefinition, error) {
+func GenerateSchema(obj any) (*parquetschema.SchemaDefinition, error) {
 	valueObj := reflect.ValueOf(obj)
 	columns, err := generateSchema(valueObj.Type())
 	if err != nil {

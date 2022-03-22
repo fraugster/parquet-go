@@ -21,7 +21,7 @@ type Unmarshaller interface {
 type UnmarshalObject interface {
 	GetField(field string) UnmarshalElement
 
-	GetData() map[string]interface{}
+	GetData() map[string]any
 }
 
 // UnmarshalElement describes the interface to get the value of an element in an Unmarshaller
@@ -112,7 +112,7 @@ func (o *object) GetField(field string) UnmarshalElement {
 }
 
 type unmarshElem struct {
-	data interface{}
+	data any
 }
 
 func (e *unmarshElem) Error() error {
@@ -120,7 +120,7 @@ func (e *unmarshElem) Error() error {
 }
 
 func (e *unmarshElem) Group() (UnmarshalObject, error) {
-	data, ok := e.data.(map[string]interface{})
+	data, ok := e.data.(map[string]any)
 	if !ok {
 		return nil, errors.New("field is not a group")
 	}
@@ -185,7 +185,7 @@ func (e *unmarshElem) ByteArray() ([]byte, error) {
 }
 
 func (e *unmarshElem) List() (UnmarshalList, error) {
-	data, ok := e.data.(map[string]interface{})
+	data, ok := e.data.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("data is not a list, found %T instead", e.data)
 	}
@@ -200,7 +200,7 @@ func (e *unmarshElem) List() (UnmarshalList, error) {
 		isAthenaList = true
 	}
 
-	elemList, ok := listData.([]map[string]interface{})
+	elemList, ok := listData.([]map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("expected sub-group list to be []map[string]interface{}, got %T instead", listData)
 	}
@@ -209,7 +209,7 @@ func (e *unmarshElem) List() (UnmarshalList, error) {
 }
 
 func (e *unmarshElem) Map() (UnmarshalMap, error) {
-	data, ok := e.data.(map[string]interface{})
+	data, ok := e.data.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("data is not a map, found %T instead", e.data)
 	}
@@ -219,7 +219,7 @@ func (e *unmarshElem) Map() (UnmarshalMap, error) {
 		return nil, errors.New("sub-group key_value not found")
 	}
 
-	kvList, ok := kvData.([]map[string]interface{})
+	kvList, ok := kvData.([]map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("expected sub-group key_value to be []map[string]interface{}, got %T instead", kvData)
 	}
@@ -228,7 +228,7 @@ func (e *unmarshElem) Map() (UnmarshalMap, error) {
 }
 
 type unmarshList struct {
-	list         []map[string]interface{}
+	list         []map[string]any
 	idx          int
 	isAthenaList bool
 }
@@ -257,7 +257,7 @@ func (l *unmarshList) Value() (UnmarshalElement, error) {
 }
 
 type unmarshMap struct {
-	data []map[string]interface{}
+	data []map[string]any
 	idx  int
 }
 
@@ -293,9 +293,9 @@ func (m *unmarshMap) Value() (UnmarshalElement, error) {
 }
 
 // NewUnmarshallObject creates a new unmarshaller object
-func NewUnmarshallObject(data map[string]interface{}) UnmarshalObject {
+func NewUnmarshallObject(data map[string]any) UnmarshalObject {
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	return &object{
 		data: data,
@@ -303,7 +303,7 @@ func NewUnmarshallObject(data map[string]interface{}) UnmarshalObject {
 }
 
 // NewUnmarshallElement creates new unmarshall element object
-func NewUnmarshallElement(data interface{}) UnmarshalElement {
+func NewUnmarshallElement(data any) UnmarshalElement {
 	return &unmarshElem{
 		data: data,
 	}

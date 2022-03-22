@@ -13,7 +13,7 @@ import (
 
 // dictionaryPage is not a real data page, so there is no need to implement the page interface
 type dictPageReader struct {
-	values []interface{}
+	values []any
 	enc    valuesDecoder
 	ph     *parquet.PageHeader
 
@@ -55,7 +55,7 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 		return err
 	}
 
-	dp.values = make([]interface{}, dp.numValues)
+	dp.values = make([]any, dp.numValues)
 
 	if err := dp.enc.init(reader); err != nil {
 		return err
@@ -73,10 +73,10 @@ type dictPageWriter struct {
 	sch        *schema
 	col        *Column
 	codec      parquet.CompressionCodec
-	dictValues []interface{}
+	dictValues []any
 }
 
-func (dp *dictPageWriter) init(sch *schema, col *Column, codec parquet.CompressionCodec, dictValues []interface{}) error {
+func (dp *dictPageWriter) init(sch *schema, col *Column, codec parquet.CompressionCodec, dictValues []any) error {
 	dp.sch = sch
 	dp.col = col
 	dp.codec = codec
