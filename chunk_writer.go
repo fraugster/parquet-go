@@ -195,27 +195,32 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 
 	dictValues := []interface{}{}
 	indices := map[interface{}]int32{}
-
-	for _, page := range col.data.dataPages {
-		for _, v := range page.values {
-			k := mapKey(v)
-			if _, ok := indices[k]; !ok {
-				idx := int32(len(dictValues))
-				indices[k] = idx
-				dictValues = append(dictValues, v)
-			}
-		}
-	}
-
 	useDict := true
-	if len(dictValues) > math.MaxInt16 {
-		useDict = false
-	}
+
 	if *col.Type() == parquet.Type_BOOLEAN { // never ever use dictionary encoding on booleans.
 		useDict = false
 	}
 	if !col.data.useDictionary() {
 		useDict = false
+	}
+
+	if useDict {
+	outerLoop:
+		for _, page := range col.data.dataPages {
+			for _, v := range page.values {
+				k := mapKey(v)
+				if _, ok := indices[k]; !ok {
+					idx := int32(len(dictValues))
+					indices[k] = idx
+					dictValues = append(dictValues, v)
+
+					if len(dictValues) > math.MaxInt16 {
+						useDict = false
+						break outerLoop
+					}
+				}
+			}
+		}
 	}
 
 	if useDict {
