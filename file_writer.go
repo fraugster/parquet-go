@@ -1,6 +1,7 @@
 package goparquet
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"io"
@@ -12,7 +13,8 @@ import (
 // FileWriter is used to write data to a parquet file. Always use NewFileWriter
 // to create such an object.
 type FileWriter struct {
-	w writePos
+	w  writePos
+	bw *bufio.Writer
 
 	version int32
 	//SchemaWriter
@@ -42,11 +44,13 @@ type FileWriterOption func(fw *FileWriter)
 // NewFileWriter creates a new FileWriter. You can provide FileWriterOptions to influence the
 // file writer's behaviour.
 func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
+	bw := bufio.NewWriter(w)
 	fw := &FileWriter{
 		w: &writePosStruct{
-			w:   w,
+			w:   bw,
 			pos: 0,
 		},
+		bw:           bw,
 		version:      1,
 		schemaWriter: &schema{},
 		kvStore:      make(map[string]string),
@@ -338,7 +342,11 @@ func (fw *FileWriter) CloseWithContext(ctx context.Context, opts ...FlushRowGrou
 		return err
 	}
 
-	return writeFull(fw.w, magic)
+	if err := writeFull(fw.w, magic); err != nil {
+		return err
+	}
+
+	return fw.bw.Flush()
 }
 
 // CurrentRowGroupSize returns a rough estimation of the uncompressed size of the current row group data. If you selected
