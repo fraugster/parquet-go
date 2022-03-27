@@ -207,6 +207,10 @@ func writeChunk(ctx context.Context, w writePos, sch *schema, col *Column, codec
 	if useDict {
 	outerLoop:
 		for _, page := range col.data.dataPages {
+			if page.stats.DistinctCount != nil && *page.stats.DistinctCount > math.MaxInt16 {
+				useDict = false
+				break outerLoop
+			}
 			for _, v := range page.values {
 				k := mapKey(v)
 				if _, ok := indices[k]; !ok {
