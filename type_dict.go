@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/bits"
 )
 
 type dictDecoder struct {
@@ -124,21 +123,17 @@ func (d *dictStore) sizes() (dictLen int64, noDictLen int64) {
 }
 
 type dictEncoder struct {
-	w          io.Writer
-	dictValues []interface{}
-	indexMap   map[interface{}]int32
-	indices    []int32
+	w        io.Writer
+	bitWidth int
+	indices  []int32
 }
 
 func (d *dictEncoder) Close() error {
-	v := len(d.dictValues)
-	bitWidth := bits.Len(uint(v))
-
 	// first write the bitLength in a byte
-	if err := writeFull(d.w, []byte{byte(bitWidth)}); err != nil {
+	if err := writeFull(d.w, []byte{byte(d.bitWidth)}); err != nil {
 		return err
 	}
-	enc := newHybridEncoder(bitWidth)
+	enc := newHybridEncoder(d.bitWidth)
 	if err := enc.init(d.w); err != nil {
 		return err
 	}
@@ -149,29 +144,14 @@ func (d *dictEncoder) Close() error {
 	return enc.Close()
 }
 
-func (d *dictEncoder) init(w io.Writer) error {
+func (d *dictEncoder) init(w io.Writer, bitWidth int) error {
 	d.w = w
-
-	d.indexMap = make(map[interface{}]int32)
-	for idx, v := range d.dictValues {
-		d.indexMap[mapKey(v)] = int32(idx)
-	}
+	d.bitWidth = bitWidth
 
 	return nil
 }
 
-func (d *dictEncoder) encodeValues(values []interface{}) error {
-	for _, v := range values {
-		if idx, ok := d.indexMap[mapKey(v)]; ok {
-			d.indices = append(d.indices, idx)
-		} else {
-			return fmt.Errorf("couldn't find value %v in dictionary values", v)
-		}
-	}
+func (d *dictEncoder) encodeIndices(indices []int32) error {
+	d.indices = append(d.indices, indices...)
 	return nil
-}
-
-// just for tests
-func (d *dictEncoder) getValues() []interface{} {
-	return d.dictValues
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math/bits"
 
 	"github.com/fraugster/parquet-go/parquet"
 )
@@ -193,13 +194,24 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 		enc = parquet.Encoding_RLE_DICTIONARY
 	}
 
-	encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.dictValues)
-	if err != nil {
-		return 0, 0, err
-	}
+	if dp.dictionary {
+		encoder := &dictEncoder{w: dataBuf, bitWidth: bits.Len(uint(len(dp.dictValues)))}
+		if err := encoder.encodeIndices(dp.page.indexList); err != nil {
+			return 0, 0, err
+		}
+		if err := encoder.Close(); err != nil {
+			return 0, 0, err
+		}
+	} else {
+		encoder, err := getValuesEncoder(enc, dp.col.Element(), dp.dictValues)
+		if err != nil {
+			return 0, 0, err
+		}
 
-	if err = encodeValue(dataBuf, encoder, dp.page.values); err != nil {
-		return 0, 0, err
+		err = encodeValue(dataBuf, encoder, dp.page.values)
+		if err != nil {
+			return 0, 0, err
+		}
 	}
 
 	comp, err := compressBlock(dataBuf.Bytes(), dp.codec)

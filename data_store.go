@@ -41,6 +41,7 @@ type ColumnStore struct {
 
 type dataPage struct {
 	values     []interface{}
+	indexList  []int32
 	rL         *packedArray
 	dL         *packedArray
 	numValues  int64
