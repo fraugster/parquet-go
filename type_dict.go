@@ -60,13 +60,13 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 }
 
 type dictStore struct {
-	useDict          bool
 	valueList        []interface{}
 	uniqueValues     map[interface{}]struct{}
 	uniqueValuesSize int64
 	allValuesSize    int64
 	readPos          int
 	nullCount        int32
+	useDict          bool
 }
 
 func (d *dictStore) getValues() []interface{} {
