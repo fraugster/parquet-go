@@ -195,7 +195,7 @@ func (dp *dataPageWriterV2) write(ctx context.Context, w io.Writer) (int, int, e
 	}
 
 	if dp.dictionary {
-		encoder := &dictEncoder{w: dataBuf, bitWidth: bits.Len(uint(len(dp.dictValues)))}
+		encoder := newDictEncoder(dataBuf, bits.Len(uint(len(dp.dictValues))))
 		if err := encoder.encodeIndices(dp.page.indexList); err != nil {
 			return 0, 0, err
 		}

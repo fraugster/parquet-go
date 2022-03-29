@@ -128,6 +128,10 @@ type dictEncoder struct {
 	indices  []int32
 }
 
+func newDictEncoder(w io.Writer, bitWidth int) *dictEncoder {
+	return &dictEncoder{w: w, bitWidth: bitWidth}
+}
+
 func (d *dictEncoder) Close() error {
 	// first write the bitLength in a byte
 	if err := writeFull(d.w, []byte{byte(d.bitWidth)}); err != nil {
@@ -142,13 +146,6 @@ func (d *dictEncoder) Close() error {
 	}
 
 	return enc.Close()
-}
-
-func (d *dictEncoder) init(w io.Writer, bitWidth int) error {
-	d.w = w
-	d.bitWidth = bitWidth
-
-	return nil
 }
 
 func (d *dictEncoder) encodeIndices(indices []int32) error {
