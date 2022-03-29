@@ -69,7 +69,7 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	}
 	cs.repTyp = rep
 	if cs.values == nil {
-		cs.values = &dictStore{}
+		cs.values = &dictStore{useDict: cs.useDict}
 		cs.rLevels = &packedArray{}
 		cs.dLevels = &packedArray{}
 	}
@@ -217,7 +217,7 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 
 func (cs *ColumnStore) resetData() {
 	cs.readPos = 0
-	cs.values = &dictStore{}
+	cs.values = &dictStore{useDict: cs.useDict}
 	cs.values.init()
 
 	rLevelBitWidth := cs.rLevels.bw

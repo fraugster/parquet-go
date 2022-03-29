@@ -7,7 +7,7 @@ import (
 )
 
 func TestDictStore(t *testing.T) {
-	d := dictStore{}
+	d := &dictStore{useDict: true}
 	d.init()
 	require.Equal(t, d.allValuesSize, int64(0))
 	require.Equal(t, d.uniqueValuesSize, int64(0))

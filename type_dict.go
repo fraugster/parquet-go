@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 )
 
 type dictDecoder struct {
@@ -59,6 +60,7 @@ func (d *dictDecoder) decodeValues(dst []interface{}) (int, error) {
 }
 
 type dictStore struct {
+	useDict          bool
 	valueList        []interface{}
 	uniqueValues     map[interface{}]struct{}
 	uniqueValuesSize int64
@@ -89,10 +91,15 @@ func (d *dictStore) addValue(v interface{}, size int) {
 		d.nullCount++
 		return
 	}
-	k := mapKey(v)
-	if _, found := d.uniqueValues[k]; !found {
-		d.uniqueValues[k] = struct{}{}
-		d.uniqueValuesSize += int64(size)
+	if d.useDict {
+		k := mapKey(v)
+		if _, found := d.uniqueValues[k]; !found {
+			d.uniqueValues[k] = struct{}{}
+			d.uniqueValuesSize += int64(size)
+			if len(d.uniqueValues) > math.MaxInt16 {
+				d.useDict = false
+			}
+		}
 	}
 	d.allValuesSize += int64(size)
 	d.valueList = append(d.valueList, v)
