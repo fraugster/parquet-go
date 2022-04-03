@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Cleaned up API by removing Schema\* interfaces, deprecating function using dotted notation, and introducing `ColumnPath` type instead.
+- Improved error handling around row groups.
+- Improved write performance.
+
 ## [v0.10.0] - 2022-02-18
 
 - Updated to parquet-format 2.9.0.
