@@ -3,7 +3,11 @@
 
 package goparquet
 
-import "bytes"
+import (
+	"bytes"
+	"errors"
+	"io"
+)
 
 func FuzzFileReader(data []byte) int {
 	r, err := NewFileReader(bytes.NewReader(data))
@@ -11,11 +15,16 @@ func FuzzFileReader(data []byte) int {
 		return 0
 	}
 
-	rows := r.NumRows()
-	for i := int64(0); i < rows; i++ {
+	for {
 		_, err := r.NextRow()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			return 0
+		}
+		for _, col := range r.Columns() {
+			_ = col.Element()
 		}
 	}
 
