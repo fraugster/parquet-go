@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fixed CHANGELOG for v0.11.0.
+
+## [v0.11.0] - 2022-04-21
+
 - Cleaned up API by removing Schema\* interfaces, deprecating function using dotted notation, and introducing `ColumnPath` type instead.
 - Improved error handling around row groups.
 - Improved write performance.
+- Fixed thrift crash bugs.
 
 ## [v0.10.0] - 2022-02-18
 
@@ -98,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0] - 2020-04-24
 - Initial release
 
-[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/fraugster/parquet-go/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.11.0
 [v0.10.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.10.0
 [v0.9.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.9.0
 [v0.8.0]: https://github.com/fraugster/parquet-go/releases/tag/v0.8.0
