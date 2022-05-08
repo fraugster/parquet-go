@@ -20,6 +20,8 @@ type dataPageReaderV2 struct {
 	dDecoder, rDecoder levelDecoder
 	fn                 getValueDecoderFn
 	position           int
+
+	alloc *allocTracker
 }
 
 func (dp *dataPageReaderV2) numValues() int32 {
@@ -101,7 +103,7 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 		}
 	}
 
-	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
+	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc, dp.alloc)
 	if err != nil {
 		return err
 	}
@@ -120,7 +122,7 @@ func (dp *dataPageReaderV2) read(r io.Reader, ph *parquet.PageHeader, codec parq
 		}
 	}
 
-	reader, err := newBlockReader(dataPageBlock[levelsSize:], codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize)
+	reader, err := newBlockReader(dataPageBlock[levelsSize:], codec, ph.GetCompressedPageSize()-levelsSize, ph.GetUncompressedPageSize()-levelsSize, dp.alloc)
 	if err != nil {
 		return err
 	}

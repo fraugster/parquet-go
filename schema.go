@@ -38,6 +38,8 @@ type Column struct {
 	element *parquet.SchemaElement
 
 	params *ColumnParameters
+
+	alloc *allocTracker
 }
 
 // ColumnPath describes the path through the hierarchy of the schema for a particular column. For a top-level
@@ -236,6 +238,9 @@ func (c *Column) getNextData() (map[string]interface{}, int32, error) {
 		// if its exactly one below max definition level, then the parent is there
 		if data != nil {
 			ret[c.children[i].name] = data
+			if c.children[i].data != nil {
+				c.alloc.register(data, uint64(c.children[i].data.sizeOf(data)))
+			}
 			notNil++
 		}
 		var diff int32
@@ -319,6 +324,8 @@ type schema struct {
 
 	enableCRC   bool // if true, CRC32 checksums will be computed for pages upon writing.
 	validateCRC bool // if true, CRC32 checksums will be validated for pages upon reading.
+
+	alloc *allocTracker
 }
 
 func (r *schema) ensureRoot() {
@@ -332,6 +339,7 @@ func (r *schema) ensureRoot() {
 			maxR:     0,
 			maxD:     0,
 			element:  nil,
+			alloc:    r.alloc,
 		}
 	}
 }
@@ -464,7 +472,7 @@ func (r *schema) SetSchemaDefinition(sd *parquetschema.SchemaDefinition) error {
 	r.root = root
 
 	for _, c := range r.root.children {
-		recursiveFix(c, ColumnPath{}, 0, 0)
+		recursiveFix(c, ColumnPath{}, 0, 0, r.alloc)
 	}
 
 	return nil
@@ -484,6 +492,7 @@ func (r *schema) createColumnFromColumnDefinition(root *parquetschema.ColumnDefi
 		name:   root.SchemaElement.GetName(),
 		rep:    root.SchemaElement.GetRepetitionType(),
 		params: params,
+		alloc:  r.alloc,
 	}
 
 	if len(root.Children) > 0 {
@@ -566,6 +575,7 @@ func NewDataColumn(store *ColumnStore, rep parquet.FieldRepetitionType) *Column 
 		children: nil,
 		rep:      rep,
 		params:   store.typedColumnStore.params(),
+		alloc:    store.alloc,
 	}
 }
 
@@ -593,6 +603,7 @@ func NewListColumn(element *Column, rep parquet.FieldRepetitionType) (*Column, e
 			},
 			ConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_LIST),
 		},
+		alloc: element.alloc,
 	}, nil
 }
 
@@ -631,6 +642,7 @@ func NewMapColumn(key, value *Column, rep parquet.FieldRepetitionType) (*Column,
 			},
 			ConvertedType: parquet.ConvertedTypePtr(parquet.ConvertedType_MAP),
 		},
+		alloc: key.alloc,
 	}, nil
 }
 
@@ -640,6 +652,7 @@ func (r *schema) AddGroupByPath(path ColumnPath, rep parquet.FieldRepetitionType
 		data:     nil,
 		rep:      rep,
 		params:   &ColumnParameters{},
+		alloc:    r.alloc,
 	})
 }
 
@@ -651,7 +664,14 @@ func (r *schema) AddColumnByPath(path ColumnPath, col *Column) error {
 	return r.addColumnOrGroupByPath(path, col)
 }
 
-func recursiveFix(col *Column, colPath ColumnPath, maxR, maxD uint16) {
+func recursiveFix(col *Column, colPath ColumnPath, maxR, maxD uint16, alloc *allocTracker) {
+	if col.alloc == nil {
+		col.alloc = alloc
+	}
+	if col.data != nil && col.data.alloc == nil {
+		col.data.alloc = alloc
+	}
+
 	if col.rep != parquet.FieldRepetitionType_REQUIRED {
 		maxD++
 	}
@@ -668,7 +688,7 @@ func recursiveFix(col *Column, colPath ColumnPath, maxR, maxD uint16) {
 	}
 
 	for i := range col.children {
-		recursiveFix(col.children[i], col.path, maxR, maxD)
+		recursiveFix(col.children[i], col.path, maxR, maxD, alloc)
 	}
 }
 
@@ -713,7 +733,7 @@ func (r *schema) addColumnOrGroupByPath(pa ColumnPath, col *Column) error {
 		return errors.New("the children are nil")
 	}
 
-	recursiveFix(col, c.path, c.maxR, c.maxD)
+	recursiveFix(col, c.path, c.maxR, c.maxD, col.alloc)
 
 	c.children = append(c.children, col)
 	r.sortIndex()
@@ -892,7 +912,7 @@ func (c *Column) readColumnSchema(schema []*parquet.SchemaElement, path ColumnPa
 	c.element = s
 	c.maxR = rLevel
 	c.maxD = dLevel
-	data, err := getValuesStore(s)
+	data, err := getValuesStore(s, c.alloc)
 	if err != nil {
 		return 0, err
 	}
@@ -950,14 +970,14 @@ func (c *Column) readGroupSchema(schema []*parquet.SchemaElement, path ColumnPat
 		}
 		if schema[idx].Type == nil {
 			// another group
-			child := &Column{}
+			child := &Column{alloc: c.alloc}
 			idx, err = child.readGroupSchema(schema, c.path, idx, dLevel, rLevel)
 			if err != nil {
 				return 0, err
 			}
 			c.children = append(c.children, child)
 		} else {
-			child := &Column{}
+			child := &Column{alloc: c.alloc}
 			idx, err = child.readColumnSchema(schema, c.path, idx, dLevel, rLevel)
 			if err != nil {
 				return 0, err
@@ -974,14 +994,14 @@ func (r *schema) readSchema(schema []*parquet.SchemaElement) error {
 	var err error
 	for idx := 0; idx < len(schema); {
 		if schema[idx].Type == nil {
-			c := &Column{}
+			c := &Column{alloc: r.alloc}
 			idx, err = c.readGroupSchema(schema, ColumnPath{}, idx, 0, 0)
 			if err != nil {
 				return err
 			}
 			r.root.children = append(r.root.children, c)
 		} else {
-			c := &Column{}
+			c := &Column{alloc: r.alloc}
 			idx, err = c.readColumnSchema(schema, ColumnPath{}, idx, 0, 0)
 			if err != nil {
 				return err
@@ -1025,7 +1045,7 @@ func (r *schema) rowGroupNumRecords() int64 {
 	return r.numRecords
 }
 
-func makeSchema(meta *parquet.FileMetaData, validateCRC bool) (*schema, error) {
+func makeSchema(meta *parquet.FileMetaData, validateCRC bool, alloc *allocTracker) (*schema, error) {
 	if len(meta.Schema) < 1 {
 		return nil, errors.New("no schema element found")
 	}
@@ -1045,8 +1065,10 @@ func makeSchema(meta *parquet.FileMetaData, validateCRC bool) (*schema, error) {
 				TypeLength:    meta.Schema[0].TypeLength,
 				FieldID:       meta.Schema[0].FieldID,
 			},
+			alloc: alloc,
 		},
 		validateCRC: validateCRC,
+		alloc:       alloc,
 	}
 	err := s.readSchema(meta.Schema[1:])
 	if err != nil {

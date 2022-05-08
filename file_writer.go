@@ -52,7 +52,7 @@ func NewFileWriter(w io.Writer, options ...FileWriterOption) *FileWriter {
 		},
 		bw:           bw,
 		version:      1,
-		schemaWriter: &schema{},
+		schemaWriter: &schema{}, // no allocTracker is set here because we're creating a writer. We assume for the moment that writers have enough control over input that they're trusted.
 		kvStore:      make(map[string]string),
 		rowGroups:    []*parquet.RowGroup{},
 		createdBy:    "parquet-go",

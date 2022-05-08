@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
@@ -21,6 +22,8 @@ type FileReader struct {
 	skipRowGroup     bool
 
 	ctx context.Context
+
+	allocTracker *allocTracker
 }
 
 // NewFileReaderWithOptions creates a new FileReader. You can provide a list of FileReaderOptions to configure
@@ -40,7 +43,7 @@ func NewFileReaderWithOptions(r io.ReadSeeker, readerOptions ...FileReaderOption
 		}
 	}
 
-	schema, err := makeSchema(opts.metaData, opts.validateCRC)
+	schema, err := makeSchema(opts.metaData, opts.validateCRC, opts.allocTracker)
 	if err != nil {
 		return nil, fmt.Errorf("creating schema failed: %w", err)
 	}
@@ -55,6 +58,7 @@ func NewFileReaderWithOptions(r io.ReadSeeker, readerOptions ...FileReaderOption
 		schemaReader: schema,
 		reader:       r,
 		ctx:          opts.ctx,
+		allocTracker: opts.allocTracker,
 	}, nil
 }
 
@@ -62,10 +66,11 @@ func NewFileReaderWithOptions(r io.ReadSeeker, readerOptions ...FileReaderOption
 // creating a new parquet file reader.
 type FileReaderOption func(*fileReaderOptions) error
 type fileReaderOptions struct {
-	metaData    *parquet.FileMetaData
-	ctx         context.Context
-	columns     []ColumnPath
-	validateCRC bool
+	metaData     *parquet.FileMetaData
+	ctx          context.Context
+	columns      []ColumnPath
+	validateCRC  bool
+	allocTracker *allocTracker
 }
 
 func newFileReaderOptions() *fileReaderOptions {
@@ -133,6 +138,16 @@ func WithCRC32Validation(enable bool) FileReaderOption {
 	}
 }
 
+// WithMaximumMemorySize allows you to configure a maximum limit in terms of memory
+// that shall be allocated when reading this file. If the amount of memory gets over
+// this limit, further function calls will fail.
+func WithMaximumMemorySize(maxSizeBytes uint64) FileReaderOption {
+	return func(opts *fileReaderOptions) error {
+		opts.allocTracker = newAllocTracker(maxSizeBytes)
+		return nil
+	}
+}
+
 // NewFileReader creates a new FileReader. You can limit the columns that are read by providing
 // the names of the specific columns to read using dotted notation. If no columns are provided,
 // then all columns are read.
@@ -159,13 +174,24 @@ func NewFileReaderWithMetaData(r io.ReadSeeker, meta *parquet.FileMetaData, colu
 	return NewFileReaderWithOptions(r, WithFileMetaData(meta), WithColumns(columns...))
 }
 
+func (*FileReader) recover(errp *error) {
+	if e := recover(); e != nil {
+		if _, ok := e.(runtime.Error); ok {
+			panic(e)
+		}
+		*errp = e.(error)
+	}
+}
+
 // SeekToRowGroup seeks to a particular row group, identified by its index.
-func (f *FileReader) SeekToRowGroup(rowGroupPosition int) error {
+func (f *FileReader) SeekToRowGroup(rowGroupPosition int) (err error) {
+	defer f.recover(&err)
 	return f.SeekToRowGroupWithContext(f.ctx, rowGroupPosition)
 }
 
 // SeekToRowGroupWithContext seeks to a particular row group, identified by its index.
-func (f *FileReader) SeekToRowGroupWithContext(ctx context.Context, rowGroupPosition int) error {
+func (f *FileReader) SeekToRowGroupWithContext(ctx context.Context, rowGroupPosition int) (err error) {
+	defer f.recover(&err)
 	f.rowGroupPosition = rowGroupPosition - 1
 	f.currentRecord = 0
 	return f.readRowGroup(ctx)
@@ -177,7 +203,7 @@ func (f *FileReader) readRowGroup(ctx context.Context) error {
 		return io.EOF
 	}
 	f.rowGroupPosition++
-	return readRowGroup(ctx, f.reader, f.schemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
+	return f.readRowGroupData(ctx) //, f.reader, f.schemaReader, f.meta.RowGroups[f.rowGroupPosition-1])
 }
 
 // CurrentRowGroup returns information about the current row group.
@@ -218,7 +244,9 @@ func (f *FileReader) RowGroupNumRows() (int64, error) {
 }
 
 // RowGroupNumRowsWithContext returns the number of rows in the current RowGroup.
-func (f *FileReader) RowGroupNumRowsWithContext(ctx context.Context) (int64, error) {
+func (f *FileReader) RowGroupNumRowsWithContext(ctx context.Context) (numRecords int64, err error) {
+	defer f.recover(&err)
+
 	if err := f.advanceIfNeeded(ctx); err != nil {
 		return 0, err
 	}
@@ -232,7 +260,9 @@ func (f *FileReader) NextRow() (map[string]interface{}, error) {
 }
 
 // NextRowWithContext reads the next row from the parquet file. If required, it will load the next row group.
-func (f *FileReader) NextRowWithContext(ctx context.Context) (map[string]interface{}, error) {
+func (f *FileReader) NextRowWithContext(ctx context.Context) (row map[string]interface{}, err error) {
+	defer f.recover(&err)
+
 	if err := f.advanceIfNeeded(ctx); err != nil {
 		return nil, err
 	}
@@ -252,7 +282,8 @@ func (f *FileReader) PreLoad() error {
 }
 
 // PreLoadWithContext is used to load the row group if required. It does nothing if the row group is already loaded.
-func (f *FileReader) PreLoadWithContext(ctx context.Context) error {
+func (f *FileReader) PreLoadWithContext(ctx context.Context) (err error) {
+	defer f.recover(&err)
 	return f.advanceIfNeeded(ctx)
 }
 
@@ -271,7 +302,8 @@ func (f *FileReader) ColumnMetaData(colName string) (map[string]string, error) {
 
 // ColumnMetaData returns a map of metadata key-value pairs for the provided column in the current
 // row group. The column is provided as ColumnPath.
-func (f *FileReader) ColumnMetaDataByPath(path ColumnPath) (map[string]string, error) {
+func (f *FileReader) ColumnMetaDataByPath(path ColumnPath) (metaData map[string]string, err error) {
+	defer f.recover(&err)
 	for _, col := range f.CurrentRowGroup().Columns {
 		if path.Equal(ColumnPath(col.MetaData.PathInSchema)) {
 			return keyValueMetaDataToMap(col.MetaData.KeyValueMetadata), nil

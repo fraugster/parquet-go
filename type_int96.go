@@ -70,6 +70,9 @@ type int96Store struct {
 }
 
 func (*int96Store) sizeOf(v interface{}) int {
+	if vv, ok := v.([][12]byte); ok {
+		return 12 * len(vv)
+	}
 	return 12
 }
 
