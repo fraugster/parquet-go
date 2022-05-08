@@ -23,6 +23,10 @@ func (t *allocTracker) register(obj interface{}, size uint64) {
 		return
 	}
 
+	if _, ok := obj.([]byte); ok {
+		obj = &obj
+	}
+
 	if _, ok := t.allocs[obj]; ok { // object has already been tracked, no need to add it.
 		return
 	}
@@ -50,12 +54,16 @@ func (t *allocTracker) doPanic(totalSize uint64) {
 	if t == nil {
 		return
 	}
-	panic(fmt.Sprintf("memory usage of %d bytes is greater than configured maximum of %d bytes", totalSize, t.maxSize))
+	panic(fmt.Errorf("memory usage of %d bytes is greater than configured maximum of %d bytes", totalSize, t.maxSize))
 }
 
 func (t *allocTracker) finalize(obj interface{}) {
 	if t == nil {
 		return
+	}
+
+	if _, ok := obj.([]byte); ok {
+		obj = &obj
 	}
 
 	size, ok := t.allocs[obj]
@@ -66,11 +74,4 @@ func (t *allocTracker) finalize(obj interface{}) {
 	// remove size from total size, and unregister from tracker.
 	t.totalSize -= size
 	delete(t.allocs, obj)
-}
-
-func (t *allocTracker) getTotalSize() uint64 {
-	if t == nil {
-		return 0
-	}
-	return t.totalSize
 }
