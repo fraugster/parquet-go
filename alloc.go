@@ -2,18 +2,19 @@ package goparquet
 
 import (
 	"fmt"
+	"reflect"
 	"runtime"
 )
 
 type allocTracker struct {
-	allocs    map[interface{}]uint64
+	allocs    map[uintptr]uint64
 	totalSize uint64
 	maxSize   uint64
 }
 
 func newAllocTracker(maxSize uint64) *allocTracker {
 	return &allocTracker{
-		allocs:  make(map[interface{}]uint64),
+		allocs:  make(map[uintptr]uint64),
 		maxSize: maxSize,
 	}
 }
@@ -27,11 +28,13 @@ func (t *allocTracker) register(obj interface{}, size uint64) {
 		obj = &obj
 	}
 
-	if _, ok := t.allocs[obj]; ok { // object has already been tracked, no need to add it.
+	key := reflect.ValueOf(obj).Pointer()
+
+	if _, ok := t.allocs[key]; ok { // object has already been tracked, no need to add it.
 		return
 	}
 
-	t.allocs[obj] = size
+	t.allocs[key] = size
 	t.totalSize += size
 
 	runtime.SetFinalizer(obj, t.finalize)
@@ -62,16 +65,14 @@ func (t *allocTracker) finalize(obj interface{}) {
 		return
 	}
 
-	if _, ok := obj.([]byte); ok {
-		obj = &obj
-	}
+	key := reflect.ValueOf(obj).Pointer()
 
-	size, ok := t.allocs[obj]
+	size, ok := t.allocs[key]
 	if !ok { // if object hasn't been tracked, do nothing.
 		return
 	}
 
 	// remove size from total size, and unregister from tracker.
 	t.totalSize -= size
-	delete(t.allocs, obj)
+	delete(t.allocs, key)
 }
