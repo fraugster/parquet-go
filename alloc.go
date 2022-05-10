@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 )
 
 type allocTracker struct {
+	mtx       sync.RWMutex
 	allocs    map[uintptr]uint64
 	totalSize uint64
 	maxSize   uint64
@@ -24,6 +26,9 @@ func (t *allocTracker) register(obj interface{}, size uint64) {
 		return
 	}
 
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+
 	if _, ok := obj.([]byte); ok {
 		obj = &obj
 	}
@@ -31,6 +36,7 @@ func (t *allocTracker) register(obj interface{}, size uint64) {
 	key := reflect.ValueOf(obj).Pointer()
 
 	if _, ok := t.allocs[key]; ok { // object has already been tracked, no need to add it.
+		t.mtx.Unlock()
 		return
 	}
 
@@ -48,6 +54,8 @@ func (t *allocTracker) test(size uint64) {
 	if t == nil {
 		return
 	}
+	t.mtx.RLock()
+	defer t.mtx.RUnlock()
 	if t.maxSize > 0 && t.totalSize+size > t.maxSize {
 		t.doPanic(t.totalSize + size)
 	}
@@ -64,6 +72,9 @@ func (t *allocTracker) finalize(obj interface{}) {
 	if t == nil {
 		return
 	}
+
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
 
 	key := reflect.ValueOf(obj).Pointer()
 
