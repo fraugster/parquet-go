@@ -1467,3 +1467,38 @@ func TestWriteThenReadSetSchemaDefinition(t *testing.T) {
 	_, err = r.NextRow()
 	require.True(t, errors.Is(err, io.EOF))
 }
+
+func TestRepeatedInt32(t *testing.T) {
+	// this is here to somehow reproduce the issue discussed in https://github.com/fraugster/parquet-go/pull/8
+	sd, err := parquetschema.ParseSchemaDefinition(`message msg {
+		repeated int32 foo;
+	}`)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	fw := NewFileWriter(&buf, WithSchemaDefinition(sd))
+
+	err = fw.AddData(map[string]interface{}{
+		"foo": []int32{
+			int32(23),
+			int32(42),
+			int32(9001),
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, fw.Close())
+
+	r, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	row, err := r.NextRow()
+	require.NoError(t, err)
+
+	// here's a problem: we added nil, but got a []byte{}.
+	require.Equal(t, []int32{
+		int32(23),
+		int32(42),
+		int32(9001),
+	}, row["foo"])
+}

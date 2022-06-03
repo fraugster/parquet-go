@@ -99,7 +99,7 @@ func decompressBlock(block []byte, method parquet.CompressionCodec) ([]byte, err
 	return c.DecompressBlock(block)
 }
 
-func newBlockReader(buf []byte, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32) (io.Reader, error) {
+func newBlockReader(buf []byte, codec parquet.CompressionCodec, compressedSize int32, uncompressedSize int32, alloc *allocTracker) (io.Reader, error) {
 	if compressedSize < 0 || uncompressedSize < 0 {
 		return nil, errors.New("invalid page data size")
 	}
@@ -108,10 +108,12 @@ func newBlockReader(buf []byte, codec parquet.CompressionCodec, compressedSize i
 		return nil, fmt.Errorf("compressed data must be %d byte but its %d byte", compressedSize, len(buf))
 	}
 
+	alloc.test(uint64(uncompressedSize))
 	res, err := decompressBlock(buf, codec)
 	if err != nil {
 		return nil, fmt.Errorf("decompression failed: %w", err)
 	}
+	alloc.register(res, uint64(len(res)))
 
 	if len(res) != int(uncompressedSize) {
 		return nil, fmt.Errorf("decompressed data must be %d byte but its %d byte", uncompressedSize, len(res))

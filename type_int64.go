@@ -107,6 +107,9 @@ func (is *int64Store) params() *ColumnParameters {
 }
 
 func (*int64Store) sizeOf(v interface{}) int {
+	if vv, ok := v.([]int64); ok {
+		return 8 * len(vv)
+	}
 	return 8
 }
 

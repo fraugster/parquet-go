@@ -19,6 +19,8 @@ type dictPageReader struct {
 
 	numValues   int32
 	validateCRC bool
+
+	alloc *allocTracker
 }
 
 func (dp *dictPageReader) init(dict valuesDecoder) error {
@@ -45,12 +47,12 @@ func (dp *dictPageReader) read(r io.Reader, ph *parquet.PageHeader, codec parque
 
 	dp.ph = ph
 
-	dictPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), dp.validateCRC, ph.Crc)
+	dictPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), dp.validateCRC, ph.Crc, dp.alloc)
 	if err != nil {
 		return err
 	}
 
-	reader, err := newBlockReader(dictPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+	reader, err := newBlockReader(dictPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), dp.alloc)
 	if err != nil {
 		return err
 	}

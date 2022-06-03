@@ -37,6 +37,8 @@ type ColumnStore struct {
 	maxPageSize int64
 
 	prevNumRecords int64 // this is just for correctly calculating how many rows are in a data page.
+
+	alloc *allocTracker
 }
 
 type dataPage struct {
@@ -69,7 +71,7 @@ func (cs *ColumnStore) reset(rep parquet.FieldRepetitionType, maxR, maxD uint16)
 	}
 	cs.repTyp = rep
 	if cs.values == nil {
-		cs.values = &dictStore{useDict: cs.useDict}
+		cs.values = &dictStore{useDict: cs.useDict, alloc: cs.alloc}
 		cs.rLevels = &packedArray{}
 		cs.dLevels = &packedArray{}
 	}
@@ -217,7 +219,7 @@ func (cs *ColumnStore) getNext() (v interface{}, err error) {
 
 func (cs *ColumnStore) resetData() {
 	cs.readPos = 0
-	cs.values = &dictStore{useDict: cs.useDict}
+	cs.values = &dictStore{useDict: cs.useDict, alloc: cs.alloc}
 	cs.values.init()
 
 	rLevelBitWidth := cs.rLevels.bw
@@ -306,20 +308,21 @@ func (cs *ColumnStore) get(maxD, maxR int32) (interface{}, int32, error) {
 	}
 }
 
-func newStore(typed typedColumnStore, enc parquet.Encoding, useDict bool) *ColumnStore {
+func newStore(typed typedColumnStore, enc parquet.Encoding, useDict bool, alloc *allocTracker) *ColumnStore {
 	return &ColumnStore{
 		enc:              enc,
 		useDict:          useDict,
 		typedColumnStore: typed,
+		alloc:            alloc,
 	}
 }
 
-func newPlainStore(typed typedColumnStore) *ColumnStore {
-	return newStore(typed, parquet.Encoding_PLAIN, true)
+func newPlainStore(typed typedColumnStore, alloc *allocTracker) *ColumnStore {
+	return newStore(typed, parquet.Encoding_PLAIN, true, alloc)
 }
 
 // getValuesStore is internally used for the reader
-func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
+func getValuesStore(typ *parquet.SchemaElement, alloc *allocTracker) (*ColumnStore, error) {
 	params := &ColumnParameters{
 		LogicalType:   typ.LogicalType,
 		ConvertedType: typ.ConvertedType,
@@ -330,29 +333,29 @@ func getValuesStore(typ *parquet.SchemaElement) (*ColumnStore, error) {
 
 	switch *typ.Type {
 	case parquet.Type_BOOLEAN:
-		return newPlainStore(&booleanStore{ColumnParameters: params}), nil
+		return newPlainStore(&booleanStore{ColumnParameters: params}, alloc), nil
 	case parquet.Type_BYTE_ARRAY:
-		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
+		return newPlainStore(&byteArrayStore{ColumnParameters: params}, alloc), nil
 	case parquet.Type_FIXED_LEN_BYTE_ARRAY:
 		if typ.TypeLength == nil {
 			return nil, fmt.Errorf("type %s with nil type length", typ.Type)
 		}
 
-		return newPlainStore(&byteArrayStore{ColumnParameters: params}), nil
+		return newPlainStore(&byteArrayStore{ColumnParameters: params}, alloc), nil
 
 	case parquet.Type_FLOAT:
-		return newPlainStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}), nil
+		return newPlainStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, alloc), nil
 	case parquet.Type_DOUBLE:
-		return newPlainStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}), nil
+		return newPlainStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, alloc), nil
 
 	case parquet.Type_INT32:
-		return newPlainStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}), nil
+		return newPlainStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, alloc), nil
 	case parquet.Type_INT64:
-		return newPlainStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}), nil
+		return newPlainStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, alloc), nil
 	case parquet.Type_INT96:
 		store := &int96Store{}
 		store.ColumnParameters = params
-		return newPlainStore(store), nil
+		return newPlainStore(store, alloc), nil
 	default:
 		return nil, fmt.Errorf("unsupported type: %s", typ.Type)
 	}
@@ -365,7 +368,7 @@ func NewBooleanStore(enc parquet.Encoding, params *ColumnParameters) (*ColumnSto
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&booleanStore{ColumnParameters: params}, enc, false), nil
+	return newStore(&booleanStore{ColumnParameters: params}, enc, false, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewInt32Store create a new column store to store int32 values. If useDict is true,
@@ -376,7 +379,7 @@ func NewInt32Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, enc, useDict), nil
+	return newStore(&int32Store{ColumnParameters: params, stats: newInt32Stats(), pageStats: newInt32Stats()}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewInt64Store creates a new column store to store int64 values. If useDict is true,
@@ -387,7 +390,7 @@ func NewInt64Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, enc, useDict), nil
+	return newStore(&int64Store{ColumnParameters: params, stats: newInt64Stats(), pageStats: newInt64Stats()}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewInt96Store creates a new column store to store int96 values. If useDict is true,
@@ -400,7 +403,7 @@ func NewInt96Store(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	}
 	store := &int96Store{}
 	store.ColumnParameters = params
-	return newStore(store, enc, useDict), nil
+	return newStore(store, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewFloatStore creates a new column store to store float (float32) values. If useDict is true,
@@ -411,7 +414,7 @@ func NewFloatStore(enc parquet.Encoding, useDict bool, params *ColumnParameters)
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, enc, useDict), nil
+	return newStore(&floatStore{ColumnParameters: params, stats: newFloatStats(), pageStats: newFloatStats()}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewDoubleStore creates a new column store to store double (float64) values. If useDict is true,
@@ -422,7 +425,7 @@ func NewDoubleStore(enc parquet.Encoding, useDict bool, params *ColumnParameters
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, enc, useDict), nil
+	return newStore(&doubleStore{ColumnParameters: params, stats: newDoubleStats(), pageStats: newDoubleStats()}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewByteArrayStore creates a new column store to store byte arrays. If useDict is true,
@@ -433,7 +436,7 @@ func NewByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnParamet
 	default:
 		return nil, fmt.Errorf("encoding %q is not supported on this type", enc)
 	}
-	return newStore(&byteArrayStore{ColumnParameters: params}, enc, useDict), nil
+	return newStore(&byteArrayStore{ColumnParameters: params}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }
 
 // NewFixedByteArrayStore creates a new column store to store fixed size byte arrays. If useDict is true,
@@ -454,5 +457,5 @@ func NewFixedByteArrayStore(enc parquet.Encoding, useDict bool, params *ColumnPa
 
 	return newStore(&byteArrayStore{
 		ColumnParameters: params,
-	}, enc, useDict), nil
+	}, enc, useDict, nil), nil // allocTracker is set by recursiveFix
 }

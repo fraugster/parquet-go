@@ -315,6 +315,13 @@ func (is *byteArrayStore) params() *ColumnParameters {
 }
 
 func (is *byteArrayStore) sizeOf(v interface{}) int {
+	if vv, ok := v.([][]byte); ok {
+		l := 0
+		for _, vvv := range vv {
+			l += len(vvv)
+		}
+		return l
+	}
 	return len(v.([]byte))
 }
 

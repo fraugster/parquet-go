@@ -79,6 +79,9 @@ func (f *floatStore) params() *ColumnParameters {
 }
 
 func (*floatStore) sizeOf(v interface{}) int {
+	if vv, ok := v.([]float32); ok {
+		return 4 * len(vv)
+	}
 	return 4
 }
 

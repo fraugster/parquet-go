@@ -67,6 +67,8 @@ type dictStore struct {
 	readPos          int
 	nullCount        int32
 	useDict          bool
+
+	alloc *allocTracker
 }
 
 func (d *dictStore) getValues() []interface{} {
@@ -103,6 +105,7 @@ func (d *dictStore) addValue(v interface{}, size int) {
 	}
 	d.allValuesSize += int64(size)
 	d.valueList = append(d.valueList, v)
+	d.alloc.register(v, uint64(size))
 }
 
 func (d *dictStore) getNextValue() (interface{}, error) {

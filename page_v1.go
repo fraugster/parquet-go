@@ -22,6 +22,8 @@ type dataPageReaderV1 struct {
 	fn                 getValueDecoderFn
 
 	position int
+
+	alloc *allocTracker
 }
 
 func (dp *dataPageReaderV1) numValues() int32 {
@@ -91,12 +93,12 @@ func (dp *dataPageReaderV1) read(r io.Reader, ph *parquet.PageHeader, codec parq
 		return fmt.Errorf("negative NumValues in DATA_PAGE: %d", dp.valuesCount)
 	}
 
-	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc)
+	dataPageBlock, err := readPageBlock(r, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), validateCRC, ph.Crc, dp.alloc)
 	if err != nil {
 		return err
 	}
 
-	reader, err := newBlockReader(dataPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize())
+	reader, err := newBlockReader(dataPageBlock, codec, ph.GetCompressedPageSize(), ph.GetUncompressedPageSize(), dp.alloc)
 	if err != nil {
 		return err
 	}

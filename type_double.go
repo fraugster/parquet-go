@@ -79,6 +79,9 @@ func (f *doubleStore) params() *ColumnParameters {
 }
 
 func (*doubleStore) sizeOf(v interface{}) int {
+	if vv, ok := v.([]float64); ok {
+		return 8 * len(vv)
+	}
 	return 8
 }
 
