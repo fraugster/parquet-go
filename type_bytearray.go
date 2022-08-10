@@ -371,6 +371,16 @@ func (is *byteArrayStore) getValues(v interface{}) ([]interface{}, error) {
 		for j := range typed {
 			vals[j] = typed[j]
 		}
+	case string:
+		vals = []interface{}{[]byte(typed)}
+	case []string:
+		if is.repTyp != parquet.FieldRepetitionType_REPEATED {
+			return nil, fmt.Errorf("the value is not repeated but it is an array")
+		}
+		vals = make([]interface{}, len(typed))
+		for j := range typed {
+			vals[j] = []byte(typed[j])
+		}
 	default:
 		return nil, fmt.Errorf("unsupported type for storing in []byte column %T => %+v", v, v)
 	}
