@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/fraugster/parquet-go/parquet"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/fraugster/parquet-go/parquetschema"
 	"github.com/stretchr/testify/require"
 )
@@ -65,4 +68,66 @@ func TestRepeatedBinaryWithNil(t *testing.T) {
 		{},
 		[]byte("world!"),
 	}, row["foo"])
+}
+
+func TestByteArrayStore(t *testing.T) {
+	buf := &bytes.Buffer{}
+	pq := NewFileWriter(buf)
+	s1, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
+	require.NoError(t, err)
+	s2, err := NewByteArrayStore(parquet.Encoding_PLAIN, true, &ColumnParameters{})
+	require.NoError(t, err)
+	require.NoError(t, pq.AddColumnByPath([]string{"s1"}, NewDataColumn(s1, parquet.FieldRepetitionType_REQUIRED)))
+	require.NoError(t, pq.AddColumnByPath([]string{"s2"}, NewDataColumn(s2, parquet.FieldRepetitionType_REPEATED)))
+
+	// The old way is not effected
+	err = pq.AddData(map[string]interface{}{
+		"s1": []byte("abc"),
+		"s2": [][]byte{
+			[]byte("a"),
+			[]byte("b"),
+			[]byte("c"),
+		},
+	})
+	assert.NoError(t, err)
+	// The new string data
+	err = pq.AddData(map[string]interface{}{
+		"s1": "cba",
+		"s2": []string{
+			"1",
+			"2",
+			"3",
+		},
+	})
+	assert.NoError(t, err)
+	require.NoError(t, pq.Close())
+
+	pqr, err := NewFileReader(bytes.NewReader(buf.Bytes()))
+	assert.NoError(t, err)
+
+	r1, err := pqr.NextRow()
+	// The first one is equal to the input, since it is the proper type
+	require.Equal(t, r1, map[string]interface{}{
+		"s1": []byte("abc"),
+		"s2": [][]byte{
+			[]byte("a"),
+			[]byte("b"),
+			[]byte("c"),
+		}})
+	assert.NoError(t, err)
+
+	r2, err := pqr.NextRow()
+	// But since parquet do not keep the string type, the returned value here is []byte
+	require.Equal(t, r2, map[string]interface{}{
+		"s1": []byte("cba"),
+		"s2": [][]byte{
+			[]byte("1"),
+			[]byte("2"),
+			[]byte("3"),
+		}})
+	assert.NoError(t, err)
+
+	// There should be nothing left in the file
+	_, err = pqr.NextRow()
+	require.Error(t, err)
 }
