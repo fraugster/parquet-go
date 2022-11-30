@@ -305,13 +305,20 @@ func (um *reflectUnmarshaller) fillMap(value reflect.Value, data interfaces.Unma
 	}
 
 	keyValueList, err := data.Map()
-	if err != nil {
+	if err != nil && !errors.Is(err, interfaces.ErrFieldNotPresent) {
 		return err
+	}
+
+	if *schemaDef.RootColumn.SchemaElement.RepetitionType == parquet.FieldRepetitionType_REQUIRED && errors.Is(err, interfaces.ErrFieldNotPresent) {
+		return fmt.Errorf("field %s is required", schemaDef.RootColumn.SchemaElement.GetName())
 	}
 
 	value.Set(reflect.MakeMap(value.Type()))
 
 	keyValueSchemaDef := schemaDef.SubSchema("key_value")
+	if keyValueSchemaDef == nil {
+		keyValueSchemaDef = schemaDef.SubSchema("map")
+	}
 	keySchemaDef := keyValueSchemaDef.SubSchema("key")
 	valueSchemaDef := keyValueSchemaDef.SubSchema("value")
 

@@ -214,9 +214,16 @@ func (e *unmarshElem) Map() (UnmarshalMap, error) {
 		return nil, fmt.Errorf("data is not a map, found %T instead", e.data)
 	}
 
+	if len(data) == 0 {
+		return &unmarshMap{data: []map[string]interface{}{}, idx: -1}, ErrFieldNotPresent
+	}
+
 	kvData, ok := data["key_value"]
 	if !ok {
-		return nil, errors.New("sub-group key_value not found")
+		kvData, ok = data["map"]
+		if !ok {
+			return nil, errors.New("sub-group key_value not found")
+		}
 	}
 
 	kvList, ok := kvData.([]map[string]interface{})

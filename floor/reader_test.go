@@ -607,3 +607,39 @@ func BenchmarkReadFile(b *testing.B) {
 		_ = hlReader.Scan(&msg)
 	}
 }
+
+func TestCanReadMap(t *testing.T) {
+	filename := os.Getenv("CDC_PARQUET_FILE")
+	if filename == "" {
+		//filename = "/Users/mparsons/tmp/gen/part_1.parquet"
+		t.Skip("missing CDC_PARQUET_FILE, skipping")
+	}
+	type AV struct {
+		B string `parquet:"b"`
+		N string `parquet:"n"`
+	}
+	type CDC struct {
+		TenantID                    string        `parquet:"tenantid"`
+		RowID                       string        `parquet:"rowid"`
+		TransactionID               string        `parquet:"transactionid"`
+		Begin                       int64         `parquet:"begin"`
+		End                         int64         `parquet:"end"`
+		RecordType                  uint8         `parquet:"recordtype"`
+		EventID                     string        `parquet:"eventid"`
+		EventSource                 string        `parquet:"eventsource"`
+		Operation                   uint8         `parquet:"operation"`
+		SequenceNumber              string        `parquet:"sequencenumber"`
+		ApproximateCreationDateTime [12]byte      `parquet:"approximatecreationdatetime"`
+		Keys                        map[string]AV `parquet:"keys"`
+		Old                         map[string]AV `parquet:"old"`
+		New                         map[string]AV `parquet:"new"`
+	}
+
+	fr, err := NewFileReader(filename)
+	require.NoError(t, err)
+
+	for fr.Next() {
+		var rec CDC
+		require.NoError(t, fr.Scan(&rec))
+	}
+}
