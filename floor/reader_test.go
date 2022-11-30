@@ -611,8 +611,8 @@ func BenchmarkReadFile(b *testing.B) {
 func TestCanReadMap(t *testing.T) {
 	filename := os.Getenv("CDC_PARQUET_FILE")
 	if filename == "" {
-		filename = "/Users/mparsons/tmp/gen/part_1.parquet"
-		//t.Skip("missing CDC_PARQUET_FILE, skipping")
+		//filename = "/Users/mparsons/tmp/gen/part_1.parquet"
+		t.Skip("missing CDC_PARQUET_FILE, skipping")
 	}
 	type AV struct {
 		B string `parquet:"b"`
