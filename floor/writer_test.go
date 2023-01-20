@@ -2,6 +2,7 @@ package floor
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/fraugster/parquet-go/floor/interfaces"
 	"github.com/fraugster/parquet-go/parquet"
 	"github.com/fraugster/parquet-go/parquetschema"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -820,4 +822,36 @@ func TestWriteEmptyList(t *testing.T) {
 	require.Equal(t, testData1, readData4, "written and read data don't match")
 
 	require.NoError(t, hlReader.Close())
+}
+
+func TestSjtw(t *testing.T) {
+	schemaDef, err := parquetschema.ParseSchemaDefinition(
+		`message test {
+			optional group a {
+				optional group foo (MAP) {
+					repeated group key_value {
+						required binary key (STRING);
+						optional binary value (STRING);
+					}
+				}
+			}
+		}`)
+	if err != nil {
+		log.Fatalf("Parsing schema definition failed: %v", err)
+	}
+
+	parquetFilename := "output.parquet"
+	defer os.Remove(parquetFilename)
+
+	fw, err := NewFileWriter(parquetFilename,
+		goparquet.WithSchemaDefinition(schemaDef),
+	)
+	if err != nil {
+		log.Fatalf("Opening parquet file for writing failed: %v", err)
+	}
+
+	c := fw.w.GetColumnByName("a.foo.key_value.key")
+	assert.NotNil(t, c)
+	c = fw.w.GetColumnByName("a.foo.key_value.value")
+	assert.NotNil(t, c)
 }
